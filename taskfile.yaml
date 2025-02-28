@@ -1,0 +1,104 @@
+version: "3"
+
+silent: true
+
+vars:
+  PS: '{{if eq OS "windows"}}\{{else}}/{{end}}'
+  RMRF: '{{if eq OS "windows"}}powershell Remove-Item -Force -Recurse -ErrorAction SilentlyContinue{{else}}rm -rf{{end}}'
+  MKDIR: '{{if eq OS "windows"}}powershell New-Item -ItemType Directory -Force{{else}}mkdir -p{{end}}'
+  LOCAL_BIN: "{{.TASKFILE_DIR}}{{.PS}}bin"
+  APP: "zvuk-grabber"
+  APP_BINARY: '{{.LOCAL_BIN}}{{.PS}}{{.APP}}{{if eq OS "windows"}}.exe{{end}}'
+  GOLANGCI_BIN: '{{.LOCAL_BIN}}{{.PS}}golangci-lint{{if eq OS "windows"}}.exe{{end}}'
+  GOLANGCI_TAG: "latest"
+  GOLANGCI_CONFIG: ".golangci.yaml"
+  GOLANGCI_STRICT_CONFIG: ".golangci-strict.yaml"
+
+tasks:
+  default:
+    desc: "Show available targets"
+    cmds:
+      - task: help
+
+  help:
+    desc: "Show this help message"
+    cmds:
+      - |
+        echo "Available targets:"
+        echo "  install-lint            Install golangci-lint if not available"
+        echo "  lint                    Run golangci-lint with normal checks"
+        echo "  lint-strict             Run golangci-lint in strict mode"
+        echo "  lint-full               Run golangci-lint for all files"
+        echo "  lint-strict-full        Run golangci-lint in strict mode for all files"
+        echo "  test                    Run unit tests"
+        echo "  build                   Build the {{.APP}} binary"
+        echo "  run                     Run the {{.APP}} binary"
+        echo "  clean                   Remove the {{.APP}} binary"
+
+  install-lint:
+    desc: "Install golangci-lint if not already installed"
+    cmds:
+      - '{{.MKDIR}} "{{.LOCAL_BIN}}"'
+      - platforms: [darwin, linux]
+        cmd: |
+          if [ ! -f "{{.GOLANGCI_BIN}}" ]; then
+            echo "Installing golangci-lint..."
+            GOBIN="{{.LOCAL_BIN}}" go install github.com/golangci/golangci-lint/cmd/golangci-lint@{{.GOLANGCI_TAG}}
+          fi
+      - platforms: [windows]
+        cmd: |
+          if [ ! -f "{{.GOLANGCI_BIN}}" ]; then
+            echo "Installing golangci-lint..."
+            set GOBIN='{{.LOCAL_BIN}}'; go install github.com/golangci/golangci-lint/cmd/golangci-lint@{{.GOLANGCI_TAG}}
+          fi
+
+  lint:
+    desc: "Run golangci-lint with normal checks"
+    deps: [install-lint]
+    cmds:
+      - '"{{.GOLANGCI_BIN}}" run --new-from-rev=origin/master --config={{.GOLANGCI_CONFIG}}'
+
+  lint-strict:
+    desc: "Run golangci-lint in strict mode"
+    deps: [install-lint]
+    cmds:
+      - '"{{.GOLANGCI_BIN}}" run --new-from-rev=origin/master --config={{.GOLANGCI_STRICT_CONFIG}}'
+
+  lint-full:
+    desc: "Run golangci-lint for all files"
+    deps: [install-lint]
+    cmds:
+      - '"{{.GOLANGCI_BIN}}" run --config={{.GOLANGCI_CONFIG}}'
+
+  lint-strict-full:
+    desc: "Run golangci-lint in strict mode for all files"
+    deps: [install-lint]
+    cmds:
+      - '"{{.GOLANGCI_BIN}}" run --config={{.GOLANGCI_STRICT_CONFIG}}'
+
+  test:
+    desc: "Run unit tests"
+    cmds:
+      - "go test -v ./..."
+
+  build:
+    desc: "Build the {{.APP}} binary"
+    cmds:
+      - '{{.MKDIR}} "{{.LOCAL_BIN}}"'
+      - go build -o "{{.APP_BINARY}}" main.go
+
+  run:
+    desc: "Run the {{.APP}} binary"
+    cmds:
+      - |
+        if [ ! -f "{{.APP_BINARY}}" ]; then
+          echo "Binary not found, building..."
+          task build
+        fi
+        "{{.APP_BINARY}}"
+
+  clean:
+    desc: "Remove the {{.APP}} binary"
+    cmds:
+      - cmd: '{{.RMRF}} "{{.APP_BINARY}}"'
+        ignore_error: true
