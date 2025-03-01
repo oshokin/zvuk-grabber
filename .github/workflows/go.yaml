@@ -12,22 +12,17 @@ on:
   pull_request:
     branches: ["master"] # Trigger on pull requests targeting the 'master' branch
 
-# Permissions required for the workflow
-permissions:
-  contents: write # Allow writing to the repository (e.g., for creating releases)
-
 # Jobs define the tasks to be executed
 jobs:
-  build:
+  # Job 1: Build and Test (runs for all commits, including PRs and non-tag pushes)
+  build-and-test:
     runs-on: ubuntu-latest # Use the latest Ubuntu runner
-    if: startsWith(github.ref, 'refs/tags/v') # Only run this job for tags starting with 'v'
 
     steps:
       # Step 1: Checkout the repository
       - uses: actions/checkout@v4
         with:
-          # Fetch the entire Git history to allow GoReleaser to access older tags
-          fetch-depth: 0
+          fetch-depth: 0 # Fetch the entire Git history
 
       # Step 2: Set up the Go environment
       - name: Set up Go
@@ -43,11 +38,24 @@ jobs:
       - name: Test
         run: go test -v ./... # Run tests with verbose output
 
-      # Step 5: Create a release using GoReleaser
+  # Job 2: Release (runs only for tags starting with 'v')
+  release:
+    runs-on: ubuntu-latest # Use the latest Ubuntu runner
+    needs: build-and-test # Ensure this job runs only after build-and-test succeeds
+    if: startsWith(github.ref, 'refs/tags/v') # Only run for tags starting with 'v'
+    permissions:
+      contents: write # Allow writing to the repository (e.g., for creating releases)
+
+    steps:
+      # Step 1: Checkout the repository
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Fetch the entire Git history
+
+      # Step 2: Run GoReleaser
       - name: Release
         uses: goreleaser/goreleaser-action@v6 # Use the GoReleaser GitHub Action
         with:
           args: release --clean # Run GoReleaser with the 'release --clean' command
         env:
-          # Authenticate with GitHub using the default GITHUB_TOKEN
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Authenticate with GitHub
