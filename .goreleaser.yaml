@@ -21,11 +21,11 @@ builds:
 archives:
   - id: archive
     # Default archive format: tar.gz for non-Windows platforms
-    format: tar.gz
+    formats: ["tar.gz"]
     # Override format for Windows to use .zip
     format_overrides:
       - goos: windows
-        format: zip
+        formats: ["zip"]
     # Do not wrap files in a directory inside the archive
     wrap_in_directory: false
     # Files to include in the archive (binary, config file, LICENSE, README.md)
