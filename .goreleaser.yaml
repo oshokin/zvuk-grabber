@@ -1,22 +1,41 @@
 # GoReleaser configuration file for zvuk-grabber
 # This builds, packages, and releases binaries for Windows, Linux, and macOS
 
+version: 2 # Required: Specifies the GoReleaser configuration version
+
+# Project name (used in release names and archive names)
 project_name: zvuk-grabber
 
 # Build configuration for multiple platforms
 builds:
   - id: zvuk-grabber
-    goos: [linux, windows, darwin] # Target OS: Linux, Windows, macOS
-    goarch: [amd64, arm64] # Target architectures: x86_64 and ARM64
+    # Target operating systems: macOS (darwin), Linux, and Windows
+    goos: [darwin, linux, windows]
+    # Target architectures: x86_64 (amd64) and ARM64
+    goarch: [amd64, arm64]
+    # Environment variables for the build process
+    env:
+      - CGO_ENABLED=0 # Disable CGO for static builds
 
-# Define archives (zip for Windows, tar.gz for others) with the config file included
+# Archive configuration
 archives:
   - id: archive
+    # Default archive format: tar.gz for non-Windows platforms
+    format: tar.gz
+    # Override format for Windows to use .zip
+    format_overrides:
+      - goos: windows
+        format: zip
+    # Do not wrap files in a directory inside the archive
+    wrap_in_directory: false
+    # Files to include in the archive (binary, config file, LICENSE, README.md)
     files:
-      - .zvuk-grabber.yaml # Include the configuration file next to the binary
+      - .zvuk-grabber.yaml # Include the configuration file
+      - LICENSE # Include the license file
+      - README.md # Include the README file
 
-# Configure the GitHub release process
+# Release configuration
 release:
   github:
-    owner: oshokin
-    name: zvuk-grabber
+    owner: oshokin # GitHub repository owner
+    name: zvuk-grabber # GitHub repository name
