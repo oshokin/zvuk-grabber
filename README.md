@@ -1,4 +1,4 @@
-Zvuk Grabber
+Zvuk Grabber 🎵
 ===============
 
 [Zvuk (Звук)](https://zvuk.com/) grabber written in Go.\
@@ -6,41 +6,119 @@ This tool allows you to download artists, albums, tracks, and playlists from Zvu
 
 * * *
 
-Installation
+### Quick Start 🚀
+
+1. **Download the Latest Release**:  
+   Grab the pre-built binary for your OS from the [Releases page](https://github.com/oshokin/zvuk-grabber/releases). 🐱‍💻
+
+2. **Extract the Archive**:  
+   Just extract the archive! It already has everything you need inside. 😼
+   - For macOS/Linux:
+     ```bash
+     tar -xvzf zvuk-grabber_1.0.0_darwin_amd64.tar.gz
+     ```
+   - For Windows:
+     ```bash
+     unzip zvuk-grabber_1.0.0_windows_amd64.zip
+     ```
+
+3. **Set Up Authentication Token**:  
+   Open the `.zvuk-grabber.yaml` file and set your `auth_token`. You can get it by logging into [Zvuk's API](https://zvuk.com/api/v2/tiny/profile) and finding the token in the JSON response using the JSON path `$.result.profile.token`. 🗝️
+
+4. **Run the Tool**:  
+   - **Linux/macOS**:
+     ```bash
+     chmod +x zvuk-grabber  # Make it executable
+     ./zvuk-grabber         # Let it rip!
+     ```
+   - **Windows**:
+     ```bash
+     zvuk-grabber           # Just double-click or run from the terminal
+     ```
+
+5. **Enjoy Your Music!** 🎶  
+   Start downloading your favorite tracks, albums, and playlists. Meow! 🐾
+
+* * *
+
+Installation 🛠️
 ------------
 
-### Prerequisites
+### Download Pre-built Binaries
 
-1.  **Install Task**:  
+Pre-built binaries for **macOS**, **Windows**, and **Linux** (for both `arm64` and `amd64` architectures) are available on the [Releases page](https://github.com/oshokin/zvuk-grabber/releases)📦.
+
+1.  **Download the Correct Binary**:  
+    Go to the [Releases page](https://github.com/oshokin/zvuk-grabber/releases) and download the appropriate binary for your operating system and architecture. Replace `1.0.0` in the filenames below with the latest version number:
+
+    - **macOS**:
+      - `zvuk-grabber_1.0.0_darwin_amd64.tar.gz` for Intel-based Macs (`amd64`).
+      - `zvuk-grabber_1.0.0_darwin_arm64.tar.gz` for Apple Silicon Macs (`arm64`).
+    - **Windows**:
+      - `zvuk-grabber_1.0.0_windows_amd64.zip` for 64-bit Windows (`amd64`).
+      - `zvuk-grabber_1.0.0_windows_arm64.zip` for ARM-based Windows (`arm64`).
+    - **Linux**:
+      - `zvuk-grabber_1.0.0_linux_amd64.tar.gz` for 64-bit Linux (`amd64`).
+      - `zvuk-grabber_1.0.0_linux_arm64.tar.gz` for ARM-based Linux (`arm64`).
+
+2.  **Extract the Bundle**:  
+    Each bundle contains the following files:
+    - `zvuk-grabber` (or `zvuk-grabber.exe` for Windows): The main executable.
+    - `.zvuk-grabber.yaml`: The configuration file.
+    - `LICENSE`: The license file.
+    - `README.md`: The documentation.
+
+    Extract the bundle to your desired location:
+    ```bash
+    tar -xvzf zvuk-grabber_1.0.0_darwin_amd64.tar.gz  # For macOS/Linux
+    unzip zvuk-grabber_1.0.0_windows_amd64.zip        # For Windows
+    ```
+
+3.  **Set Up Authentication Token**:  
+    Open the `.zvuk-grabber.yaml` file and set your authentication token in the `auth_token` field.\
+    You can obtain the token by logging into [Zvuk's API](https://zvuk.com/api/v2/tiny/profile) and locating the token using the JSON path `$.result.profile.token`.
+
+4.  **Run the Binary**:  
+    - **Linux/macOS**:  
+      Make the binary executable and run it:
+      ```bash
+      chmod +x zvuk-grabber  # Make the file executable
+      ./zvuk-grabber         # Run the tool
+      ```
+    - **Windows**:  
+      Simply run the executable:
+      ```bash
+      zvuk-grabber
+      ```
+
+### Building from Source (Optional) 🛠️
+
+If you want to modify the code or build the binary yourself, you’ll need the following prerequisites:
+
+1.  **Install Go**:  
+    Download and install Go from the [official website](https://go.dev/dl/).
+
+2.  **Install Task**:  
     [Task](https://taskfile.dev/) is a task runner/build tool that simplifies the build process.\
     Install it by following the instructions on their [official website](https://taskfile.dev/installation/).
-    
-2.  **Clone the Repository**:  
+
+3.  **Clone the Repository**:  
     Clone the repository to your local machine:
     ```bash
     git clone https://github.com/oshokin/zvuk-grabber.git
     cd zvuk-grabber
     ```
-    
-3.  **Build the Binary**:  
+
+4.  **Build the Binary**:  
     Use Task to build the binary:
     ```bash
     task build
     ```
     The compiled binary will be stored in the `bin/` directory.
-    
-4.  **Copy the Binary and Configuration**:  
-    Copy the binary file (`zvuk-grabber.exe` for Windows or `zvuk-grabber` for Linux/macOS) from the `bin/` directory to your desired location.\
-    Also, copy the `.zvuk-grabber.yaml` configuration file to the same directory.
-    
-5.  **Set Up Authentication Token**:  
-    Open the `.zvuk-grabber.yaml` file and set your authentication token in the `auth_token` field.\
-    You can obtain the token by logging into [Zvuk's API](https://zvuk.com/api/v2/tiny/profile) and locating the token using the JSON path `$.result.profile.token`.
-    
 
 * * *
 
-Usage
+Usage 🎧
 -----
 
 ### Downloading Content
@@ -78,7 +156,7 @@ Usage
 
 * * *
 
-Configuration
+Configuration ⚙️
 -------------
 
 The default configuration is already set in the `.zvuk-grabber.yaml` file.\
@@ -270,16 +348,59 @@ Key options include:
 
 * * *
 
-Disclaimer
-----------
+Troubleshooting 🐛
+------------------
 
-*   I will not be responsible for how you use Zvuk Grabber.\
-Use it only to the extent that it does not violate the applicable laws of the country of your residence.
-    
-*   Zvuk brand and name are the registered trademarks of their respective owners.
-    
-*   Zvuk Grabber has no partnership, sponsorship, or endorsement with Zvuk.
+Having trouble? Let's fix it! Follow these steps:
+
+1. **Enable Debug Logging**:  
+   Set the `log_level` to `debug` in the `.zvuk-grabber.yaml` file:
+   ```yaml
+   log_level: "debug"
+   ```
+   Don’t forget to attach the logs when reporting issues. 🐾
+
+2. **Check Your Token**:  
+    Make sure your `auth_token` is valid and properly set in the `.zvuk-grabber.yaml` file.  
+    If it's not working, log in again and grab a shiny new token. ✨
+
+3. **Check Your Internet Connection**:  
+    A stable connection is key! If your downloads are failing, give it a bit of time and try again. 🌐🐱
+
+4. **Check Zvuk's API Status**:  
+    If Zvuk's API is down, there's not much we can do. Check their website or API status page to see what's going on. 🚨🐾
 
 * * *
 
-For more information, visit the [GitHub repository](https://github.com/oshokin/zvuk-grabber).
+Support the Project 💖
+----------------------
+
+If you find Zvuk Grabber useful and want to support its development, I’d love to hear from you! Here’s how we can work it out:
+
+1. **Create a PR**:  
+   If you’re a developer, create a Pull Request with some improvements or bug fixes, and we’ll chat about how you can help further and maybe even discuss a little donation. 💸  
+   I’m a digital nomad, so my location is always changing, but I’m sure we can make it work. 😼✨
+
+* * *
+
+Bug Fixes and Updates 🛠️
+-------------------------
+
+I add new features and fix bugs when the stars align, the moon’s in the right phase, and my cat’s purring just right. 🌙✨  
+If you're waiting for a fix, feel free to poke me gently (or create a PR if you’re feeling daring). 🐾
+
+* * *
+
+Disclaimer ⚠️
+----------
+
+* I won’t take responsibility for how you use Zvuk Grabber.  
+   Use it in a way that respects the laws of your country. 🚫
+
+* Zvuk’s brand and name are trademarks of their respective owners. ™️
+
+* Zvuk Grabber is in no way affiliated, sponsored, or endorsed by Zvuk. 🐾
+
+* * *
+
+For more info, check out the [GitHub repository](https://github.com/oshokin/zvuk-grabber). 🐱‍👤
