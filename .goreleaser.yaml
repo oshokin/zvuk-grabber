@@ -1,0 +1,22 @@
+# GoReleaser configuration file for zvuk-grabber
+# This builds, packages, and releases binaries for Windows, Linux, and macOS
+
+project_name: zvuk-grabber
+
+# Build configuration for multiple platforms
+builds:
+  - id: zvuk-grabber
+    goos: [linux, windows, darwin] # Target OS: Linux, Windows, macOS
+    goarch: [amd64, arm64] # Target architectures: x86_64 and ARM64
+
+# Define archives (zip for Windows, tar.gz for others) with the config file included
+archives:
+  - id: archive
+    files:
+      - .zvuk-grabber.yaml # Include the configuration file next to the binary
+
+# Configure the GitHub release process
+release:
+  github:
+    owner: oshokin
+    name: zvuk-grabber
