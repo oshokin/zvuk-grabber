@@ -395,7 +395,9 @@ func (s *ServiceImpl) downloadAndSaveLyrics(
 		return nil
 	}
 
-	lyricsPath := filepath.Join(audioCollection.tracksPath, utils.SetFileExtension(trackFilename, defaultLyricsExtension, true))
+	lyricsPath := filepath.Join(
+		audioCollection.tracksPath,
+		utils.SetFileExtension(trackFilename, defaultLyricsExtension, true))
 
 	isLyricsExist, err := s.writeLyrics(ctx, lyrics.Lyrics, lyricsPath)
 	if err != nil {

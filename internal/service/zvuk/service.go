@@ -109,6 +109,7 @@ func (s *ServiceImpl) downloadStandaloneItems(ctx context.Context, items []*Down
 
 	// Iterate through each item and download based on its category
 	for index, item := range items {
+		//nolint:exhaustive // All meaningful cases are explicitly handled; default covers unknown values.
 		switch item.Category {
 		case DownloadCategoryAlbum:
 			logger.Infof(ctx, "Downloading item: %v (%d / %d)", item, index+1, itemsCount)
