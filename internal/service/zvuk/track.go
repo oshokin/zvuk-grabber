@@ -19,10 +19,7 @@ import (
 	"go.uber.org/zap"
 )
 
-const (
-	defaultSubtitleExtension = ".srt"
-	defaultLyricsExtension   = ".lrc"
-)
+const defaultLyricsExtension = ".lrc"
 
 type fetchAlbumsDataFromTracksResponse struct {
 	releases     map[string]*zvuk.Release
@@ -228,13 +225,13 @@ func (s *ServiceImpl) downloadTrack(
 
 	// Download and save track lyrics if available
 	trackLyrics := s.downloadAndSaveLyrics(ctx, track, trackFilename, audioCollection)
-	trackTags["lyrics"] = trackLyrics
 
 	writeTagsRequest := &WriteTagsRequest{
 		TrackPath:                  trackPath,
 		CoverPath:                  audioCollection.coverPath,
 		Quality:                    quality,
 		TrackTags:                  trackTags,
+		TrackLyrics:                trackLyrics,
 		IsCoverEmbeddedToTrackTags: !isPlaylist,
 	}
 
@@ -375,9 +372,9 @@ func (s *ServiceImpl) downloadAndSaveLyrics(
 	ctx context.Context,
 	track *zvuk.Track,
 	trackFilename string,
-	audioCollection *audioCollection) string {
+	audioCollection *audioCollection) *zvuk.Lyrics {
 	if !s.cfg.DownloadLyrics || !track.Lyrics {
-		return ""
+		return nil
 	}
 
 	logger.Infof(ctx, "Downloading lyrics for track: %s\n", track.Title)
@@ -388,22 +385,17 @@ func (s *ServiceImpl) downloadAndSaveLyrics(
 	if err != nil {
 		logger.Errorf(ctx, "Failed to get lyrics: %v", err)
 
-		return ""
+		return nil
 	}
 
 	lyricsContent := strings.TrimSpace(lyrics.Lyrics)
 	if lyricsContent == "" {
 		logger.Info(ctx, "Lyrics is empty")
 
-		return ""
+		return nil
 	}
 
-	extension := defaultLyricsExtension
-	if lyrics.Type == zvuk.LyricsTypeSubtitle {
-		extension = defaultSubtitleExtension
-	}
-
-	lyricsPath := filepath.Join(audioCollection.tracksPath, utils.SetFileExtension(trackFilename, extension, true))
+	lyricsPath := filepath.Join(audioCollection.tracksPath, utils.SetFileExtension(trackFilename, defaultLyricsExtension, true))
 
 	isLyricsExist, err := s.writeLyrics(ctx, lyrics.Lyrics, lyricsPath)
 	if err != nil {
@@ -414,7 +406,7 @@ func (s *ServiceImpl) downloadAndSaveLyrics(
 		logger.Infof(ctx, "Lyrics saved to file: %s", lyricsPath)
 	}
 
-	return lyricsContent
+	return lyrics
 }
 
 func (s *ServiceImpl) writeLyrics(ctx context.Context, lyrics, destinationPath string) (bool, error) {

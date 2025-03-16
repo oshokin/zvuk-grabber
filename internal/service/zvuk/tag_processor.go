@@ -6,11 +6,13 @@ import (
 	"mime"
 	"os"
 	"path/filepath"
+	"strings"
 
-	"github.com/bogem/id3v2"
 	"github.com/go-flac/flacpicture"
 	"github.com/go-flac/flacvorbis"
 	"github.com/go-flac/go-flac"
+	"github.com/oshokin/id3v2/v2"
+	"github.com/oshokin/zvuk-grabber/internal/client/zvuk"
 	"github.com/oshokin/zvuk-grabber/internal/logger"
 )
 
@@ -25,6 +27,7 @@ type WriteTagsRequest struct {
 	CoverPath                  string
 	Quality                    TrackQuality
 	TrackTags                  map[string]string
+	TrackLyrics                *zvuk.Lyrics
 	IsCoverEmbeddedToTrackTags bool
 }
 
@@ -91,7 +94,7 @@ func (tp *TagProcessorImpl) writeFLACTags(ctx context.Context, req *WriteTagsReq
 	}
 
 	// Add tags to the FLAC metadata block
-	err = tp.addFLACTags(tag, req.TrackTags)
+	err = tp.addFLACTags(tag, req)
 	if err != nil {
 		return err
 	}
@@ -136,23 +139,26 @@ func (tp *TagProcessorImpl) extractFLACComment(filename string) (*flacvorbis.Met
 	return nil, -1, nil
 }
 
-func (tp *TagProcessorImpl) addFLACTags(tag *flacvorbis.MetaDataBlockVorbisComment, trackTags map[string]string) error {
-	// Map of FLAC tag keys to their corresponding values in trackTags
+func (tp *TagProcessorImpl) addFLACTags(tag *flacvorbis.MetaDataBlockVorbisComment, req *WriteTagsRequest) error {
+	// Map of FLAC tag keys to their corresponding values in req.TrackTags
 	flacTags := map[string]string{
-		"ALBUM":       trackTags["collectionTitle"],
-		"ALBUMARTIST": trackTags["albumArtist"],
-		"ARTIST":      trackTags["trackArtist"],
-		"COPYRIGHT":   trackTags["recordLabel"],
-		"DATE":        trackTags["releaseDate"],
-		"GENRE":       trackTags["trackGenre"],
-		"LYRICS":      trackTags["lyrics"],
-		"PLAYLIST_ID": trackTags["playlistID"],
-		"RELEASE_ID":  trackTags["albumID"],
-		"TITLE":       trackTags["trackTitle"],
-		"TOTALTRACKS": trackTags["trackCount"],
-		"TRACK_ID":    trackTags["trackID"],
-		"TRACKNUMBER": trackTags["trackNumber"],
-		"YEAR":        trackTags["releaseYear"],
+		"ALBUM":       req.TrackTags["collectionTitle"],
+		"ALBUMARTIST": req.TrackTags["albumArtist"],
+		"ARTIST":      req.TrackTags["trackArtist"],
+		"COPYRIGHT":   req.TrackTags["recordLabel"],
+		"DATE":        req.TrackTags["releaseDate"],
+		"GENRE":       req.TrackTags["trackGenre"],
+		"PLAYLIST_ID": req.TrackTags["playlistID"],
+		"RELEASE_ID":  req.TrackTags["albumID"],
+		"TITLE":       req.TrackTags["trackTitle"],
+		"TOTALTRACKS": req.TrackTags["trackCount"],
+		"TRACK_ID":    req.TrackTags["trackID"],
+		"TRACKNUMBER": req.TrackTags["trackNumber"],
+		"YEAR":        req.TrackTags["releaseYear"],
+	}
+
+	if req.TrackLyrics != nil && strings.TrimSpace(req.TrackLyrics.Lyrics) != "" {
+		flacTags["LYRICS"] = req.TrackLyrics.Lyrics
 	}
 
 	// Add each tag to the Vorbis comment block
@@ -198,7 +204,7 @@ func (tp *TagProcessorImpl) writeMP3Tags(ctx context.Context, req *WriteTagsRequ
 	defer tag.Close()
 
 	// Add metadata tags to the MP3 file
-	tp.addMP3Tags(ctx, tag, req.TrackTags)
+	tp.addMP3Tags(ctx, tag, req)
 
 	// Embed the cover art into the MP3 file if provided
 	if image != nil {
@@ -214,21 +220,21 @@ func (tp *TagProcessorImpl) writeMP3Tags(ctx context.Context, req *WriteTagsRequ
 	return tag.Save()
 }
 
-func (tp *TagProcessorImpl) addMP3Tags(_ context.Context, tag *id3v2.Tag, trackTags map[string]string) {
+func (tp *TagProcessorImpl) addMP3Tags(ctx context.Context, tag *id3v2.Tag, req *WriteTagsRequest) {
 	// Set default encoding for the tags
 	tag.SetDefaultEncoding(id3v2.EncodingUTF8)
 
 	// Add basic metadata tags
-	tag.SetAlbum(trackTags["collectionTitle"])
-	tag.SetArtist(trackTags["trackArtist"])
-	tag.SetGenre(trackTags["trackGenre"])
-	tag.SetTitle(trackTags["trackTitle"])
-	tag.SetYear(trackTags["releaseYear"])
+	tag.SetAlbum(req.TrackTags["collectionTitle"])
+	tag.SetArtist(req.TrackTags["trackArtist"])
+	tag.SetGenre(req.TrackTags["trackGenre"])
+	tag.SetTitle(req.TrackTags["trackTitle"])
+	tag.SetYear(req.TrackTags["releaseYear"])
 
 	// Add track number and total tracks (e.g., "1/10")
 	var (
-		trackNumber = trackTags["trackNumber"]
-		trackCount  = trackTags["trackCount"]
+		trackNumber = req.TrackTags["trackNumber"]
+		trackCount  = req.TrackTags["trackCount"]
 	)
 
 	if trackNumber != "" && trackCount != "" {
@@ -236,17 +242,40 @@ func (tp *TagProcessorImpl) addMP3Tags(_ context.Context, tag *id3v2.Tag, trackT
 	}
 
 	// Add additional metadata tags
-	tag.AddTextFrame(tag.CommonID("Band/Orchestra/Accompaniment"), tag.DefaultEncoding(), trackTags["albumArtist"])
-	tag.AddTextFrame(tag.CommonID("Publisher"), tag.DefaultEncoding(), trackTags["recordLabel"])
+	tag.AddTextFrame(tag.CommonID("Band/Orchestra/Accompaniment"), tag.DefaultEncoding(), req.TrackTags["albumArtist"])
+	tag.AddTextFrame(tag.CommonID("Publisher"), tag.DefaultEncoding(), req.TrackTags["recordLabel"])
 
 	// Add lyrics if available
-	if trackTags["lyrics"] != "" {
-		tag.AddUnsynchronisedLyricsFrame(
-			id3v2.UnsynchronisedLyricsFrame{
+	if req.TrackLyrics != nil {
+		lyrics := strings.TrimSpace(req.TrackLyrics.Lyrics)
+		if req.TrackLyrics.Type == zvuk.LyricsTypeSubtitle {
+			// Parse the LRC file content into a SynchronisedLyricsFrame.
+			result, err := id3v2.ParseLRCFile(strings.NewReader(lyrics))
+			if err != nil {
+				logger.Errorf(ctx, "Failed to parse LRC file content: %v", err)
+			}
+
+			// Create a SynchronisedLyricsFrame from the parsed result.
+			sylf := id3v2.SynchronisedLyricsFrame{
 				Encoding: id3v2.EncodingUTF8,
-				Lyrics:   trackTags["lyrics"],
 				// Field is required, so we just use lingua franca
-				Language: "eng",
-			})
+				Language:          id3v2.EnglishISO6392Code,
+				TimestampFormat:   id3v2.SYLTAbsoluteMillisecondsTimestampFormat, // Use absolute timestamps.
+				ContentType:       id3v2.SYLTLyricsContentType,                   // Mark as lyrics.
+				ContentDescriptor: "Lyrics",                                      // Descriptor for lyrics.
+				SynchronizedTexts: result.SynchronizedTexts,                      // The actual synchronized lyrics.
+			}
+
+			// Add the synchronized lyrics frame to the tag.
+			tag.AddSynchronisedLyricsFrame(sylf)
+		} else {
+			tag.AddUnsynchronisedLyricsFrame(
+				id3v2.UnsynchronisedLyricsFrame{
+					Encoding: id3v2.EncodingUTF8,
+					Lyrics:   lyrics,
+					// Field is required, so we just use lingua franca
+					Language: id3v2.EnglishISO6392Code,
+				})
+		}
 	}
 }

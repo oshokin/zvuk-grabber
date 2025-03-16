@@ -9,10 +9,10 @@ This tool allows you to download artists, albums, tracks, and playlists from Zvu
 ### Quick Start 🚀
 
 1. **Download the Latest Release**:  
-   Grab the pre-built binary for your OS from the [Releases page](https://github.com/oshokin/zvuk-grabber/releases). 🐱‍💻
+   Grab the pre-built binary for your OS from the [Releases page](https://github.com/oshokin/zvuk-grabber/releases).
 
 2. **Extract the Archive**:  
-   Just extract the archive! It already has everything you need inside. 😼
+   Just extract the archive! It already has everything you need inside.
    - For macOS/Linux:
      ```bash
      tar -xvzf zvuk-grabber_1.0.0_darwin_amd64.tar.gz
@@ -23,7 +23,8 @@ This tool allows you to download artists, albums, tracks, and playlists from Zvu
      ```
 
 3. **Set Up Authentication Token**:  
-   Open the `.zvuk-grabber.yaml` file and set your `auth_token`. You can get it by logging into [Zvuk's API](https://zvuk.com/api/v2/tiny/profile) and finding the token in the JSON response using the JSON path `$.result.profile.token`. 🗝️
+   Open the `.zvuk-grabber.yaml` file and set your `auth_token`.\
+   You can obtain it by logging into [Zvuk's API](https://zvuk.com/api/v2/tiny/profile) and locating the token in the JSON response using the JSON path `$.result.profile.token`.
 
 4. **Run the Tool**:  
    - **Linux/macOS**:
@@ -33,11 +34,11 @@ This tool allows you to download artists, albums, tracks, and playlists from Zvu
      ```
    - **Windows**:
      ```bash
-     zvuk-grabber           # Just double-click or run from the terminal
+     zvuk-grabber           # Run the executable
      ```
 
 5. **Enjoy Your Music!** 🎶  
-   Start downloading your favorite tracks, albums, and playlists. Meow! 🐾
+   Start downloading your favorite tracks, albums, and playlists.
 
 * * *
 
@@ -46,10 +47,11 @@ Installation 🛠️
 
 ### Download Pre-built Binaries
 
-Pre-built binaries for **macOS**, **Windows**, and **Linux** (for both `arm64` and `amd64` architectures) are available on the [Releases page](https://github.com/oshokin/zvuk-grabber/releases)📦.
+Pre-built binaries for **macOS**, **Windows**, and **Linux** (for both `arm64` and `amd64` architectures) are available on the [Releases page](https://github.com/oshokin/zvuk-grabber/releases).
 
 1.  **Download the Correct Binary**:  
-    Go to the [Releases page](https://github.com/oshokin/zvuk-grabber/releases) and download the appropriate binary for your operating system and architecture. Replace `1.0.0` in the filenames below with the latest version number:
+    Go to the [Releases page](https://github.com/oshokin/zvuk-grabber/releases) and download the appropriate binary for your operating system and architecture.\
+    Replace `1.0.0` in the filenames below with the latest version number:
 
     - **macOS**:
       - `zvuk-grabber_1.0.0_darwin_amd64.tar.gz` for Intel-based Macs (`amd64`).
@@ -93,7 +95,7 @@ Pre-built binaries for **macOS**, **Windows**, and **Linux** (for both `arm64` a
 
 ### Building from Source (Optional) 🛠️
 
-If you want to modify the code or build the binary yourself, you’ll need the following prerequisites:
+If you want to modify the code or build the binary yourself, you'll need the following prerequisites:
 
 1.  **Install Go**:  
     Download and install Go from the [official website](https://go.dev/dl/).
@@ -165,7 +167,7 @@ Key options include:
 
 ### Authentication
 
-*   **`auth_token`**: Your Zvuk API authentication token.  
+*   **`auth_token`**: Your Zvuk API authentication token.\
     To obtain your token, log in to [Zvuk's API](https://zvuk.com/api/v2/tiny/profile) and locate the token using the JSON path `$.result.profile.token`.  
     Example:
 
@@ -351,56 +353,53 @@ Key options include:
 Troubleshooting 🐛
 ------------------
 
-Having trouble? Let's fix it! Follow these steps:
+Having trouble? Follow these steps:
 
-1. **Enable Debug Logging**:  
+1. **Enable Debug Logging**:\
    Set the `log_level` to `debug` in the `.zvuk-grabber.yaml` file:
    ```yaml
    log_level: "debug"
    ```
-   Don’t forget to attach the logs when reporting issues. 🐾
+   Attach the logs when reporting issues.
 
-2. **Check Your Token**:  
-    Make sure your `auth_token` is valid and properly set in the `.zvuk-grabber.yaml` file.  
-    If it's not working, log in again and grab a shiny new token. ✨
+2. **Check Your Token**:\
+    Ensure your `auth_token` is valid and properly set in the `.zvuk-grabber.yaml` file.\
+    If it's not working, log in again and obtain a new token.
 
-3. **Check Your Internet Connection**:  
-    A stable connection is key! If your downloads are failing, give it a bit of time and try again. 🌐🐱
+3. **Check Your Internet Connection**:\
+    A stable connection is essential. If downloads are failing, wait a moment and try again.
 
-4. **Check Zvuk's API Status**:  
-    If Zvuk's API is down, there's not much we can do. Check their website or API status page to see what's going on. 🚨🐾
+4. **Check Zvuk's API Status**:\
+    If Zvuk's API is down, check their website or API status page for updates.
 
 * * *
 
 Support the Project 💖
 ----------------------
 
-If you find Zvuk Grabber useful and want to support its development, I’d love to hear from you! Here’s how we can work it out:
+If you find Zvuk Grabber useful and want to support its development, here's how you can help:
 
-1. **Create a PR**:  
-   If you’re a developer, create a Pull Request with some improvements or bug fixes, and we’ll chat about how you can help further and maybe even discuss a little donation. 💸  
-   I’m a digital nomad, so my location is always changing, but I’m sure we can make it work. 😼✨
+1. **Create a PR**:\
+   If you're a developer, create a Pull Request with improvements or bug fixes.\
+   Contributions are always welcome!
 
 * * *
 
 Bug Fixes and Updates 🛠️
 -------------------------
 
-I add new features and fix bugs when the stars align, the moon’s in the right phase, and my cat’s purring just right. 🌙✨  
-If you're waiting for a fix, feel free to poke me gently (or create a PR if you’re feeling daring). 🐾
+I add new features and fix bugs when the stars align, the moon's in the right phase, and my cat's purring just right.\
+If you're waiting for a fix, feel free to open an issue or create a PR.
 
 * * *
 
 Disclaimer ⚠️
 ----------
 
-* I won’t take responsibility for how you use Zvuk Grabber.  
-   Use it in a way that respects the laws of your country. 🚫
+* Use Zvuk Grabber responsibly and in compliance with the laws of your country.
 
-* Zvuk’s brand and name are trademarks of their respective owners. ™️
+* Zvuk’s brand and name are trademarks of their respective owners.
 
-* Zvuk Grabber is in no way affiliated, sponsored, or endorsed by Zvuk. 🐾
+* Zvuk Grabber is not affiliated, sponsored, or endorsed by Zvuk.
 
 * * *
-
-For more info, check out the [GitHub repository](https://github.com/oshokin/zvuk-grabber). 🐱‍👤

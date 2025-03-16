@@ -3,16 +3,36 @@ version: "3"
 silent: true
 
 vars:
-  PS: '{{if eq OS "windows"}}\{{else}}/{{end}}'
+  # Platform-specific path separator and commands.
+  PS: '{{fromSlash "/"}}' # Path separator for the current operating system
+
+  # Command to recursively remove files and directories.
+  # On Windows, PowerShell is used because it lacks a native `rm -rf` equivalent.
   RMRF: '{{if eq OS "windows"}}powershell Remove-Item -Force -Recurse -ErrorAction SilentlyContinue{{else}}rm -rf{{end}}'
+
+  # Command to create directories.
+  # On Windows, PowerShell is used because it lacks a native `mkdir -p` equivalent.
   MKDIR: '{{if eq OS "windows"}}powershell New-Item -ItemType Directory -Force{{else}}mkdir -p{{end}}'
-  LOCAL_BIN: "{{.TASKFILE_DIR}}{{.PS}}bin"
-  APP: "zvuk-grabber"
-  APP_BINARY: '{{.LOCAL_BIN}}{{.PS}}{{.APP}}{{if eq OS "windows"}}.exe{{end}}'
-  GOLANGCI_BIN: '{{.LOCAL_BIN}}{{.PS}}golangci-lint{{if eq OS "windows"}}.exe{{end}}'
-  GOLANGCI_TAG: "latest"
-  GOLANGCI_CONFIG: ".golangci.yaml"
-  GOLANGCI_STRICT_CONFIG: ".golangci-strict.yaml"
+
+  # Local binary directory and application paths.
+  LOCAL_BIN: "{{.TASKFILE_DIR}}{{.PS}}bin" # Directory for locally installed binaries
+  APP: "zvuk-grabber" # Name of the application
+  APP_BINARY: "{{.LOCAL_BIN}}{{.PS}}{{.APP}}{{exeExt}}" # Path to the application binary
+  GOLANGCI_BIN: "{{.LOCAL_BIN}}{{.PS}}golangci-lint{{exeExt}}" # Path to the golangci-lint binary
+
+  # Always install the latest version of golangci-lint.
+  GOLANGCI_TAG: "latest" # Tag for the latest version of golangci-lint
+  GOLANGCI_VERSION_OUTPUT:
+    sh: '"{{.GOLANGCI_BIN}}" version 2> /dev/null || true' # Get the current golangci-lint version, suppressing errors
+
+  # These regex expressions are complex because the regexFind function doesn't support named groups, \d, \w, or \s.
+  # First, we find 'version vXXX.XXX.XXXaaa ', then extract vXXX.XXX.XXXaaa from the result.
+  GOLANGCI_CURRENT_TAG: '{{regexFind "v([0-9]+.){2}([0-9a-z])+" (regexFind "version v([0-9]+.){2}([0-9a-z])+ " .GOLANGCI_VERSION_OUTPUT)}}'
+
+  # Golangci-lint configuration files.
+  # The first configuration is for normal checks, while the second is stricter for identifying potential issues.
+  GOLANGCI_CONFIG: ".golangci.yaml" # Default configuration file
+  GOLANGCI_STRICT_CONFIG: ".golangci-strict.yaml" # Strict configuration file for more rigorous checks
 
 tasks:
   default:
@@ -30,62 +50,68 @@ tasks:
         echo "  lint-strict             Run golangci-lint in strict mode"
         echo "  lint-full               Run golangci-lint for all files"
         echo "  lint-strict-full        Run golangci-lint in strict mode for all files"
-        echo "  test                    Run unit tests"
-        echo "  build                   Build the {{.APP}} binary"
-        echo "  run                     Run the {{.APP}} binary"
-        echo "  clean                   Remove the {{.APP}} binary"
+        echo "  test                    Run tests with verbose output"
+        echo "  test-race               Run tests with verbose output and race detector"
+        echo "  build                   Build the project binary"
+        echo "  run                     Run the project binary"
+        echo "  clean                   Remove the project binary"
 
   install-lint:
-    desc: "Install golangci-lint if not already installed"
+    desc: "Install golangci-lint if not already installed or if the version doesn't match"
     cmds:
-      - '{{.MKDIR}} "{{.LOCAL_BIN}}"'
-      - platforms: [darwin, linux]
-        cmd: |
-          if [ ! -f "{{.GOLANGCI_BIN}}" ]; then
-            echo "Installing golangci-lint..."
-            GOBIN="{{.LOCAL_BIN}}" go install github.com/golangci/golangci-lint/cmd/golangci-lint@{{.GOLANGCI_TAG}}
-          fi
-      - platforms: [windows]
-        cmd: |
-          if [ ! -f "{{.GOLANGCI_BIN}}" ]; then
-            echo "Installing golangci-lint..."
-            set GOBIN='{{.LOCAL_BIN}}'; go install github.com/golangci/golangci-lint/cmd/golangci-lint@{{.GOLANGCI_TAG}}
-          fi
+      - '{{.MKDIR}} "{{.LOCAL_BIN}}"' # Create the local bin directory if it doesn't exist
+      - |
+        {{if (not (eq .GOLANGCI_CURRENT_TAG .GOLANGCI_TAG))}}
+          echo "Installing golangci-lint..."
+          go install github.com/golangci/golangci-lint/cmd/golangci-lint@{{.GOLANGCI_TAG}} # Install the latest version
+        {{end}}
+    env:
+      # Set GOBIN to install golangci-lint in the local bin directory.
+      GOBIN: "{{.LOCAL_BIN}}"
 
   lint:
     desc: "Run golangci-lint with normal checks"
-    deps: [install-lint]
+    deps: [install-lint] # Ensure golangci-lint is installed before running
     cmds:
-      - '"{{.GOLANGCI_BIN}}" run --new-from-rev=origin/master --config={{.GOLANGCI_CONFIG}}'
+      - '"{{.GOLANGCI_BIN}}" run --new-from-rev=origin/master --config={{.GOLANGCI_CONFIG}}' # Run with the default configuration
 
   lint-strict:
     desc: "Run golangci-lint in strict mode"
-    deps: [install-lint]
+    deps: [install-lint] # Ensure golangci-lint is installed before running
     cmds:
-      - '"{{.GOLANGCI_BIN}}" run --new-from-rev=origin/master --config={{.GOLANGCI_STRICT_CONFIG}}'
+      - '"{{.GOLANGCI_BIN}}" run --new-from-rev=origin/master --config={{.GOLANGCI_STRICT_CONFIG}}' # Run with the strict configuration
 
   lint-full:
     desc: "Run golangci-lint for all files"
-    deps: [install-lint]
+    deps: [install-lint] # Ensure golangci-lint is installed before running
     cmds:
-      - '"{{.GOLANGCI_BIN}}" run --config={{.GOLANGCI_CONFIG}}'
+      - '"{{.GOLANGCI_BIN}}" run --config={{.GOLANGCI_CONFIG}}' # Run for all files with the default configuration
 
   lint-strict-full:
     desc: "Run golangci-lint in strict mode for all files"
-    deps: [install-lint]
+    deps: [install-lint] # Ensure golangci-lint is installed before running
     cmds:
-      - '"{{.GOLANGCI_BIN}}" run --config={{.GOLANGCI_STRICT_CONFIG}}'
+      - '"{{.GOLANGCI_BIN}}" run --config={{.GOLANGCI_STRICT_CONFIG}}' # Run for all files with the strict configuration
 
   test:
-    desc: "Run unit tests"
+    desc: "Run tests with verbose output"
     cmds:
-      - "go test -v ./..."
+      - go test -v ./... # Run tests with verbose output
+
+  test-race:
+    desc: "Run tests with verbose output and race detector"
+    cmds:
+      - '{{if eq OS "windows"}}echo "Ensure gcc is installed or use WSL for a smoother experience"{{end}}' # Windows-specific note
+      - go test -race -v ./... # Run tests with the race detector enabled
+    env:
+      # Enable CGo for the race detector.
+      CGO_ENABLED: "1"
 
   build:
     desc: "Build the {{.APP}} binary"
     cmds:
-      - '{{.MKDIR}} "{{.LOCAL_BIN}}"'
-      - go build -o "{{.APP_BINARY}}" main.go
+      - '{{.MKDIR}} "{{.LOCAL_BIN}}"' # Create the local bin directory if it doesn't exist
+      - go build -o "{{.APP_BINARY}}" main.go # Build the application binary
 
   run:
     desc: "Run the {{.APP}} binary"
@@ -93,12 +119,12 @@ tasks:
       - |
         if [ ! -f "{{.APP_BINARY}}" ]; then
           echo "Binary not found, building..."
-          task build
+          task build # Build the binary if it doesn't exist
         fi
-        "{{.APP_BINARY}}"
+        "{{.APP_BINARY}}" # Run the application binary
 
   clean:
     desc: "Remove the {{.APP}} binary"
     cmds:
-      - cmd: '{{.RMRF}} "{{.APP_BINARY}}"'
-        ignore_error: true
+      - cmd: '{{.RMRF}} "{{.APP_BINARY}}"' # Remove the application binary
+        ignore_error: true # Ignore errors if the binary doesn't exist
