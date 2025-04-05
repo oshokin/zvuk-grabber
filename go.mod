@@ -2,6 +2,8 @@ module github.com/oshokin/zvuk-grabber
 
 go 1.23.0
 
+toolchain go1.24.1
+
 require (
 	github.com/dustin/go-humanize v1.0.1
 	github.com/go-flac/flacpicture v0.3.0
@@ -12,7 +14,7 @@ require (
 	github.com/schollz/progressbar/v3 v3.18.0
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/pflag v1.0.6
-	github.com/spf13/viper v1.20.0
+	github.com/spf13/viper v1.20.1
 	go.uber.org/zap v1.27.0
 )
 
