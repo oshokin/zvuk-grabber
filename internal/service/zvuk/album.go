@@ -112,11 +112,23 @@ func (s *ServiceImpl) registerAlbumCollection(
 
 	// Generate a folder name for the album if it's not a single or if singles require folders
 	if !isSingleWithoutFolder {
-		albumFolderName = utils.SanitizeFilename(s.templateManager.GetAlbumFolderName(ctx, albumTags))
+		// Get the raw folder name template result
+		rawAlbumFolderName := s.templateManager.GetAlbumFolderName(ctx, albumTags)
+
+		// Split the path by '/', sanitize each component, and join them using the OS path separator
+		pathComponents := strings.Split(rawAlbumFolderName, "/")
+		sanitizedComponents := make([]string, len(pathComponents))
+		for i, component := range pathComponents {
+			// Sanitize each part of the path individually
+			sanitizedComponents[i] = utils.SanitizeFilename(component)
+		}
+		albumFolderName = filepath.Join(sanitizedComponents...) // Join components using OS-specific separator
+
+		// Truncate the final combined path if necessary
 		albumFolderName = s.truncateFolderName(ctx, "Album", albumFolderName)
 	}
 
-	// Create the album folder
+	// Create the album folder path by joining with the base output path
 	albumPath := filepath.Join(s.cfg.OutputPath, albumFolderName)
 
 	err := os.MkdirAll(albumPath, defaultFolderPermissions)
