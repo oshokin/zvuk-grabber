@@ -230,7 +230,8 @@ Key options include:
     *   `{{.trackNumber}}`: Track number within the album (without leading zeros).
     *   `{{.trackNumberPad}}`: Track number with two-digit padding (e.g., 01, 02).
     *   `{{.trackTitle}}`: Track title.
-    *   `{{.type}}`: "album" (used to differentiate album tracks).\
+    *   `{{.type}}`: "album" (used to differentiate album tracks).
+
     Example:
     ```yaml
     track_filename_template: "{{.trackNumberPad}} - {{.trackTitle}}"
@@ -244,9 +245,19 @@ Key options include:
     *   `{{.albumTrackCount}}`: Total number of tracks in the album.
     *   `{{.releaseDate}}`: Full release date of the album (YYYY-MM-DD format).
     *   `{{.releaseYear}}`: Year the album was released.
-    *   `{{.type}}`: "album" (used to differentiate albums from playlists).\
-    Example:
+    *   `{{.type}}`: "album" (used to differentiate albums from playlists).
+
+    **Folder Structure Tip**: Use `/` or `\` in your template to create nested subfolders.\
+    Both separators work universally across operating systems - we'll automatically convert them to your system's native format.\
+    Examples:
     ```yaml
+    # Unix-style path (recommended)
+    album_folder_template: "Artists/{{.albumArtist}}/{{.releaseYear}} - {{.albumTitle}}"
+
+    # Windows-style path (escaped backslash)
+    album_folder_template: "Music\\{{.albumArtist}}\\{{.releaseYear}} - {{.albumTitle}}"
+
+    # Flat structure alternative
     album_folder_template: "{{.releaseYear}} - {{.albumArtist}} - {{.albumTitle}}"
     ```
 
@@ -270,7 +281,8 @@ Key options include:
     *   `{{.trackNumber}}`: Track number within the playlist (without leading zeros).
     *   `{{.trackNumberPad}}`: Track number with two-digit padding (e.g., 01, 02).
     *   `{{.trackTitle}}`: Track title.
-    *   `{{.type}}`: "playlist" (used to differentiate playlists from albums).\
+    *   `{{.type}}`: "playlist" (used to differentiate playlists from albums).
+
     Example:
     ```yaml
     playlist_filename_template: "{{.trackNumberPad}} - {{.trackArtist}} - {{.trackTitle}}"

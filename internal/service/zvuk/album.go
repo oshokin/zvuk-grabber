@@ -112,20 +112,11 @@ func (s *ServiceImpl) registerAlbumCollection(
 
 	// Generate a folder name for the album if it's not a single or if singles require folders
 	if !isSingleWithoutFolder {
-		// Get the raw folder name template result
+		// Get raw template output before sanitization (might contain invalid characters)
 		rawAlbumFolderName := s.templateManager.GetAlbumFolderName(ctx, albumTags)
 
-		// Split the path by '/', sanitize each component, and join them using the OS path separator
-		pathComponents := strings.Split(rawAlbumFolderName, "/")
-		sanitizedComponents := make([]string, len(pathComponents))
-		for i, component := range pathComponents {
-			// Sanitize each part of the path individually
-			sanitizedComponents[i] = utils.SanitizeFilename(component)
-		}
-		albumFolderName = filepath.Join(sanitizedComponents...) // Join components using OS-specific separator
-
-		// Truncate the final combined path if necessary
-		albumFolderName = s.truncateFolderName(ctx, "Album", albumFolderName)
+		// Universal path handling: process both Unix and Windows separators
+		albumFolderName = s.generateSanitizedFolderPath(ctx, rawAlbumFolderName)
 	}
 
 	// Create the album folder path by joining with the base output path
@@ -164,6 +155,28 @@ func (s *ServiceImpl) registerAlbumCollection(
 	s.audioCollections[audioCollectionKey] = audioCollection
 
 	return audioCollection
+}
+
+func (s *ServiceImpl) generateSanitizedFolderPath(ctx context.Context, rawPath string) string {
+	// Split using both separators to handle mixed/foreign path formats
+	components := strings.FieldsFunc(rawPath, func(r rune) bool {
+		return r == '/' || r == '\\' // Handle both Unix and Windows paths
+	})
+
+	sanitizedComponents := make([]string, 0, len(components))
+	for _, component := range components {
+		// Sanitize each component individually to prevent path traversal attacks
+		clean := utils.SanitizeFilename(component)
+
+		// Keep empty components to maintain path structure (e.g., "a//b" becomes "a/b")
+		sanitizedComponents = append(sanitizedComponents, clean)
+	}
+
+	// Join with OS-specific separators and normalize path
+	joinedPath := filepath.Join(sanitizedComponents...)
+
+	// Truncate to filesystem limits while preserving extension (if any)
+	return s.truncateFolderName(ctx, "Album", joinedPath)
 }
 
 func (s *ServiceImpl) parseAlbumDate(rawDate int64) (time.Time, string) {
