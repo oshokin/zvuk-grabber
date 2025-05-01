@@ -91,7 +91,7 @@ func SetLogger(l *zap.SugaredLogger) {
 
 // SetLevel sets the log level for the global logger.
 func SetLevel(level zapcore.Level) {
-	//nolint: errcheck // No need to check the error here.
+	//nolint:errcheck // No need to check the error here.
 	defer global.Sync()
 
 	defaultLevel.SetLevel(level)

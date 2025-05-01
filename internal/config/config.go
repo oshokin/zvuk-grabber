@@ -113,7 +113,7 @@ func ValidateConfig(cfg *Config) error {
 	// io.CopyN accepts only int64 so we transform it safely in order to use it later.
 	cfg.ParsedDownloadSpeedLimit = utils.SafeUint64ToInt64(parsedDownloadSpeedLimit)
 
-	if !(cfg.DownloadFormat >= minDownloadFormat && cfg.DownloadFormat <= maxDownloadFormat) {
+	if cfg.DownloadFormat < minDownloadFormat || cfg.DownloadFormat > maxDownloadFormat {
 		return fmt.Errorf("format must be between %d and %d", minDownloadFormat, maxDownloadFormat)
 	}
 

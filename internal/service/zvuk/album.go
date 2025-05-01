@@ -164,6 +164,7 @@ func (s *ServiceImpl) generateSanitizedFolderPath(ctx context.Context, rawPath s
 	})
 
 	sanitizedComponents := make([]string, 0, len(components))
+
 	for _, component := range components {
 		// Sanitize each component individually to prevent path traversal attacks
 		clean := utils.SanitizeFilename(component)

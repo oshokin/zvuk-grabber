@@ -196,6 +196,7 @@ func (tp *TagProcessorImpl) embedFLACCover(ctx context.Context, f *flac.File, im
 
 func (tp *TagProcessorImpl) writeMP3Tags(ctx context.Context, req *WriteTagsRequest, image *imageMetadata) error {
 	// Open the MP3 file for writing metadata
+	//nolint:exhaustruct // ParseFrames intentionally omitted when Parse=false (parsing disabled)
 	tag, err := id3v2.Open(req.TrackPath, id3v2.Options{Parse: false})
 	if err != nil {
 		return err
@@ -208,6 +209,7 @@ func (tp *TagProcessorImpl) writeMP3Tags(ctx context.Context, req *WriteTagsRequ
 
 	// Embed the cover art into the MP3 file if provided
 	if image != nil {
+		//nolint:exhaustruct // Description field intentionally empty for cover images
 		tag.AddAttachedPicture(id3v2.PictureFrame{
 			Encoding:    id3v2.EncodingUTF8,
 			MimeType:    image.mimeType,
@@ -270,6 +272,7 @@ func (tp *TagProcessorImpl) addMP3Tags(ctx context.Context, tag *id3v2.Tag, req 
 			tag.AddSynchronisedLyricsFrame(sylf)
 		} else {
 			tag.AddUnsynchronisedLyricsFrame(
+				//nolint:exhaustruct // ContentDescriptor not available in source data
 				id3v2.UnsynchronisedLyricsFrame{
 					Encoding: id3v2.EncodingUTF8,
 					Lyrics:   lyrics,

@@ -63,7 +63,7 @@ tasks:
       - |
         {{if (not (eq .GOLANGCI_CURRENT_TAG .GOLANGCI_TAG))}}
           echo "Installing golangci-lint..."
-          go install github.com/golangci/golangci-lint/cmd/golangci-lint@{{.GOLANGCI_TAG}} # Install the latest version
+          go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@{{.GOLANGCI_TAG}} # Install the required version
         {{end}}
     env:
       # Set GOBIN to install golangci-lint in the local bin directory.

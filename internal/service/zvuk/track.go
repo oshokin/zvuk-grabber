@@ -110,6 +110,7 @@ func (s *ServiceImpl) downloadTracks(ctx context.Context, metadata *downloadTrac
 	}
 }
 
+//nolint:funlen // Function orchestrates complex download workflow with multiple sequential steps
 func (s *ServiceImpl) downloadTrack(
 	ctx context.Context,
 	req *downloadTrackRequest,
