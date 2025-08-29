@@ -22,7 +22,7 @@ jobs:
     steps:
       # Step 1: Check out the repository code
       - name: Check out repository
-        uses: actions/checkout@v4 # Standard way to fetch the repository code in GitHub Actions
+        uses: actions/checkout@v5 # Standard way to fetch the repository code in GitHub Actions
 
       # Step 2: Set up the Go environment
       - name: Set up Go
@@ -50,7 +50,7 @@ jobs:
     steps:
       # Step 1: Check out the repository with full Git history
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0 # Fetch the entire Git history for proper versioning
 
