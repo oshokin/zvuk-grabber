@@ -26,7 +26,7 @@ jobs:
 
       # Step 2: Set up the Go environment
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version-file: "go.mod" # Automatically detect the Go version from go.mod
 
