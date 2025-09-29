@@ -2,6 +2,7 @@ package zvuk
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
@@ -25,6 +26,11 @@ type fetchAlbumDataResponse struct {
 const (
 	defaultAlbumCoverExtension = ".jpg"
 	defaultAlbumCoverBasename  = "cover"
+)
+
+// Static error definitions for better error handling.
+var (
+	ErrAlbumNotFound = errors.New("album not found")
 )
 
 func (s *ServiceImpl) downloadAlbum(ctx context.Context, albumID string) {
@@ -70,7 +76,7 @@ func (s *ServiceImpl) fetchAlbumData(ctx context.Context, albumID string) (*fetc
 	// Retrieve the album from the response
 	album, ok := getAlbumsMetadataResponse.Releases[albumID]
 	if !ok || album == nil {
-		return nil, fmt.Errorf("album with ID '%s' is not found", albumID)
+		return nil, fmt.Errorf("%w: ID '%s'", ErrAlbumNotFound, albumID)
 	}
 
 	// Fetch label metadata for the album

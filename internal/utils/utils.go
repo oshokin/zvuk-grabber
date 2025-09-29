@@ -66,6 +66,20 @@ var (
 	}
 )
 
+// SafeIntToUint8 converts an int value to an uint8 safely,
+// ensuring that the value does not exceed the maximum limit of uint8.
+func SafeIntToUint8(val int) uint8 {
+	if val < 0 {
+		return 0
+	}
+
+	if val > math.MaxUint8 {
+		return math.MaxUint8
+	}
+
+	return uint8(val)
+}
+
 // SafeUint64ToInt64 converts a uint64 value to an int64 safely,
 // ensuring that the value does not exceed the maximum limit of int64.
 func SafeUint64ToInt64(val uint64) int64 {
@@ -91,15 +105,15 @@ func SanitizeFilename(name string) string {
 		baseName = result[:dotIndex]
 	}
 
-	// If base name is a Windows reserved name, prepend an underscore
+	// If base name is a Windows reserved name, prepend an underscore.
 	if _, ok := windowsReservedNames[strings.ToUpper(baseName)]; ok {
 		result = "_" + result
 	}
 
-	// Remove trailing dots from the filename
+	// Remove trailing dots from the filename.
 	result = strings.TrimRight(result, ".")
 
-	// Ensure the filename is not empty
+	// Ensure the filename is not empty.
 	if result == "" {
 		result = "_"
 	}
@@ -111,13 +125,16 @@ func SanitizeFilename(name string) string {
 // The min and max parameters should be of type time.Duration and represent
 // the lower and upper bounds of the delay period, respectively.
 func RandomPause(minPause, maxPause time.Duration) {
-	// Ensure minPause is always less than or equal to maxPause
+	// Ensure minPause is always less than or equal to maxPause.
 	if minPause > maxPause {
 		minPause, maxPause = maxPause, minPause
 	}
 
-	// Generate a random duration between minPause and maxPause
-	randomDelay := minPause + time.Duration(rand.Int64N(int64(maxPause-minPause)))
+	// Generate a random duration between minPause and maxPause.
+	randomDelay := minPause + time.Duration(
+		//nolint:gosec // math/rand/v2 is secure.
+		rand.Int64N(int64(maxPause-minPause)),
+	)
 
 	time.Sleep(randomDelay)
 }
@@ -137,7 +154,7 @@ func SetFileExtension(filename, extension string, isExtensionReplaced bool) stri
 	}
 
 	if isExtensionReplaced {
-		// Remove existing extension if present
+		// Remove existing extension if present.
 		filename = strings.TrimSuffix(filename, currentExt)
 	}
 
@@ -168,7 +185,7 @@ func ReadUniqueLinesFromFile(path string) ([]string, error) {
 		return nil, err
 	}
 
-	defer file.Close()
+	defer file.Close() //nolint:errcheck // Error on close is not critical here.
 
 	var (
 		uniqueLines = make(map[string]struct{})
@@ -204,7 +221,7 @@ func ExtractNamedGroup(re *regexp.Regexp, groupName, input string) string {
 		return ""
 	}
 
-	// Map group names to their corresponding values
+	// Map group names to their corresponding values.
 	for i, name := range re.SubexpNames() {
 		if name == groupName {
 			return match[i]

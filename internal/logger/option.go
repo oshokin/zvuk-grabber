@@ -7,6 +7,7 @@ import (
 
 type coreWithLevel struct {
 	zapcore.Core
+
 	level zapcore.Level
 }
 

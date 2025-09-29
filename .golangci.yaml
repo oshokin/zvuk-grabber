@@ -1,80 +1,301 @@
-# More info on config here: https://golangci-lint.run/usage/configuration/#config-file
+# GoLangCI-Lint configuration for the zvuk-grabber project.
+# This file configures static analysis tools to maintain high code quality and consistency.
+# The configuration enforces strict standards while being practical for development workflow.
 
-version: "2"
+version: "2" # Use GoLangCI-Lint configuration file format version 2.
+
+# Runtime configuration for the linting process.
 run:
-  issues-exit-code: 1
-  tests: true
+  timeout: 5m # Maximum time allowed for linting to complete.
+  build-tags: # Additional build tags to enable during analysis.
+    - test # Include test-specific code in analysis.
+    - debug # Include debug-specific code paths.
+  modules-download-mode: readonly # Prevent automatic dependency downloads during linting.
+  allow-parallel-runners: true # Enable concurrent linting for faster execution.
+
+# Output formatting configuration for linting results.
 output:
-  formats:
-    text:
-      path: stdout
-      print-linter-name: true
-      print-issued-lines: true
+  sort-order: # Order linting results for consistent output.
+    - file # Primary sort: group by file name.
+    - severity # Secondary sort: order by issue severity.
+    - linter # Tertiary sort: group by linter tool.
+
+# Linter configuration specifying which analysis tools to enable.
 linters:
-  default: none
-  enable:
-    - errcheck
-    - goconst
-    - godot
-    - gosec
-    - govet
-    - ineffassign
-    - lll
-    - revive
-    - staticcheck
-    - unused
-    - wsl
-  settings:
-    dupl:
-      threshold: 100
-    goconst:
-      min-len: 2
-      min-occurrences: 2
-  exclusions:
-    generated: lax
+  default: all # Start with all available linters enabled by default.
+  disable: # Disable specific linters that are too strict or not applicable.
+    - containedctx # Allow context.Context in structs when needed for design.
+    - contextcheck # Skip overly strict context usage checks.
+    - depguard # Handled separately in settings section below.
+    - dupl # Allow some code duplication for clarity.
+    - exhaustive # Don't require exhaustive enum handling in all switches.
+    - exhaustruct # Don't require all struct fields to be initialized.
+    - forcetypeassert # Allow type assertions without error checking when safe.
+    - gochecknoglobals # Allow global variables when appropriate for design.
+    - gomoddirectives # Allow flexible go.mod directives.
+    - gomodguard # Skip overly restrictive module dependency checks.
+    - ireturn # Allow returning interfaces from factory functions.
+    - lll # Line length handled by formatters section instead.
+    - maintidx # Skip maintainability index checks.
+    - mnd # Allow magic numbers when they're clear in context.
+    - nlreturn # Don't enforce newlines before returns.
+    - noinlineerr # Allow inline error creation for simple cases.
+    - nonamedreturns # Allow named returns for documentation clarity.
+    - paralleltest # Don't require all tests to be parallel.
+    - sloglint # Not using structured logging lib this checks for.
+    - tagalign # Don't enforce struct tag alignment.
+    - tagliatelle # Don't enforce specific struct tag naming.
+    - testableexamples # Don't require all examples to be testable.
+    - testpackage # Allow tests in same package as tested code.
+    - varnamelen # Allow short variable names when context is clear.
+    - wrapcheck # Don't require all errors to be wrapped.
+    - wsl # Don't enforce whitespace rules (handled by formatters).
+    - zerologlint # Not using zerolog library.
+
+# Detailed settings for individual linters to customize their behavior.
+settings:
+  # Forbid specific function calls and suggest alternatives.
+  forbidigo:
+    forbid:
+      - p: '^fmt\.Print(f|ln)\(' # Prohibit direct fmt.Print* usage.
+        msg: "Use logger.* helpers for diagnostics or fmt.Fprintf to cmd.OutOrStdout for user output"
+
+  # Cyclomatic complexity analysis to identify overly complex functions.
+  cyclop:
+    max-complexity: 10 # Maximum cyclomatic complexity per function.
+    package-average: 10 # Maximum average complexity per package.
+
+  # Dependency guard rules to enforce proper package usage patterns.
+  depguard:
     rules:
-      - path: (.+)\.go$
-        text: G104
-      - path: (.+)\.go$
-        text: G404
-      - path: (.+)\.go$
-        text: exported func .* returns unexported type .*, which can be annoying to use
-      - path: (.+)\.go$
-        text: should have a package comment, unless it's in another file for this package
-      - path: (.+)\.go$
-        text: don't use an underscore in package name
-      - path: (.+)\.go$
-        text: Error return value of .((os\.)?std(out|err)\..*|.*Close|.*Flush|os\.Remove(All)?|.*print(f|ln)?|os\.(Un)?Setenv). is not checked
-      - path: (.+)\.go$
-        text: should check returned error before deferring
-    paths:
-      - \.pb\.go$
-      - \.pb\.goclay\.go$
-      - \.pb\.gw\.go$
-      - bin
-      - builtin$
-      - examples$
-      - test
-      - third_party$
-      - tmp
-      - var
-      - vendor
+      # Prevent usage of deprecated or problematic packages across all files.
+      "deprecated":
+        files:
+          - "$all" # Apply to all files in the project.
+        deny:
+          - pkg: github.com/golang/protobuf
+            desc: Use google.golang.org/protobuf instead, see https://developers.google.com/protocol-buffers/docs/reference/go/faq#modules
+          - pkg: github.com/satori/go.uuid
+            desc: Use github.com/google/uuid instead, satori's package is not maintained
+          - pkg: github.com/gofrs/uuid$
+            desc: Use github.com/gofrs/uuid/v5 or later, it was not a go module before v5
+
+      # Enforce modern standard library usage in non-test files.
+      "non-test files":
+        files:
+          - "!$test" # Apply to all non-test files.
+        deny:
+          - pkg: math/rand$
+            desc: Use math/rand/v2 instead, see https://go.dev/blog/randv2
+
+      # Enforce structured logging usage outside of main entry points.
+      "non-main files":
+        files:
+          - "!**/main.go" # Apply to all files except main.go.
+        deny:
+          - pkg: log$
+            desc: Use internal/logger helpers instead of log
+
+      # Restrict direct zap usage to the logger package for centralized logging.
+      "no-zap-outside-logger":
+        files:
+          - "!internal/logger/**" # Apply to all files except logger package.
+        deny:
+          - pkg: go.uber.org/zap$
+            desc: Use internal/logger helpers; direct zap usage is restricted to internal/logger
+
+  # Check for problematic embedded struct field patterns.
+  embeddedstructfieldcheck:
+    forbid-mutex: true # Prevent embedding mutex types (can cause copy issues).
+
+  # Error checking configuration to catch unhandled errors.
+  errcheck:
+    check-type-assertions: true # Ensure type assertions are checked for success.
+    check-blank: true # Flag errors assigned to blank identifier.
+
+  # Error handling lint configuration for Go 1.13+ error patterns.
+  errorlint:
+    comparison: false # Allow direct error comparisons (disable strict wrapping checks).
+
+  # Function length limits to maintain readability.
+  funlen:
+    lines: 80 # Maximum lines per function before flagging.
+
+  # Cognitive complexity analysis for mental load assessment.
+  gocognit:
+    min-complexity: 20 # Minimum cognitive complexity to trigger warnings.
+
+  # Constant detection to reduce magic values and promote reuse.
+  goconst:
+    min-len: 2 # Minimum string length to consider for constant extraction.
+    min-occurrences: 2 # Minimum occurrences before suggesting constant.
+
+  # Comprehensive Go code critic with extensive rule sets.
+  gocritic:
+    disabled-checks: # Disable specific checks that are too strict.
+      - whyNoLint # Don't require explanations for nolint directives.
+      - importShadow # Allow import shadowing when needed.
+      - sloppyReassign # Allow flexible variable reassignment patterns.
+    enabled-tags: # Enable comprehensive analysis categories.
+      - diagnostic # Enable diagnostic checks for potential issues.
+      - experimental # Include experimental checks for cutting-edge analysis.
+      - opinionated # Include style checks based on Go community opinions.
+      - performance # Enable performance-related suggestions.
+      - style # Enforce consistent code style patterns.
+    settings: # Fine-tune individual checker behavior.
+      captLocal:
+        paramsOnly: false # Check local variable capitalization beyond parameters.
+      elseif:
+        skipBalanced: false # Don't skip balanced if-else chains.
+      hugeParam:
+        sizeThreshold: 70 # Flag parameters larger than 70 bytes for copying.
+      nestingReduce:
+        bodyWidth: 4 # Suggest nesting reduction for bodies wider than 4 levels.
+      rangeExprCopy:
+        sizeThreshold: 512 # Flag range expressions copying more than 512 bytes.
+        skipTestFuncs: false # Apply range copy checks to test functions.
+      rangeValCopy:
+        sizeThreshold: 128 # Flag range values copying more than 128 bytes.
+        skipTestFuncs: false # Apply range value copy checks to test functions.
+      tooManyResultsChecker:
+        maxResults: 10 # Flag functions returning more than 10 values.
+      truncateCmp:
+        skipArchDependent: false # Don't skip architecture-dependent truncation checks.
+      underef:
+        skipRecvDeref: false # Don't skip receiver dereference checks.
+      unnamedResult:
+        checkExported: true # Require named results for exported functions.
+
+  # Go documentation linting to ensure proper doc comments.
+  godoclint:
+    enable: # Enable specific documentation checks.
+      - pkg-doc # Require package-level documentation.
+      - single-pkg-doc # Ensure only one package doc per package.
+      - require-pkg-doc # Make package documentation mandatory.
+      - deprecated # Check for proper deprecation notices.
+      - no-unused-link # Flag unused documentation links.
+
+  # TODO/FIXME comment detection for tracking technical debt.
+  godox:
+    keywords: # Keywords that trigger warnings.
+      - FIXME # Flag FIXME comments for resolution.
+
+  # Go vet tool configuration for additional static analysis.
+  govet:
+    enable: # Enable additional vet checks beyond defaults.
+      - shadow # Detect variable shadowing issues.
+    settings:
+      shadow:
+        strict: true # Use strict shadowing detection.
+
+  # Import alias enforcement for consistent import naming.
+  importas:
+    no-unaliased: true # Require aliases for imports to avoid naming conflicts.
+
+  # Interface bloat checking to ensure interfaces are not too complex.
+  interfacebloat:
+    # The maximum number of methods allowed for an interface.
+    # Default: 10.
+    max: 20
+
+  # Interface return type checking to ensure proper abstraction.
+  ireturn:
+    allow: # Allow specific interface return patterns.
+      - anon # Allow anonymous interfaces.
+      - empty # Allow empty interfaces when needed.
+      - error # Allow error interface returns.
+      - grpc.ServerOption # Allow gRPC-specific interfaces.
+      - stdlib # Allow standard library interfaces.
+      - zap.Option # Allow zap logging interfaces.
+      - zapcore.Core # Allow zap core interfaces.
+      - ".*Client$" # Allow interfaces ending with Client.
+      - ".*Factory$" # Allow interfaces ending with Factory.
+      - ".*Service$" # Allow interfaces ending with Service.
+      - ".*or$" # Allow interfaces ending with or.
+      - ".*er$" # Allow interfaces ending with er.
+
+  # Spelling checker for comments and strings.
+  misspell:
+    locale: US # Use US English spelling conventions.
+
+  # Nested if statement complexity analysis.
+  nestif:
+    min-complexity: 4 # Flag nested if statements with complexity >= 4.
+
+  # Configuration for nolint directive usage and requirements.
+  nolintlint:
+    allow-no-explanation: # Allow these linters without explanation.
+      - funlen # Function length is often self-explanatory.
+      - gocognit # Cognitive complexity context is usually clear.
+      - golines # Line length issues are usually formatting.
+    require-explanation: true # Require explanations for other nolint usages.
+    require-specific: true # Require specific linter names in nolint directives.
+
+  # Revive linter configuration for Go code quality rules.
+  revive:
+    rules: # Enable specific revive rules for code quality.
+      - name: blank-imports # Check for proper blank import usage.
+      - name: context-as-argument # Ensure context.Context is first parameter.
+      - name: context-keys-type # Ensure context keys have proper types.
+      - name: dot-imports # Discourage dot imports except in tests.
+      - name: empty-block # Flag empty code blocks.
+      - name: error-naming # Ensure errors are named 'err' or start with 'err'.
+      - name: error-return # Ensure error is the last return value.
+      - name: error-strings # Ensure error strings don't start with capital letters.
+      - name: errorf # Prefer fmt.Errorf over errors.New with fmt.Sprintf.
+      - name: exported # Require documentation for exported symbols.
+      - name: if-return # Simplify if-return patterns.
+      - name: increment-decrement # Use ++ and -- operators appropriately.
+      - name: indent-error-flow # Prefer early returns for error handling.
+      - name: package-comments # Require package-level comments.
+      - name: range # Optimize range usage patterns.
+      - name: receiver-naming # Ensure consistent receiver naming.
+      - name: superfluous-else # Remove unnecessary else clauses.
+      - name: time-naming # Use proper naming for time-related variables.
+      - name: unreachable-code # Flag unreachable code paths.
+      - name: var-declaration # Optimize variable declarations.
+
+# Issue exclusion rules to reduce noise in specific scenarios.
+exclusions:
+  generated: lax # Relax rules for generated code.
+  presets: # Use predefined exclusion sets.
+    - comments # Exclude common comment-related false positives.
+    - common-false-positives # Exclude known false positive patterns.
+    - std-error-handling # Exclude standard error handling patterns.
+  rules: # Custom exclusion rules for specific contexts.
+    # Relax strict rules for test files where different patterns are acceptable.
+    - linters:
+        - funlen # Allow longer functions in tests.
+        - gocritic # Relax critic rules for test code.
+        - gosec # Allow security-related patterns in tests.
+        - noctx # Allow missing context in test functions.
+        - unparam # Allow unused parameters in test helpers.
+        - unused # Allow unused variables in test setups.
+      path: _test\.go # Apply to all test files.
+
+    # Allow constants duplication in test files for clarity.
+    - linters:
+        - goconst # Allow string duplication in tests.
+      path: (.+)_test\.go # Apply to all test files with regex pattern.
+
+# Issue reporting configuration to control output volume and quality.
 issues:
-  fix: true
+  max-same-issues: 0 # Report all instances of the same issue (no limit).
+
+# Code formatting configuration for automatic code styling.
 formatters:
-  enable:
-    - goimports
-  exclusions:
-    generated: lax
-    paths:
-      - \.pb\.go$
-      - \.pb\.goclay\.go$
-      - \.pb\.gw\.go$
-      - bin
-      - builtin$
-      - examples$
-      - test
-      - third_party$
-      - tmp
-      - var
-      - vendor
+  enable: # Enable specific formatters for code consistency.
+    - gofumpt # Enhanced gofmt with stricter formatting rules.
+    - gci # Go import organizer for consistent import grouping.
+    - golines # Line length formatter for improved readability.
+  settings: # Detailed configuration for individual formatters.
+    gci: # Go import organizer settings.
+      sections: # Define import grouping order.
+        - standard # Standard library imports first.
+        - default # Third-party imports second.
+        - localmodule # Local module imports third.
+        - blank # Blank imports fourth.
+        - dot # Dot imports last (discouraged but ordered).
+      custom-order: true # Use the custom section ordering defined above.
+    golines: # Line length formatter settings.
+      max-len: 120 # Maximum line length before wrapping.

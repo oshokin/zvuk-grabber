@@ -1,5 +1,7 @@
 package utils
 
+//go:generate $MOCKGEN -source=user_agent_provider.go -destination=mocks/user_agent_provider_mock.go
+
 // UserAgentProvider is an interface that defines a method for retrieving a User-Agent string.
 type UserAgentProvider interface {
 	// GetUserAgent returns a User-Agent string.

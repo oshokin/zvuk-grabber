@@ -12,11 +12,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/schollz/progressbar/v3"
+	"go.uber.org/zap"
+
 	"github.com/oshokin/zvuk-grabber/internal/client/zvuk"
 	"github.com/oshokin/zvuk-grabber/internal/logger"
 	"github.com/oshokin/zvuk-grabber/internal/utils"
-	"github.com/schollz/progressbar/v3"
-	"go.uber.org/zap"
 )
 
 const defaultLyricsExtension = ".lrc"
@@ -47,31 +48,31 @@ func (s *ServiceImpl) fetchAlbumsDataFromTracks(
 	ctx context.Context,
 	tracks map[string]*zvuk.Track,
 ) (*fetchAlbumsDataFromTracksResponse, error) {
-	// Collect unique album IDs from the tracks
+	// Collect unique album IDs from the tracks.
 	uniqueAlbumIDs := make(map[int64]struct{}, len(tracks))
 	for _, track := range tracks {
 		uniqueAlbumIDs[track.ReleaseID] = struct{}{}
 	}
 
-	// Convert album IDs to strings for API request
+	// Convert album IDs to strings for API request.
 	albumIDs := utils.MapIterator(maps.Keys(uniqueAlbumIDs),
 		func(v int64) string {
 			return strconv.FormatInt(v, 10)
 		})
 
-	// Fetch album metadata
+	// Fetch album metadata.
 	albumsMetadataResponse, err := s.zvukClient.GetAlbumsMetadata(ctx, albumIDs, false)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get albums metadata: %w", err)
 	}
 
-	// Generate tags for each album
+	// Generate tags for each album.
 	releasesTags := make(map[string]map[string]string, len(albumsMetadataResponse.Releases))
 	for _, album := range albumsMetadataResponse.Releases {
 		releasesTags[strconv.FormatInt(album.ID, 10)] = s.fillAlbumTagsForTemplating(album)
 	}
 
-	// Collect label IDs from the albums
+	// Collect label IDs from the albums.
 	labelIDs := utils.MapIterator(maps.Values(albumsMetadataResponse.Releases),
 		func(v *zvuk.Release) string {
 			if v == nil {
@@ -97,7 +98,7 @@ func (s *ServiceImpl) fetchAlbumsDataFromTracks(
 func (s *ServiceImpl) downloadTracks(ctx context.Context, metadata *downloadTracksMetadata) {
 	for i, trackID := range metadata.trackIDs {
 		request := &downloadTrackRequest{
-			// Track numbers start at 1 for user-facing numbering
+			// Track numbers start at 1 for user-facing numbering.
 			trackIndex: int64(i) + 1,
 			trackID:    trackID,
 			metadata:   metadata,
@@ -105,18 +106,18 @@ func (s *ServiceImpl) downloadTracks(ctx context.Context, metadata *downloadTrac
 
 		s.downloadTrack(ctx, request)
 
-		// Add a random pause between downloads to avoid rate limiting
+		// Add a random pause between downloads to avoid rate limiting.
 		utils.RandomPause(0, s.cfg.ParsedMaxDownloadPause)
 	}
 }
 
-//nolint:funlen // Function orchestrates complex download workflow with multiple sequential steps
+//nolint:cyclop,funlen // Function orchestrates complex download workflow with multiple sequential steps.
 func (s *ServiceImpl) downloadTrack(
 	ctx context.Context,
 	req *downloadTrackRequest,
 ) {
 	metadata := req.metadata
-	// Retrieve track metadata
+	// Retrieve track metadata.
 	trackIDString := strconv.FormatInt(req.trackID, 10)
 
 	track, ok := metadata.tracksMetadata[trackIDString]
@@ -126,7 +127,7 @@ func (s *ServiceImpl) downloadTrack(
 		return
 	}
 
-	// Retrieve album metadata
+	// Retrieve album metadata.
 	albumIDString := strconv.FormatInt(track.ReleaseID, 10)
 
 	album, ok := metadata.albumsMetadata[albumIDString]
@@ -136,7 +137,7 @@ func (s *ServiceImpl) downloadTrack(
 		return
 	}
 
-	// Retrieve album tags
+	// Retrieve album tags.
 	albumTags, ok := metadata.albumsTags[albumIDString]
 	if !ok || albumTags == nil {
 		logger.Errorf(ctx, "Tags for album with ID '%s' are not found", albumIDString)
@@ -144,20 +145,20 @@ func (s *ServiceImpl) downloadTrack(
 		return
 	}
 
-	// If separate tracks are being downloaded, we must create folders for albums
+	// If separate tracks are being downloaded, we must create folders for albums.
 	audioCollection := metadata.audioCollection
 	if audioCollection == nil {
 		audioCollection = s.getOrRegisterAudioCollection(ctx, album, albumTags)
 	}
 
-	// If audio collection is not found, return
+	// If audio collection is not found, return.
 	if audioCollection == nil {
 		logger.Errorf(ctx, "Audio collection wasn't found for track with ID '%s'", trackIDString)
 
 		return
 	}
 
-	// Retrieve label metadata
+	// Retrieve label metadata.
 	labelIDString := strconv.FormatInt(album.LabelID, 10)
 
 	label, ok := metadata.labelsMetadata[labelIDString]
@@ -167,7 +168,7 @@ func (s *ServiceImpl) downloadTrack(
 		return
 	}
 
-	// Determine track quality
+	// Determine track quality.
 	quality := TrackQuality(s.cfg.DownloadFormat)
 
 	highestQuality := s.getTrackHighestQuality(ctx, track)
@@ -177,7 +178,7 @@ func (s *ServiceImpl) downloadTrack(
 		logger.Infof(ctx, "Track is only available in quality: %s", highestQuality)
 	}
 
-	// Fetch track streaming metadata
+	// Fetch track streaming metadata.
 	streamMetadata, err := s.zvukClient.GetStreamMetadata(ctx, trackIDString, quality.AsStreamURLParameterValue())
 	if err != nil {
 		logger.Errorf(ctx, "Failed to get track streaming metadata: %v", err)
@@ -188,23 +189,23 @@ func (s *ServiceImpl) downloadTrack(
 	streamURL := streamMetadata.Stream
 	quality = s.defineQualityByStreamURL(streamURL)
 
-	// Determine the track's position in the album or playlist
+	// Determine the track's position in the album or playlist.
 	isPlaylist := metadata.category == DownloadCategoryPlaylist
 
 	trackPosition := req.trackIndex
 	if !isPlaylist {
-		// For album downloads, use the track's position in the album metadata
-		// For playlists, use the track's position in the playlist
+		// For album downloads, use the track's position in the album metadata.
+		// For playlists, use the track's position in the playlist.
 		trackPosition = track.Position
 	}
 
-	// Generate track filename with proper extension
+	// Generate track filename with proper extension.
 	trackTags := s.fillTrackTagsForTemplating(trackPosition, track, label.Title, audioCollection, albumTags)
 	trackFilename := s.templateManager.GetTrackFilename(ctx, isPlaylist, trackTags, audioCollection.tracksCount)
 	trackFilename = utils.SetFileExtension(utils.SanitizeFilename(trackFilename), quality.Extension(), false)
 	trackPath := filepath.Join(audioCollection.tracksPath, trackFilename)
 
-	// Download and save the track
+	// Download and save the track.
 	logger.Infof(
 		ctx,
 		"Downloading track %d of %d: %s (%s)",
@@ -224,7 +225,7 @@ func (s *ServiceImpl) downloadTrack(
 		return
 	}
 
-	// Download and save track lyrics if available
+	// Download and save track lyrics if available.
 	trackLyrics := s.downloadAndSaveLyrics(ctx, track, trackFilename, audioCollection)
 
 	writeTagsRequest := &WriteTagsRequest{
@@ -236,7 +237,7 @@ func (s *ServiceImpl) downloadTrack(
 		IsCoverEmbeddedToTrackTags: !isPlaylist,
 	}
 
-	// Write metadata tags to track
+	// Write metadata tags to track.
 	err = s.tagProcessor.WriteTags(ctx, writeTagsRequest)
 	if err != nil {
 		logger.Errorf(ctx, "Failed to write track tags: %v", err)
@@ -244,7 +245,7 @@ func (s *ServiceImpl) downloadTrack(
 		return
 	}
 
-	// Handle album cover art finalization
+	// Handle album cover art finalization.
 	s.finalizeAlbumCoverArt(ctx, req.trackIndex, audioCollection, trackFilename)
 }
 
@@ -277,14 +278,14 @@ func (s *ServiceImpl) fillTrackTagsForTemplating(
 	audioCollection *audioCollection,
 	albumTags map[string]string,
 ) map[string]string {
-	// Initialize result map with album tags first
+	// Initialize result map with album tags first.
 	result := make(map[string]string, len(albumTags)+len(audioCollection.tags))
 	maps.Copy(result, albumTags)
 
-	// Apply collection tags (if it's a playlist, these will override album-specific tags)
+	// Apply collection tags (if it's a playlist, these will override album-specific tags).
 	maps.Copy(result, audioCollection.tags)
 
-	// Apply track-specific tags
+	// Apply track-specific tags.
 	result["collectionTitle"] = audioCollection.title
 	result["trackArtist"] = strings.Join(track.ArtistNames, ", ")
 	result["trackGenre"] = strings.Join(track.Genres, ", ")
@@ -298,22 +299,23 @@ func (s *ServiceImpl) fillTrackTagsForTemplating(
 	return result
 }
 
+//nolint:cyclop,funlen,nolintlint // Function orchestrates complex download workflow with multiple sequential steps.
 func (s *ServiceImpl) downloadAndSaveTrack(ctx context.Context, trackURL, trackPath string) (bool, error) {
-	// Determine file creation flags
+	// Determine file creation flags.
 	fileOptions := overwriteFileOptions
 	if !s.cfg.ReplaceTracks {
 		fileOptions = createNewFileOptions
 	}
 
-	// Fetch the track
+	// Fetch the track.
 	body, totalBytes, err := s.zvukClient.FetchTrack(ctx, trackURL)
 	if err != nil {
 		return false, fmt.Errorf("failed to fetch track: %w", err)
 	}
 
-	defer body.Close()
+	defer body.Close() //nolint:errcheck // Error on close is not critical here.
 
-	// Attempt to open file
+	// Attempt to open file.
 	f, err := os.OpenFile(filepath.Clean(trackPath), fileOptions, defaultFilePermissions)
 	if err != nil {
 		if os.IsExist(err) && !s.cfg.ReplaceTracks {
@@ -325,9 +327,9 @@ func (s *ServiceImpl) downloadAndSaveTrack(ctx context.Context, trackURL, trackP
 		return false, fmt.Errorf("failed to create file: %w", err)
 	}
 
-	defer f.Close()
+	defer f.Close() //nolint:errcheck // Error on close is not critical here.
 
-	// Initialize progress tracker
+	// Initialize progress tracker.
 	var writer io.Writer
 
 	if logger.Level() <= zap.InfoLevel {
@@ -341,7 +343,7 @@ func (s *ServiceImpl) downloadAndSaveTrack(ctx context.Context, trackURL, trackP
 		writer = f
 	}
 
-	// Download logic
+	// Download logic.
 	if s.cfg.ParsedDownloadSpeedLimit == 0 {
 		_, err = io.Copy(writer, body)
 	} else {
@@ -357,7 +359,7 @@ func (s *ServiceImpl) downloadAndSaveTrack(ctx context.Context, trackURL, trackP
 				break
 			}
 
-			// Throttle to respect speed limit
+			// Throttle to respect speed limit.
 			time.Sleep(time.Second)
 		}
 	}
@@ -373,7 +375,8 @@ func (s *ServiceImpl) downloadAndSaveLyrics(
 	ctx context.Context,
 	track *zvuk.Track,
 	trackFilename string,
-	audioCollection *audioCollection) *zvuk.Lyrics {
+	audioCollection *audioCollection,
+) *zvuk.Lyrics {
 	if !s.cfg.DownloadLyrics || !track.Lyrics {
 		return nil
 	}
@@ -429,40 +432,41 @@ func (s *ServiceImpl) writeLyrics(ctx context.Context, lyrics, destinationPath s
 		return false, err
 	}
 
-	defer file.Close()
+	defer file.Close() //nolint:errcheck // Error on close is not critical here.
 
 	_, err = file.WriteString(lyrics)
 
 	return false, err
 }
 
+//nolint:cyclop,funlen,nolintlint // Function doesn't seem to be complex.
 func (s *ServiceImpl) finalizeAlbumCoverArt(
 	ctx context.Context,
 	trackIndex int64,
 	audioCollection *audioCollection,
 	trackFilename string,
 ) {
-	// Ensure this is the last track and a valid cover exists
+	// Ensure this is the last track and a valid cover exists.
 	if trackIndex != audioCollection.tracksCount || audioCollection.coverPath == "" || trackFilename == "" {
 		return
 	}
 
 	coverExt := filepath.Ext(audioCollection.coverPath)
 	if coverExt == "" {
-		// Assign a default extension if none is found
+		// Assign a default extension if none is found.
 		coverExt = defaultAlbumCoverExtension
 	}
 
 	coverFilename := utils.SetFileExtension(defaultAlbumCoverBasename, coverExt, false)
 
-	// For single-track albums without a dedicated folder, rename the cover to match the track filename
+	// For single-track albums without a dedicated folder, rename the cover to match the track filename.
 	if !s.cfg.CreateFolderForSingles && audioCollection.tracksCount == 1 {
 		coverFilename = utils.SetFileExtension(trackFilename, coverExt, true)
 	}
 
 	newCoverPath := filepath.Join(audioCollection.tracksPath, coverFilename)
 
-	// Check if the existing cover file exists
+	// Check if the existing cover file exists.
 	originalCoverStat, err := os.Stat(audioCollection.coverPath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -474,14 +478,14 @@ func (s *ServiceImpl) finalizeAlbumCoverArt(
 		return
 	}
 
-	// Check if the new cover file already exists and is the same as the original
+	// Check if the new cover file already exists and is the same as the original.
 	existingCoverStat, err := os.Stat(newCoverPath)
 	if err == nil && os.SameFile(originalCoverStat, existingCoverStat) {
-		// No need to rename if the file is already correctly named
+		// No need to rename if the file is already correctly named.
 		return
 	}
 
-	// Rename the cover file to the new location
+	// Rename the cover file to the new location.
 	if err = os.Rename(audioCollection.coverPath, newCoverPath); err != nil {
 		logger.Errorf(
 			ctx,

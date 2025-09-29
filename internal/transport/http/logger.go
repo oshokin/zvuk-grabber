@@ -6,10 +6,11 @@ import (
 	"net/http/httputil"
 	"time"
 
+	"go.uber.org/zap/zapcore"
+
 	"github.com/oshokin/zvuk-grabber/internal/config"
 	"github.com/oshokin/zvuk-grabber/internal/logger"
 	"github.com/oshokin/zvuk-grabber/internal/utils"
-	"go.uber.org/zap/zapcore"
 )
 
 // LogTransport is a custom http.RoundTripper that logs HTTP requests and responses.
@@ -18,6 +19,11 @@ type LogTransport struct {
 	next         http.RoundTripper
 	maxLogLength uint64
 }
+
+// Static error definitions for better error handling.
+var (
+	ErrNilRequest = errors.New("request is nil")
+)
 
 // NewLogTransport creates and returns a new instance of LogTransport.
 // If maxLogLength is less than or equal to 0, it defaults to config.DefaultMaxLogLength.
@@ -36,7 +42,7 @@ func NewLogTransport(next http.RoundTripper, maxLogLength uint64) http.RoundTrip
 // It implements the http.RoundTripper interface.
 func (t *LogTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	if req == nil {
-		return nil, errors.New("request is nil")
+		return nil, ErrNilRequest
 	}
 
 	// Skip logging if the logger is not at debug level.

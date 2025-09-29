@@ -17,23 +17,23 @@ const (
 	createNewFileOptions = os.O_CREATE | os.O_EXCL | os.O_WRONLY
 
 	// Default file permissions (read and write for owner, read-only for others).
-	defaultFilePermissions os.FileMode = 0644
+	defaultFilePermissions os.FileMode = 0o644
 
 	// Default folder permissions (read, write, and execute for owner, read and execute for others).
-	defaultFolderPermissions os.FileMode = 0755
+	defaultFolderPermissions os.FileMode = 0o755
 )
 
 func (s *ServiceImpl) downloadAndSaveFile(ctx context.Context, url, destinationPath string, overwrite bool) error {
-	// Choose file options based on whether we're allowed to overwrite the file
+	// Choose file options based on whether we're allowed to overwrite the file.
 	fileOptions := overwriteFileOptions
 	if !overwrite {
 		fileOptions = createNewFileOptions
 	}
 
-	// Open the file with the chosen options
+	// Open the file with the chosen options.
 	file, err := os.OpenFile(filepath.Clean(destinationPath), fileOptions, defaultFilePermissions)
 	if err != nil {
-		// If the file already exists and we're not overwriting, log and skip
+		// If the file already exists and we're not overwriting, log and skip.
 		if os.IsExist(err) && !overwrite {
 			logger.Infof(ctx, "File '%s' already exists, skipping download", destinationPath)
 
@@ -43,26 +43,26 @@ func (s *ServiceImpl) downloadAndSaveFile(ctx context.Context, url, destinationP
 		return err
 	}
 
-	defer file.Close()
+	defer file.Close() //nolint:errcheck // Error on close is not critical here.
 
-	// Download the file content from the URL
+	// Download the file content from the URL.
 	reader, err := s.zvukClient.DownloadFromURL(ctx, url)
 	if err != nil {
 		return err
 	}
 
-	defer reader.Close()
+	defer reader.Close() //nolint:errcheck // Error on close is not critical here.
 
-	// Copy the downloaded content to the file
+	// Copy the downloaded content to the file.
 	_, err = io.Copy(file, reader)
 
 	return err
 }
 
 func (s *ServiceImpl) truncateFolderName(ctx context.Context, pattern, name string) string {
-	// Check if the folder name exceeds the maximum allowed length
+	// Check if the folder name exceeds the maximum allowed length.
 	if s.cfg.MaxFolderNameLength > 0 && int64(len([]rune(name))) > s.cfg.MaxFolderNameLength {
-		// Truncate the name to the maximum length
+		// Truncate the name to the maximum length.
 		truncated := string([]rune(name)[:s.cfg.MaxFolderNameLength])
 		logger.Infof(ctx, "%s folder name was truncated to %d characters", pattern, s.cfg.MaxFolderNameLength)
 

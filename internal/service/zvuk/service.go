@@ -1,5 +1,7 @@
 package zvuk
 
+//go:generate $MOCKGEN -source=service.go -destination=mocks/service_mock.go
+
 import (
 	"context"
 	"os"
@@ -50,16 +52,16 @@ func NewService(
 
 // DownloadURLs orchestrates the full download pipeline, from URL processing to file creation.
 func (s *ServiceImpl) DownloadURLs(ctx context.Context, urls []string) {
-	// Ensure the output directory exists
+	// Ensure the output directory exists.
 	err := os.MkdirAll(s.cfg.OutputPath, defaultFolderPermissions)
 	if err != nil {
 		logger.Fatalf(ctx, "Failed to create output path: %v", err)
 	}
 
-	// Verify the user's subscription status before proceeding
+	// Verify the user's subscription status before proceeding.
 	s.checkUserSubscription(ctx)
 
-	// Extract and categorize download items from the provided URLs
+	// Extract and categorize download items from the provided URLs.
 	downloadItemsByCategories, err := s.urlProcessor.ExtractDownloadItems(ctx, urls)
 	if err != nil {
 		logger.Fatalf(ctx, "Failed to extract items to download: %v", err)
@@ -69,13 +71,13 @@ func (s *ServiceImpl) DownloadURLs(ctx context.Context, urls []string) {
 
 	logger.Info(ctx, "Starting download process")
 
-	// Process albums and playlists first to maintain organizational structure
+	// Process albums and playlists first to maintain organizational structure.
 	standaloneItems := s.fetchAndDeduplicateStandaloneItems(ctx, downloadItemsByCategories)
 	if len(standaloneItems) > 0 {
 		s.downloadStandaloneItems(ctx, standaloneItems)
 	}
 
-	// Process individual tracks after collections to allow potential deduplication
+	// Process individual tracks after collections to allow potential deduplication.
 	if len(downloadItemsByCategories.Tracks) > 0 {
 		s.downloadTrackItems(ctx, downloadItemsByCategories.Tracks)
 	}
@@ -90,11 +92,11 @@ func (s *ServiceImpl) fetchAndDeduplicateStandaloneItems(
 ) []*DownloadItem {
 	standaloneItems := items.StandaloneItems
 
-	// If artist URLs are present, fetch their albums and append them to the standalone items
+	// If artist URLs are present, fetch their albums and append them to the standalone items.
 	if len(items.Artists) > 0 {
 		artistAlbums := s.fetchArtistAlbums(ctx, items.Artists)
 		standaloneItems = append(standaloneItems, artistAlbums...)
-		// Remove duplicate album entries that might exist in the original URLs
+		// Remove duplicate album entries that might exist in the original URLs.
 		standaloneItems = s.urlProcessor.DeduplicateDownloadItems(standaloneItems)
 	}
 
@@ -107,7 +109,7 @@ func (s *ServiceImpl) downloadStandaloneItems(ctx context.Context, items []*Down
 
 	itemsCount := len(items)
 
-	// Iterate through each item and download based on its category
+	// Iterate through each item and download based on its category.
 	for index, item := range items {
 		//nolint:exhaustive // All meaningful cases are explicitly handled; default covers unknown values.
 		switch item.Category {
@@ -127,7 +129,7 @@ func (s *ServiceImpl) downloadStandaloneItems(ctx context.Context, items []*Down
 func (s *ServiceImpl) downloadTrackItems(ctx context.Context, items []*DownloadItem) {
 	logger.Info(ctx, "Downloading tracks")
 
-	// Convert track IDs from strings to integers
+	// Convert track IDs from strings to integers.
 	numericTrackIDs := make([]int64, 0, len(items))
 	trackIDs := utils.Map(items, func(v *DownloadItem) string { return v.ItemID })
 
@@ -142,7 +144,7 @@ func (s *ServiceImpl) downloadTrackItems(ctx context.Context, items []*DownloadI
 		numericTrackIDs = append(numericTrackIDs, trackID)
 	}
 
-	// Fetch metadata for the tracks
+	// Fetch metadata for the tracks.
 	tracksMetadata, err := s.zvukClient.GetTracksMetadata(ctx, trackIDs)
 	if err != nil {
 		logger.Errorf(ctx, "Failed to get track metadata: %v", err)
@@ -150,7 +152,7 @@ func (s *ServiceImpl) downloadTrackItems(ctx context.Context, items []*DownloadI
 		return
 	}
 
-	// Fetch album and label metadata for the tracks
+	// Fetch album and label metadata for the tracks.
 	fetchAlbumsDataFromTracksResponse, err := s.fetchAlbumsDataFromTracks(ctx, tracksMetadata)
 	if err != nil {
 		logger.Errorf(ctx, "Failed to fetch album and label metadata: %v", err)
@@ -158,7 +160,7 @@ func (s *ServiceImpl) downloadTrackItems(ctx context.Context, items []*DownloadI
 		return
 	}
 
-	// Prepare metadata for downloading the tracks
+	// Prepare metadata for downloading the tracks.
 	metadata := &downloadTracksMetadata{
 		category:        DownloadCategoryTrack,
 		trackIDs:        numericTrackIDs,
@@ -169,6 +171,6 @@ func (s *ServiceImpl) downloadTrackItems(ctx context.Context, items []*DownloadI
 		audioCollection: nil,
 	}
 
-	// Download the tracks
+	// Download the tracks.
 	s.downloadTracks(ctx, metadata)
 }

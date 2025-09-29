@@ -7,10 +7,19 @@ import (
 	"time"
 
 	"github.com/dustin/go-humanize"
-	"github.com/oshokin/zvuk-grabber/internal/logger"
-	"github.com/oshokin/zvuk-grabber/internal/utils"
 	"github.com/spf13/viper"
 	"go.uber.org/zap/zapcore"
+
+	"github.com/oshokin/zvuk-grabber/internal/logger"
+	"github.com/oshokin/zvuk-grabber/internal/utils"
+)
+
+// Static error definitions for better error handling.
+var (
+	ErrEmptyAuthToken       = errors.New("authentication token cannot be empty")
+	ErrInvalidFormat        = errors.New("invalid format")
+	ErrUnknownLogLevel      = errors.New("unknown log level")
+	ErrInvalidRetryAttempts = errors.New("retry attempts count must a positive integer")
 )
 
 // Config holds all configuration settings.
@@ -85,6 +94,8 @@ func LoadConfig(configFilename string) (*Config, error) {
 }
 
 // ValidateConfig checks the configuration for validity and sets derived fields.
+//
+//nolint:cyclop // It's a validation function, not a complex one.
 func ValidateConfig(cfg *Config) error {
 	var (
 		downloadSpeedLimit       = strings.TrimSpace(cfg.DownloadSpeedLimit)
@@ -94,7 +105,7 @@ func ValidateConfig(cfg *Config) error {
 
 	authToken := strings.TrimSpace(cfg.AuthToken)
 	if authToken == "" {
-		return errors.New("authentication token cannot be empty")
+		return ErrEmptyAuthToken
 	}
 
 	cfg.ZvukBaseURL = ZvukBaseURL
@@ -106,22 +117,22 @@ func ValidateConfig(cfg *Config) error {
 		}
 	}
 
-	// io.CopyN accepts only int64 so we transform it safely in order to use it later.
+	// Io.CopyN accepts only int64 so we transform it safely in order to use it later.
 	cfg.ParsedDownloadSpeedLimit = utils.SafeUint64ToInt64(parsedDownloadSpeedLimit)
 
 	if cfg.DownloadFormat < minDownloadFormat || cfg.DownloadFormat > maxDownloadFormat {
-		return fmt.Errorf("format must be between %d and %d", minDownloadFormat, maxDownloadFormat)
+		return fmt.Errorf("%w: must be between %d and %d", ErrInvalidFormat, minDownloadFormat, maxDownloadFormat)
 	}
 
 	parsedLogLevel, isLogLevelCorrect := logger.ParseLogLevel(cfg.LogLevel)
 	if !(isLogLevelCorrect) {
-		return fmt.Errorf("unknown log level: '%s'", cfg.LogLevel)
+		return fmt.Errorf("%w: '%s'", ErrUnknownLogLevel, cfg.LogLevel)
 	}
 
 	cfg.ParsedLogLevel = parsedLogLevel
 
 	if cfg.RetryAttemptsCount <= 0 {
-		return errors.New("retry attempts count must a positive integer")
+		return ErrInvalidRetryAttempts
 	}
 
 	cfg.ParsedMaxDownloadPause, err = time.ParseDuration(cfg.MaxDownloadPause)

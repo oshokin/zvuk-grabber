@@ -2,14 +2,14 @@ package zvuk
 
 // GetAlbumsMetadataResponse represents the response structure for fetching metadata about albums.
 type GetAlbumsMetadataResponse struct {
-	Tracks   map[string]*Track
-	Releases map[string]*Release
+	Tracks   map[string]*Track   `json:"tracks"`
+	Releases map[string]*Release `json:"releases"`
 }
 
 // GetPlaylistsMetadataResponse represents the response structure for fetching metadata about playlists.
 type GetPlaylistsMetadataResponse struct {
-	Tracks    map[string]*Track
-	Playlists map[string]*Playlist
+	Tracks    map[string]*Track    `json:"tracks"`
+	Playlists map[string]*Playlist `json:"playlists"`
 }
 
 // GetUserProfileResponse represents the response structure for fetching a user's profile information.
@@ -30,6 +30,11 @@ type GetStreamMetadataResponse struct {
 // GetLyricsResponse represents the response structure for fetching lyrics.
 type GetLyricsResponse struct {
 	Result *Lyrics `json:"result"`
+}
+
+// GetLabelsMetadataResponse represents the response structure for fetching metadata about labels.
+type GetLabelsMetadataResponse struct {
+	Labels map[string]*Label `json:"labels"`
 }
 
 // UserProfile represents a user's profile information.
@@ -115,3 +120,6 @@ type Label struct {
 
 // LyricsTypeSubtitle represents subtitle lyrics type.
 const LyricsTypeSubtitle = "subtitle"
+
+// LyricsTypeLRC represents LRC lyrics type.
+const LyricsTypeLRC = "lrc"

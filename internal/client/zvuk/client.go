@@ -1,5 +1,7 @@
 package zvuk
 
+//go:generate $MOCKGEN -source=client.go -destination=mocks/client_mock.go
+
 import (
 	"context"
 	"encoding/json"
@@ -12,10 +14,20 @@ import (
 	"strings"
 
 	"github.com/machinebox/graphql"
+
 	"github.com/oshokin/zvuk-grabber/internal/config"
 	"github.com/oshokin/zvuk-grabber/internal/logger"
 	http_transport "github.com/oshokin/zvuk-grabber/internal/transport/http"
 	"github.com/oshokin/zvuk-grabber/internal/utils"
+)
+
+// Static error definitions for better error handling.
+var (
+	ErrUnexpectedHTTPStatus             = errors.New("unexpected HTTP status")
+	ErrArtistNotFound                   = errors.New("artist not found")
+	ErrUnexpectedArtistResponseFormat   = errors.New("unexpected artist response format")
+	ErrUnexpectedReleasesResponseFormat = errors.New("unexpected releases response format")
+	ErrFailedToFetchStreamMetadata      = errors.New("failed to fetch stream metadata after retries")
 )
 
 const (
@@ -31,6 +43,8 @@ const (
 )
 
 // Client defines the interface for interacting with Zvuk's API.
+//
+//nolint:interfacebloat // It's big by design, it's a client interface.
 type Client interface {
 	// DownloadFromURL downloads content from the specified URL.
 	DownloadFromURL(ctx context.Context, url string) (io.ReadCloser, error)
@@ -125,9 +139,9 @@ func (c *ClientImpl) DownloadFromURL(ctx context.Context, url string) (io.ReadCl
 	}
 
 	if response.StatusCode != http.StatusOK {
-		response.Body.Close()
+		response.Body.Close() //nolint:errcheck,gosec // Error on close is not critical here.
 
-		return nil, fmt.Errorf("unexpected HTTP status: %d", response.StatusCode)
+		return nil, fmt.Errorf("%w: %d", ErrUnexpectedHTTPStatus, response.StatusCode)
 	}
 
 	return response.Body, nil
@@ -149,9 +163,9 @@ func (c *ClientImpl) FetchTrack(ctx context.Context, trackURL string) (io.ReadCl
 	}
 
 	if response.StatusCode != http.StatusOK && response.StatusCode != http.StatusPartialContent {
-		response.Body.Close()
+		response.Body.Close() //nolint:errcheck,gosec // Error on close is not critical here.
 
-		return nil, 0, fmt.Errorf("unexpected HTTP status: %d", response.StatusCode)
+		return nil, 0, fmt.Errorf("%w: %d", ErrUnexpectedHTTPStatus, response.StatusCode)
 	}
 
 	return response.Body, response.ContentLength, nil
@@ -211,20 +225,20 @@ func (c *ClientImpl) GetArtistReleaseIDs(ctx context.Context, artistID string, o
 		return nil, err
 	}
 
-	// Navigate the response map manually
+	// Navigate the response map manually.
 	data, ok := graphQLResponse["getArtists"].([]any)
 	if !ok || len(data) == 0 {
-		return nil, errors.New("artist not found")
+		return nil, ErrArtistNotFound
 	}
 
 	artist, ok := data[0].(map[string]any)
 	if !ok {
-		return nil, errors.New("unexpected artist response format")
+		return nil, ErrUnexpectedArtistResponseFormat
 	}
 
 	releases, ok := artist["releases"].([]any)
 	if !ok {
-		return nil, errors.New("unexpected releases response format")
+		return nil, ErrUnexpectedReleasesResponseFormat
 	}
 
 	releaseIDs := make([]string, 0, len(releases))
@@ -286,7 +300,12 @@ func (c *ClientImpl) GetStreamMetadata(ctx context.Context, trackID, quality str
 	var result *StreamMetadata
 
 	for i := range c.cfg.RetryAttemptsCount {
-		response, statusCode, err := fetchJSONWithQuery[GetStreamMetadataResponse](c, ctx, zvukAPIStreamMetadataURI, query)
+		response, statusCode, err := fetchJSONWithQuery[GetStreamMetadataResponse](
+			c,
+			ctx,
+			zvukAPIStreamMetadataURI,
+			query,
+		)
 		if err == nil {
 			result = response.Result
 
@@ -305,7 +324,7 @@ func (c *ClientImpl) GetStreamMetadata(ctx context.Context, trackID, quality str
 	}
 
 	if result == nil {
-		return nil, errors.New("failed to fetch stream metadata after retries")
+		return nil, ErrFailedToFetchStreamMetadata
 	}
 
 	return result, nil
@@ -390,10 +409,10 @@ func fetchJSONWithQuery[T any](c *ClientImpl, ctx context.Context, uri string, q
 		return nil, 0, err
 	}
 
-	defer response.Body.Close()
+	defer response.Body.Close() //nolint:errcheck // Error on close is not critical here.
 
 	if response.StatusCode != http.StatusOK {
-		return nil, response.StatusCode, fmt.Errorf("unexpected HTTP status: %d", response.StatusCode)
+		return nil, response.StatusCode, fmt.Errorf("%w: %d", ErrUnexpectedHTTPStatus, response.StatusCode)
 	}
 
 	var result T

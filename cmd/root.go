@@ -7,12 +7,14 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
+
 	"github.com/oshokin/zvuk-grabber/internal/app"
 	"github.com/oshokin/zvuk-grabber/internal/config"
 	"github.com/oshokin/zvuk-grabber/internal/logger"
+	"github.com/oshokin/zvuk-grabber/internal/utils"
 	"github.com/oshokin/zvuk-grabber/internal/version"
-	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
 )
 
 var (
@@ -65,7 +67,7 @@ func Execute() {
 
 //nolint:gochecknoinits // Cobra requires the init function to set up flags before the command is executed.
 func init() {
-	// Add version command
+	// Add version command.
 	version.AttachCobraVersionCommand(rootCmd)
 
 	rootCmd.PersistentFlags().StringVarP(
@@ -111,7 +113,7 @@ func initConfig(cmd *cobra.Command, _ []string) {
 		logger.Fatalf(cmd.Context(), "Failed to load configuration: %v", err)
 	}
 
-	// Bind flags to config before validation
+	// Bind flags to config before validation.
 	if err := bindFlagsToConfig(cmd.Flags(), appConfig); err != nil {
 		logger.Fatalf(cmd.Context(), "Failed to parse flags: %v", err)
 	}
@@ -122,7 +124,7 @@ func initConfig(cmd *cobra.Command, _ []string) {
 func bindFlagsToConfig(flags *pflag.FlagSet, cfg *config.Config) error {
 	if flag := flags.Lookup("format"); flag != nil && flag.Changed {
 		formatValue, _ := flags.GetInt("format")
-		cfg.DownloadFormat = uint8(formatValue)
+		cfg.DownloadFormat = utils.SafeIntToUint8(formatValue)
 	}
 
 	if flag := flags.Lookup("output"); flag != nil && flag.Changed {

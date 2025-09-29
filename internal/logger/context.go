@@ -31,7 +31,7 @@ func WithName(ctx context.Context, name string) context.Context {
 
 // WithKV creates a logger from the one already present in the context and sets metadata.
 // It takes a key and a value that will be inherited by child loggers.
-func WithKV(ctx context.Context, key string, value interface{}) context.Context {
+func WithKV(ctx context.Context, key string, value any) context.Context {
 	log := FromContext(ctx).With(key, value)
 
 	return ToContext(ctx, log)

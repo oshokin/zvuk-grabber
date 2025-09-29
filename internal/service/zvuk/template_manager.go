@@ -1,5 +1,7 @@
 package zvuk
 
+//go:generate $MOCKGEN -source=template_manager.go -destination=mocks/template_manager_mock.go
+
 import (
 	"bytes"
 	"context"
@@ -88,11 +90,16 @@ func (s *TemplateManagerImpl) GetTrackFilename(
 
 	// Execute the selected template with the track tags.
 	var buffer bytes.Buffer
-	if err := textBuilder.Execute(&buffer, trackTags); err != nil {
-		logger.Errorf(ctx, "Failed to execute template, using default: %v", err)
+	if textBuilder != nil {
+		if err := textBuilder.Execute(&buffer, trackTags); err != nil {
+			logger.Errorf(ctx, "Failed to execute template, using default: %v", err)
 
-		// Fall back to the default template if execution fails.
-		buffer.Reset()
+			// Fall back to the default template if execution fails.
+			buffer.Reset()
+			_ = defaultTextBuilder.Execute(&buffer, trackTags)
+		}
+	} else {
+		// Use default template if custom template is nil.
 		_ = defaultTextBuilder.Execute(&buffer, trackTags)
 	}
 
@@ -108,13 +115,23 @@ func (s *TemplateManagerImpl) GetAlbumFolderName(ctx context.Context, tags map[s
 	)
 
 	// Execute the template with the album tags.
-	err := textBuilder.Execute(&buffer, tags)
-	if err != nil {
-		logger.Errorf(ctx, "Failed to execute template, default album folder template is being used. Error: %v", err)
+	if textBuilder != nil {
+		err := textBuilder.Execute(&buffer, tags)
+		if err != nil {
+			logger.Errorf(
+				ctx,
+				"Failed to execute template, default album folder template is being used. Error: %v",
+				err,
+			)
 
-		// Fall back to the default template if execution fails.
-		buffer.Reset()
+			// Fall back to the default template if execution fails.
+			buffer.Reset()
 
+			textBuilder = s.defaultAlbumFolderTemplate
+			_ = textBuilder.Execute(&buffer, tags)
+		}
+	} else {
+		// Use default template if custom template is nil.
 		textBuilder = s.defaultAlbumFolderTemplate
 		_ = textBuilder.Execute(&buffer, tags)
 	}

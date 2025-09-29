@@ -1,5 +1,7 @@
 package zvuk
 
+//go:generate $MOCKGEN -source=url_processor.go -destination=mocks/url_processor_mock.go
+
 import (
 	"context"
 	"regexp"
