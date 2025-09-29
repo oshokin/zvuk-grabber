@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# Git commit-msg hook to enforce semantic commit message format.
+# This script validates commit messages to ensure they follow conventional commit standards.
+
+# Exit immediately on error, treat unset variables as errors, and fail on pipe errors.
+set -euo pipefail
+
+# Get the commit message file path passed by Git as the first argument.
+msg_file="$1"
+
+# Read the first line (subject) of the commit message and strip carriage returns.
+# This handles Windows line endings (CRLF) to ensure cross-platform compatibility.
+subject=$(sed -n '1p' "$msg_file" | tr -d '\r')
+
+# Define the required commit message pattern using extended regex.
+# Messages must start with one of: fix:, feat:, or major: followed by a space.
+pattern='^(fix|feat|major): '
+
+# Check if the commit message subject matches the required pattern.
+# If it matches, exit successfully (allow the commit to proceed).
+if printf '%s' "$subject" | grep -Eq "$pattern"; then
+  exit 0
+fi
+
+# Display detailed error message to stderr explaining the required format.
+# This helps developers understand what went wrong and how to fix it.
+cat >&2 <<'ERR'
+Commit message must start with one of:
+  - "fix: "   for patches
+  - "feat: "  for new features (minor)
+  - "major: " for breaking changes (major)
+
+Example:
+  feat(server): add health probe
+
+Tip: use imperative mood (add, fix, remove), no trailing period.
+ERR
+
+# Show the actual commit message that was rejected for debugging purposes.
+echo "Got: $subject" >&2
+
+# Exit with error code 1 to reject the commit and prevent it from being created.
+exit 1

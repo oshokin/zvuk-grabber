@@ -1,0 +1,82 @@
+# GitHub Actions workflow to enforce semantic commit message policy.
+# This workflow validates that all commit messages follow the required format.
+# Works in conjunction with the local Git hook for comprehensive validation.
+
+name: Commit Policy
+
+# Trigger on all pull requests and pushes to any branch.
+# This ensures commit message validation across all development activity.
+on:
+  pull_request:  # Validate PR commits before they reach master.
+  push:          # Validate direct pushes to any branch.
+
+jobs:
+  validate-commit-messages:
+    runs-on: ubuntu-latest  # Use Ubuntu for consistent bash behavior.
+    steps:
+      # Check out repository with full Git history for commit analysis.
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0  # Fetch all history to access commit ranges.
+
+      # Determine the range of commits to validate based on event type.
+      # Different logic for PRs vs direct pushes to handle Git refs correctly.
+      - name: Determine range
+        id: range
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            # For PRs: check commits between base branch and PR head.
+            echo "range=${{ github.event.pull_request.base.sha }}..${{ github.sha }}" >> "$GITHUB_OUTPUT"
+          else
+            # For push events: use GitHub-provided before..after range.
+            # Handle edge case where before is all zeros (new branch)
+            if [[ "${{ github.event.before }}" == "0000000000000000000000000000000000000000" ]]; then
+              echo "range=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+            else
+              echo "range=${{ github.event.before }}..${{ github.sha }}" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+
+      # Validate that all commits in the range follow semantic commit format.
+      # Enforces the same rules as the local Git hook: fix:, feat:, major:.
+      - name: Check commit messages
+        run: |
+          set -euo pipefail  # Exit on error, undefined variables, pipe failures.
+          range='${{ steps.range.outputs.range }}'
+          echo "Checking commits in range: $range"
+          
+          # Define the required commit message pattern (matches Git hook).
+          pattern='^(fix|feat|major): '
+          
+          # Extract commit subjects from the specified range.
+          msgs=$(git log --format=%s "$range")
+          
+          # Handle edge case where no commits exist in range.
+          if [[ -z "$msgs" ]]; then
+            echo "No commits to check (range may be empty)."; exit 0
+          fi
+          
+          # Check if ANY commit follows semantic versioning
+          semantic_commits=$(printf '%s\n' "$msgs" | grep -E "$pattern" || true)
+          
+          if [[ -n "$semantic_commits" ]]; then
+            # Found semantic commits - validate ALL commits must follow pattern
+            bad=$(printf '%s\n' "$msgs" | grep -Ev "$pattern" || true)
+            
+            if [[ -n "$bad" ]]; then
+              echo 'Mixed commit types detected. If using semantic commits, ALL commits must follow the pattern:'
+              echo "$bad"
+              echo
+              echo "Allowed prefixes: 'fix: ', 'feat: ', 'major: '"
+              exit 1
+            fi
+            
+            echo "All commits follow semantic versioning pattern."
+          else
+            # No semantic commits found - treat as automatic dependency updates (fix)
+            echo "No semantic commits found. Treating as automatic updates (fix: dependency maintenance)."
+            echo "Commits in this push:"
+            printf '%s\n' "$msgs" | sed 's/^/  - /'
+          fi
+          
+          echo "All commit messages conform to policy."

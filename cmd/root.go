@@ -10,6 +10,7 @@ import (
 	"github.com/oshokin/zvuk-grabber/internal/app"
 	"github.com/oshokin/zvuk-grabber/internal/config"
 	"github.com/oshokin/zvuk-grabber/internal/logger"
+	"github.com/oshokin/zvuk-grabber/internal/version"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
@@ -36,10 +37,6 @@ The application provides flexible naming templates, format selection, and downlo
 		Args:             cobra.MinimumNArgs(1),
 		PersistentPreRun: initConfig,
 		Run: func(cmd *cobra.Command, urls []string) {
-			if err := bindFlagsToConfig(cmd.Flags(), appConfig); err != nil {
-				logger.Fatalf(cmd.Context(), "Failed to parse flags: %v", err)
-			}
-
 			app.ExecuteRootCommand(cmd.Context(), appConfig, urls)
 		},
 	}
@@ -68,6 +65,9 @@ func Execute() {
 
 //nolint:gochecknoinits // Cobra requires the init function to set up flags before the command is executed.
 func init() {
+	// Add version command
+	version.AttachCobraVersionCommand(rootCmd)
+
 	rootCmd.PersistentFlags().StringVarP(
 		&configFilenameFromFlag,
 		"config",
@@ -81,7 +81,7 @@ func init() {
 	rootCmdFlags.IntP(
 		"format",
 		"f",
-		0,
+		1,
 		"audio format: 1 = MP3, 128 Kbps, 2 = MP3, 320 Kbps, 3 = FLAC, 16-bit/44.1kHz.")
 
 	rootCmdFlags.StringP(
@@ -111,12 +111,18 @@ func initConfig(cmd *cobra.Command, _ []string) {
 		logger.Fatalf(cmd.Context(), "Failed to load configuration: %v", err)
 	}
 
+	// Bind flags to config before validation
+	if err := bindFlagsToConfig(cmd.Flags(), appConfig); err != nil {
+		logger.Fatalf(cmd.Context(), "Failed to parse flags: %v", err)
+	}
+
 	logger.SetLevel(appConfig.ParsedLogLevel)
 }
 
 func bindFlagsToConfig(flags *pflag.FlagSet, cfg *config.Config) error {
 	if flag := flags.Lookup("format"); flag != nil && flag.Changed {
-		cfg.DownloadFormat, _ = flags.GetUint8("format")
+		formatValue, _ := flags.GetInt("format")
+		cfg.DownloadFormat = uint8(formatValue)
 	}
 
 	if flag := flags.Lookup("output"); flag != nil && flag.Changed {

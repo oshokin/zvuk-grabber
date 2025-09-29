@@ -34,29 +34,55 @@ vars:
   GOLANGCI_CONFIG: ".golangci.yaml" # Default configuration file
   GOLANGCI_STRICT_CONFIG: ".golangci-strict.yaml" # Strict configuration file for more rigorous checks
 
+  # -------------------------------
+  # Version Detection and Injection
+  # -------------------------------
+
+  # Detect the latest semantic version tag (v1.2.3 format only).
+  # Note: This variable is computed before deps run. For fresh tags, use dynamic detection in build task.
+  LATEST_SEMVER_TAG:
+    sh: 'git describe --tags --match "v[0-9]*.[0-9]*.[0-9]*" --abbrev=0 2>/dev/null || echo ""'
+
+  # Current Git commit hash for build metadata.
+  GIT_COMMIT:
+    sh: 'git rev-parse --short HEAD 2>/dev/null || echo "dev"'
+
+  # Build timestamp in UTC ISO format.
+  BUILD_TIME:
+    sh: '{{if eq OS "windows"}}powershell -Command "Get-Date -UFormat \"%Y-%m-%dT%H:%M:%SZ\""{{else}}date -u +"%Y-%m-%dT%H:%M:%SZ"{{end}}'
+
+  # Clean version string (strip 'v' prefix) for injection.
+  CLEAN_VERSION:
+    sh: |
+      if [[ -n "{{.LATEST_SEMVER_TAG}}" ]]; then
+        echo "{{.LATEST_SEMVER_TAG}}" | sed 's/^v//'
+      else
+        echo ""
+      fi
+
+  # Build flags for version injection (only set if semantic tag exists).
+  VERSION_LDFLAGS:
+    sh: |
+      if [[ -n "{{.LATEST_SEMVER_TAG}}" ]]; then
+        echo "-s -w -X github.com/oshokin/zvuk-grabber/internal/version.Version={{.CLEAN_VERSION}} -X github.com/oshokin/zvuk-grabber/internal/version.Commit={{.GIT_COMMIT}} -X github.com/oshokin/zvuk-grabber/internal/version.BuildTime={{.BUILD_TIME}}"
+      else
+        echo ""
+      fi
+
 tasks:
+  # -------------------------------
+  # Default Task
+  # -------------------------------
+
   default:
-    desc: "Show available targets"
     cmds:
-      - task: help
+      - task -l
 
-  help:
-    desc: "Show this help message"
-    cmds:
-      - |
-        echo "Available targets:"
-        echo "  install-lint            Install golangci-lint if not available"
-        echo "  lint                    Run golangci-lint with normal checks"
-        echo "  lint-strict             Run golangci-lint in strict mode"
-        echo "  lint-full               Run golangci-lint for all files"
-        echo "  lint-strict-full        Run golangci-lint in strict mode for all files"
-        echo "  test                    Run tests with verbose output"
-        echo "  test-race               Run tests with verbose output and race detector"
-        echo "  build                   Build the project binary"
-        echo "  run                     Run the project binary"
-        echo "  clean                   Remove the project binary"
+  # -------------------------------
+  # Installation Tasks
+  # -------------------------------
 
-  install-lint:
+  install:lint:
     desc: "Install golangci-lint if not already installed or if the version doesn't match"
     cmds:
       - '{{.MKDIR}} "{{.LOCAL_BIN}}"' # Create the local bin directory if it doesn't exist
@@ -69,37 +95,79 @@ tasks:
       # Set GOBIN to install golangci-lint in the local bin directory.
       GOBIN: "{{.LOCAL_BIN}}"
 
+  install:githooks:
+    desc: "Configure Git hooks for this repository"
+    cmds:
+      - |
+        echo "Setting up Git hooks..."
+        git config --local core.hooksPath .githooks
+        chmod +x .githooks/commit-msg
+        echo "Git hooks configured successfully!"
+        echo "Commit messages must now start with: fix:, feat:, or major:"
+
+  # -------------------------------
+  # Code Quality Checks
+  # -------------------------------
+
   lint:
-    desc: "Run golangci-lint with normal checks"
-    deps: [install-lint] # Ensure golangci-lint is installed before running
+    desc: "Run standard golangci-lint checks on changed files"
+    deps: [install:lint] # Ensure golangci-lint is installed before running
     cmds:
       - '"{{.GOLANGCI_BIN}}" run --new-from-rev=origin/master --config={{.GOLANGCI_CONFIG}}' # Run with the default configuration
 
-  lint-strict:
-    desc: "Run golangci-lint in strict mode"
-    deps: [install-lint] # Ensure golangci-lint is installed before running
+  lint:fix:
+    desc: "Run standard golangci-lint checks on changed files and auto-fix"
+    deps: [install:lint] # Ensure golangci-lint is installed before running
+    cmds:
+      - '"{{.GOLANGCI_BIN}}" run --new-from-rev=origin/master --config={{.GOLANGCI_CONFIG}} --fix' # Run with auto-fix
+
+  lint:strict:
+    desc: "Run golangci-lint in strict mode on changed files"
+    deps: [install:lint] # Ensure golangci-lint is installed before running
     cmds:
       - '"{{.GOLANGCI_BIN}}" run --new-from-rev=origin/master --config={{.GOLANGCI_STRICT_CONFIG}}' # Run with the strict configuration
 
-  lint-full:
-    desc: "Run golangci-lint for all files"
-    deps: [install-lint] # Ensure golangci-lint is installed before running
+  lint:strict:fix:
+    desc: "Run golangci-lint in strict mode on changed files and auto-fix"
+    deps: [install:lint] # Ensure golangci-lint is installed before running
+    cmds:
+      - '"{{.GOLANGCI_BIN}}" run --new-from-rev=origin/master --config={{.GOLANGCI_STRICT_CONFIG}} --fix' # Run with strict config and auto-fix
+
+  lint:full:
+    desc: "Run standard golangci-lint checks on all files"
+    deps: [install:lint] # Ensure golangci-lint is installed before running
     cmds:
       - '"{{.GOLANGCI_BIN}}" run --config={{.GOLANGCI_CONFIG}}' # Run for all files with the default configuration
 
-  lint-strict-full:
+  lint:full:fix:
+    desc: "Run standard golangci-lint checks on all files and auto-fix"
+    deps: [install:lint] # Ensure golangci-lint is installed before running
+    cmds:
+      - '"{{.GOLANGCI_BIN}}" run --config={{.GOLANGCI_CONFIG}} --fix' # Run for all files with auto-fix
+
+  lint:strict:full:
     desc: "Run golangci-lint in strict mode for all files"
-    deps: [install-lint] # Ensure golangci-lint is installed before running
+    deps: [install:lint] # Ensure golangci-lint is installed before running
     cmds:
       - '"{{.GOLANGCI_BIN}}" run --config={{.GOLANGCI_STRICT_CONFIG}}' # Run for all files with the strict configuration
 
+  lint:strict:full:fix:
+    desc: "Run golangci-lint in strict mode for all files and auto-fix"
+    deps: [install:lint] # Ensure golangci-lint is installed before running
+    cmds:
+      - '"{{.GOLANGCI_BIN}}" run --config={{.GOLANGCI_STRICT_CONFIG}} --fix' # Run for all files with strict config and auto-fix
+
+  # -------------------------------
+  # Testing
+  # -------------------------------
+
   test:
-    desc: "Run tests with verbose output"
+    desc: "Run all tests with verbose output"
     cmds:
       - go test -v ./... # Run tests with verbose output
 
-  test-race:
-    desc: "Run tests with verbose output and race detector"
+  test:race:
+    desc: "Run tests with race detector enabled"
     cmds:
       - '{{if eq OS "windows"}}echo "Ensure gcc is installed or use WSL for a smoother experience"{{end}}' # Windows-specific note
       - go test -race -v ./... # Run tests with the race detector enabled
@@ -107,11 +175,41 @@ tasks:
       # Enable CGo for the race detector.
       CGO_ENABLED: "1"
 
+  # -------------------------------
+  # Build & Cleanup
+  # -------------------------------
+
   build:
-    desc: "Build the {{.APP}} binary"
+    desc: "Build the {{.APP}} binary with version injection"
     cmds:
       - '{{.MKDIR}} "{{.LOCAL_BIN}}"' # Create the local bin directory if it doesn't exist
-      - go build -o "{{.APP_BINARY}}" main.go # Build the application binary
+      - |
+        # Fetch latest tags and detect version AFTER deps have run
+        git fetch --tags origin >/dev/null 2>&1 || true
+
+        # Dynamically detect the latest semantic version tag
+        LATEST_TAG=$(git describe --tags --match "v[0-9]*.[0-9]*.[0-9]*" --abbrev=0 2>/dev/null || echo "")
+
+        if [[ -n "$LATEST_TAG" ]]; then
+          CLEAN_VERSION=$(echo "$LATEST_TAG" | sed 's/^v//')
+          GIT_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "dev")
+          BUILD_TIME=$({{if eq OS "windows"}}powershell -Command "Get-Date -UFormat \"%Y-%m-%dT%H:%M:%SZ\""{{else}}date -u +"%Y-%m-%dT%H:%M:%SZ"{{end}})
+          VERSION_LDFLAGS="-s -w -X github.com/oshokin/zvuk-grabber/internal/version.Version=$CLEAN_VERSION -X github.com/oshokin/zvuk-grabber/internal/version.Commit=$GIT_COMMIT -X github.com/oshokin/zvuk-grabber/internal/version.BuildTime=$BUILD_TIME"
+          
+          echo "Found semantic version tag: $LATEST_TAG"
+          echo "Building release version $CLEAN_VERSION with metadata injection..."
+          go build -ldflags "$VERSION_LDFLAGS" -o "{{.APP_BINARY}}" main.go
+          
+          echo "Build completed successfully!"
+          echo "Version info: $CLEAN_VERSION (commit: $GIT_COMMIT, built: $BUILD_TIME)"
+        else
+          echo "No semantic version tags found (v*.*.* format)"
+          echo "Building development version without injection..."
+          go build -o "{{.APP_BINARY}}" main.go
+          
+          echo "Build completed successfully!"
+          echo "Tip: Create a semantic version tag (e.g., 'git tag v1.0.0') to enable version injection"
+        fi
 
   run:
     desc: "Run the {{.APP}} binary"
@@ -128,3 +226,26 @@ tasks:
     cmds:
       - cmd: '{{.RMRF}} "{{.APP_BINARY}}"' # Remove the application binary
         ignore_error: true # Ignore errors if the binary doesn't exist
+
+  # -------------------------------
+  # Version Management
+  # -------------------------------
+
+  version:pull-tags:
+    desc: "Fetch latest tags from remote"
+    cmds:
+      - git fetch --tags origin
+    silent: false
+
+  # -------------------------------
+  # Git Hooks Management
+  # -------------------------------
+
+  remove:githooks:
+    desc: "Disable Git hooks for this repository"
+    cmds:
+      - |
+        echo "Disabling Git hooks..."
+        git config --local --unset core.hooksPath || echo "Hooks path was not set"
+        chmod -x .githooks/commit-msg 2>/dev/null || echo "Hook file not found"
+        echo "Git hooks disabled. You can now use any commit message format."

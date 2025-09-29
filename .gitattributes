@@ -1,0 +1,4 @@
+# Ensure hook and shell scripts always use LF endings so shebang works on Windows.
+.githooks/* text eol=lf
+scripts/*.sh text eol=lf
+scripts/*.ps1 text eol=crlf

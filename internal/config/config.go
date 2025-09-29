@@ -81,10 +81,6 @@ func LoadConfig(configFilename string) (*Config, error) {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
 
-	if err := ValidateConfig(&cfg); err != nil {
-		return nil, err
-	}
-
 	return &cfg, nil
 }
 

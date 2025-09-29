@@ -1,0 +1,38 @@
+# GitHub Actions workflow for continuous integration.
+# This workflow builds and tests the zvuk-grabber project on every push and PR.
+# Release automation is handled separately in release.yml workflow.
+
+name: Build and Test
+
+# Trigger this workflow on pushes to master branch and all pull requests.
+on:
+  push:
+    branches: ["master"]  # Run on direct pushes to master branch.
+  pull_request:
+    branches: ["master"]  # Run on PRs targeting master branch.
+
+jobs:
+  build-and-test:
+    name: Build and Test
+    runs-on: ubuntu-latest  # Use latest Ubuntu runner for consistency.
+
+    steps:
+      # Check out the repository code with full history.
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      # Set up Go environment using version specified in go.mod file.
+      # Enable caching to speed up subsequent builds.
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod  # Read Go version from go.mod file.
+          cache: true              # Cache Go modules and build cache.
+
+      # Build all packages in the project to ensure compilation succeeds.
+      - name: Build
+        run: go build -v ./...
+
+      # Run all tests with verbose output to catch any failures.
+      - name: Test
+        run: go test -v ./...
