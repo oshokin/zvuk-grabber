@@ -26,24 +26,34 @@ type TagProcessor interface {
 
 // WriteTagsRequest contains parameters for writing metadata to audio files.
 type WriteTagsRequest struct {
-	TrackPath                  string
-	CoverPath                  string
-	Quality                    TrackQuality
-	TrackTags                  map[string]string
-	TrackLyrics                *zvuk.Lyrics
+	// TrackPath is the file path of the audio track.
+	TrackPath string
+	// CoverPath is the file path of the cover art image.
+	CoverPath string
+	// Quality specifies the audio quality level.
+	Quality TrackQuality
+	// TrackTags contains metadata key-value pairs to write.
+	TrackTags map[string]string
+	// TrackLyrics contains the lyrics data for the track.
+	TrackLyrics *zvuk.Lyrics
+	// IsCoverEmbeddedToTrackTags indicates whether cover art is embedded in the audio file.
 	IsCoverEmbeddedToTrackTags bool
 }
 
 // TagProcessorImpl provides the default implementation of TagProcessor.
 type TagProcessorImpl struct{}
 
+// imageMetadata contains image data and its MIME type.
 type imageMetadata struct {
-	data     []byte
+	// data contains the raw image bytes.
+	data []byte
+	// mimeType specifies the image format (e.g., "image/jpeg").
 	mimeType string
 }
 
 // Static error definitions for better error handling.
 var (
+	// ErrEmptyTrackPath indicates that the track file path is empty.
 	ErrEmptyTrackPath = errors.New("track path cannot be empty")
 )
 

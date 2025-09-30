@@ -11,6 +11,7 @@ type UserAgentProvider interface {
 // SimpleUserAgentProvider is a basic implementation of the UserAgentProvider interface.
 // It provides a static User-Agent string that is set during initialization.
 type SimpleUserAgentProvider struct {
+	// userAgent is the User-Agent string to return.
 	userAgent string
 }
 

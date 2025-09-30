@@ -38,13 +38,21 @@ func TestConfigStruct(t *testing.T) {
 	assert.Equal(t, "test_token", cfg.AuthToken)
 	assert.Equal(t, uint8(2), cfg.DownloadFormat)
 	assert.Equal(t, "/tmp/downloads", cfg.OutputPath)
+	assert.Equal(t, "{{.trackNumberPad}} - {{.trackTitle}}", cfg.TrackFilenameTemplate)
+	assert.Equal(t, "{{.releaseYear}} - {{.albumArtist}} - {{.albumTitle}}", cfg.AlbumFolderTemplate)
+	assert.Equal(t, "{{.trackNumberPad}} - {{.trackArtist}} - {{.trackTitle}}", cfg.PlaylistFilenameTemplate)
 	assert.True(t, cfg.DownloadLyrics)
 	assert.False(t, cfg.ReplaceTracks)
+	assert.False(t, cfg.ReplaceCovers)
+	assert.False(t, cfg.ReplaceLyrics)
 	assert.Equal(t, "info", cfg.LogLevel)
 	assert.Equal(t, "1MB", cfg.DownloadSpeedLimit)
 	assert.True(t, cfg.CreateFolderForSingles)
 	assert.Equal(t, int64(100), cfg.MaxFolderNameLength)
 	assert.Equal(t, int64(3), cfg.RetryAttemptsCount)
+	assert.Equal(t, "5s", cfg.MaxDownloadPause)
+	assert.Equal(t, "1s", cfg.MinRetryPause)
+	assert.Equal(t, "3s", cfg.MaxRetryPause)
 }
 
 // TestConstants tests the constants.

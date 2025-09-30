@@ -22,12 +22,19 @@ type Service interface {
 
 // ServiceImpl implements audio download service with deduplication and metadata handling.
 type ServiceImpl struct {
-	cfg                   *config.Config
-	zvukClient            zvuk.Client
-	urlProcessor          URLProcessor
-	templateManager       TemplateManager
-	tagProcessor          TagProcessor
-	audioCollections      map[ShortDownloadItem]*audioCollection
+	// cfg contains the application configuration.
+	cfg *config.Config
+	// zvukClient is the client for interacting with Zvuk's API.
+	zvukClient zvuk.Client
+	// urlProcessor handles URL parsing and categorization.
+	urlProcessor URLProcessor
+	// templateManager generates filenames and folder names.
+	templateManager TemplateManager
+	// tagProcessor writes metadata tags to audio files.
+	tagProcessor TagProcessor
+	// audioCollections stores download collections indexed by item.
+	audioCollections map[ShortDownloadItem]*audioCollection
+	// audioCollectionsMutex protects concurrent access to audioCollections.
 	audioCollectionsMutex *sync.Mutex
 }
 

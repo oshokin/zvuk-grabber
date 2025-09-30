@@ -9,10 +9,13 @@ import (
 // UserAgentInjector is a custom http.RoundTripper that injects a User-Agent header into HTTP requests.
 // It wraps another http.RoundTripper and ensures that a User-Agent header is present in every request.
 type UserAgentInjector struct {
-	next              http.RoundTripper
+	// next is the underlying HTTP round tripper.
+	next http.RoundTripper
+	// userAgentProvider provides the User-Agent string to inject.
 	userAgentProvider utils.UserAgentProvider
 }
 
+// userAgentHeader is the HTTP header name for User-Agent.
 const userAgentHeader = "User-Agent"
 
 // NewUserAgentInjector creates and returns a new instance of UserAgentInjector.

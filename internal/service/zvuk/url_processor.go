@@ -22,19 +22,27 @@ type URLProcessor interface {
 // ExtractDownloadItemsResponse represents the result of processing URLs.
 // It categorizes the URLs into tracks, standalone items, and artists.
 type ExtractDownloadItemsResponse struct {
-	Tracks          []*DownloadItem
+	// Tracks contains individual track download items.
+	Tracks []*DownloadItem
+	// StandaloneItems contains album and playlist download items.
 	StandaloneItems []*DownloadItem
-	Artists         []*DownloadItem
+	// Artists contains artist discography download items.
+	Artists []*DownloadItem
 }
 
 // URLProcessorImpl implements the URLProcessor interface.
 type URLProcessorImpl struct{}
 
+// defaultTextExtension is the default file extension for text files.
 const defaultTextExtension = ".txt"
 
+// categoriesByPatterns maps URL patterns to download categories.
+//
 //nolint:gochecknoglobals,lll // This is a justified global variable: immutable data, performance optimization, and reusability.
 var categoriesByPatterns = []struct {
-	Pattern  *regexp.Regexp
+	// Pattern is the regex pattern to match URLs.
+	Pattern *regexp.Regexp
+	// Category is the download category for matched URLs.
 	Category DownloadCategory
 }{
 	{regexp.MustCompile(`/track/(?<ID>\d+)$`), DownloadCategoryTrack},

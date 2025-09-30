@@ -58,13 +58,21 @@ type ShortDownloadItem struct {
 	ItemID string
 }
 
+// audioCollection represents a collection of audio tracks with associated metadata.
 type audioCollection struct {
-	category    DownloadCategory
-	title       string
-	tags        map[string]string
-	tracksPath  string
-	coverPath   string
-	trackIDs    []int64
+	// category indicates the type of collection (album, playlist, etc.).
+	category DownloadCategory
+	// title is the collection name.
+	title string
+	// tags contains metadata key-value pairs for the collection.
+	tags map[string]string
+	// tracksPath is the directory path where tracks will be saved.
+	tracksPath string
+	// coverPath is the file path for the collection's cover art.
+	coverPath string
+	// trackIDs is the list of track IDs in the collection.
+	trackIDs []int64
+	// tracksCount is the total number of tracks in the collection.
 	tracksCount int64
 }
 
@@ -86,17 +94,24 @@ type TrackQuality uint8
 
 // Enum values for TrackQuality.
 const (
+	// TrackQualityUnknown represents an unknown or unspecified audio quality.
 	TrackQualityUnknown TrackQuality = iota
+	// TrackQualityMP3Mid represents MP3 format at 128 Kbps.
 	TrackQualityMP3Mid
+	// TrackQualityMP3High represents MP3 format at 320 Kbps.
 	TrackQualityMP3High
+	// TrackQualityFLAC represents FLAC lossless format.
 	TrackQualityFLAC
 )
 
 // Constants for repeated string literals.
 const (
-	TrackQualityMP3MidString  = "mid"
+	// TrackQualityMP3MidString is the string representation for mid quality.
+	TrackQualityMP3MidString = "mid"
+	// TrackQualityMP3HighString is the string representation for high quality.
 	TrackQualityMP3HighString = "high"
-	TrackQualityFLACString    = "flac"
+	// TrackQualityFLACString is the string representation for FLAC quality.
+	TrackQualityFLACString = "flac"
 )
 
 // String returns the display value of the Quality enum.

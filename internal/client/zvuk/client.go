@@ -21,27 +21,6 @@ import (
 	"github.com/oshokin/zvuk-grabber/internal/utils"
 )
 
-// Static error definitions for better error handling.
-var (
-	ErrUnexpectedHTTPStatus             = errors.New("unexpected HTTP status")
-	ErrArtistNotFound                   = errors.New("artist not found")
-	ErrUnexpectedArtistResponseFormat   = errors.New("unexpected artist response format")
-	ErrUnexpectedReleasesResponseFormat = errors.New("unexpected releases response format")
-	ErrFailedToFetchStreamMetadata      = errors.New("failed to fetch stream metadata after retries")
-)
-
-const (
-	zvukAPIGraphQLURI         = "api/v1/graphql"
-	zvukAPILabelURI           = "api/tiny/labels"
-	zvukAPILyricsURI          = "api/tiny/lyrics"
-	zvukAPIPlaylistURI        = "api/tiny/playlists"
-	zvukAPIReleaseMetadataURI = "api/tiny/releases"
-	zvukAPIReleaseURIPath     = "releases"
-	zvukAPIStreamMetadataURI  = "api/tiny/track/stream"
-	zvukAPITrackURI           = "api/tiny/tracks"
-	zvukAPIUserProfileURI     = "api/v2/tiny/profile"
-)
-
 // Client defines the interface for interacting with Zvuk's API.
 //
 //nolint:interfacebloat // It's big by design, it's a client interface.
@@ -74,11 +53,50 @@ type Client interface {
 
 // ClientImpl implements the Client interface for interacting with Zvuk's API.
 type ClientImpl struct {
-	cfg           *config.Config
-	baseURL       string
-	httpClient    *http.Client
+	// cfg contains the application configuration.
+	cfg *config.Config
+	// baseURL is the base URL for API requests.
+	baseURL string
+	// httpClient is the HTTP client for making requests.
+	httpClient *http.Client
+	// graphQLClient is the GraphQL client for making queries.
 	graphQLClient *graphql.Client
 }
+
+const (
+	// zvukAPIGraphQLURI is the URI path for GraphQL API endpoint.
+	zvukAPIGraphQLURI = "api/v1/graphql"
+	// zvukAPILabelURI is the URI path for label metadata endpoint.
+	zvukAPILabelURI = "api/tiny/labels"
+	// zvukAPILyricsURI is the URI path for lyrics endpoint.
+	zvukAPILyricsURI = "api/tiny/lyrics"
+	// zvukAPIPlaylistURI is the URI path for playlist metadata endpoint.
+	zvukAPIPlaylistURI = "api/tiny/playlists"
+	// zvukAPIReleaseMetadataURI is the URI path for release metadata endpoint.
+	zvukAPIReleaseMetadataURI = "api/tiny/releases"
+	// zvukAPIReleaseURIPath is the URI path component for releases.
+	zvukAPIReleaseURIPath = "releases"
+	// zvukAPIStreamMetadataURI is the URI path for stream metadata endpoint.
+	zvukAPIStreamMetadataURI = "api/tiny/track/stream"
+	// zvukAPITrackURI is the URI path for track metadata endpoint.
+	zvukAPITrackURI = "api/tiny/tracks"
+	// zvukAPIUserProfileURI is the URI path for user profile endpoint.
+	zvukAPIUserProfileURI = "api/v2/tiny/profile"
+)
+
+// Static error definitions for better error handling.
+var (
+	// ErrUnexpectedHTTPStatus indicates an unexpected HTTP status code was received.
+	ErrUnexpectedHTTPStatus = errors.New("unexpected HTTP status")
+	// ErrArtistNotFound indicates that the requested artist was not found.
+	ErrArtistNotFound = errors.New("artist not found")
+	// ErrUnexpectedArtistResponseFormat indicates an unexpected artist API response format.
+	ErrUnexpectedArtistResponseFormat = errors.New("unexpected artist response format")
+	// ErrUnexpectedReleasesResponseFormat indicates an unexpected releases API response format.
+	ErrUnexpectedReleasesResponseFormat = errors.New("unexpected releases response format")
+	// ErrFailedToFetchStreamMetadata indicates failure to fetch stream metadata after all retry attempts.
+	ErrFailedToFetchStreamMetadata = errors.New("failed to fetch stream metadata after retries")
+)
 
 // NewClient creates and returns a new instance of ClientImpl.
 // It initializes the HTTP and GraphQL clients with the provided configuration.

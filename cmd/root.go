@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/signal"
@@ -18,12 +19,18 @@ import (
 )
 
 var (
+	// configFilenameFromFlag stores the config filename provided via command-line flag.
+	//
 	//nolint:gochecknoglobals // It is required for configuration initialization before the application starts.
 	configFilenameFromFlag string
 
+	// appConfig stores the application configuration loaded from file and flags.
+	//
 	//nolint:gochecknoglobals,lll // It is initialized once during the application's startup and shared across the command execution logic.
 	appConfig *config.Config
 
+	// rootCmd is the main Cobra command for the application.
+	//
 	//nolint:gochecknoglobals,lll // Cobra command requires a global definition for proper command-line parsing and execution.
 	rootCmd = &cobra.Command{
 		Use:   "zvuk-grabber [flags] {urls}",
@@ -39,6 +46,12 @@ The application provides flexible naming templates, format selection, and downlo
 		Args:             cobra.MinimumNArgs(1),
 		PersistentPreRun: initConfig,
 		Run: func(cmd *cobra.Command, urls []string) {
+			// If ZVUK_GRABBER_DUMP_CONFIG is set, dump config as JSON and exit (for E2E tests).
+			if os.Getenv("ZVUK_GRABBER_DUMP_CONFIG") == "1" {
+				dumpConfig(appConfig)
+				return
+			}
+
 			app.ExecuteRootCommand(cmd.Context(), appConfig, urls)
 		},
 	}
@@ -140,4 +153,31 @@ func bindFlagsToConfig(flags *pflag.FlagSet, cfg *config.Config) error {
 	}
 
 	return config.ValidateConfig(cfg)
+}
+
+// dumpConfig dumps the configuration as JSON for E2E testing.
+func dumpConfig(cfg *config.Config) {
+	type ConfigDump struct {
+		DownloadFormat     uint8  `json:"download_format"`
+		OutputPath         string `json:"output_path"`
+		DownloadLyrics     bool   `json:"download_lyrics"`
+		DownloadSpeedLimit string `json:"download_speed_limit"`
+	}
+
+	dump := ConfigDump{
+		DownloadFormat:     cfg.DownloadFormat,
+		OutputPath:         cfg.OutputPath,
+		DownloadLyrics:     cfg.DownloadLyrics,
+		DownloadSpeedLimit: cfg.DownloadSpeedLimit,
+	}
+
+	jsonData, err := json.MarshalIndent(dump, "", "  ")
+	if err != nil {
+		// We need to use os.Stderr here because rootCmd.ErrOrStderr() is not available in the test environment.
+		fmt.Fprintf(os.Stderr, "Failed to marshal config: %v\n", err)
+		os.Exit(1)
+	}
+
+	//nolint:forbidigo // Debug output to stdout is intentional for config dump feature.
+	fmt.Println(string(jsonData))
 }

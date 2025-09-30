@@ -24,12 +24,19 @@ type TemplateManager interface {
 
 // TemplateManagerImpl implements the TemplateManager interface.
 type TemplateManagerImpl struct {
-	cfg                             *config.Config
-	trackFilenameTemplate           *template.Template
-	albumFolderTemplate             *template.Template
-	playlistFilenameTemplate        *template.Template
-	defaultTrackFilenameTemplate    *template.Template
-	defaultAlbumFolderTemplate      *template.Template
+	// cfg contains the application configuration.
+	cfg *config.Config
+	// trackFilenameTemplate is the template for track filenames.
+	trackFilenameTemplate *template.Template
+	// albumFolderTemplate is the template for album folder names.
+	albumFolderTemplate *template.Template
+	// playlistFilenameTemplate is the template for playlist track filenames.
+	playlistFilenameTemplate *template.Template
+	// defaultTrackFilenameTemplate is the fallback template for track filenames.
+	defaultTrackFilenameTemplate *template.Template
+	// defaultAlbumFolderTemplate is the fallback template for album folder names.
+	defaultAlbumFolderTemplate *template.Template
+	// defaultPlaylistFilenameTemplate is the fallback template for playlist track filenames.
 	defaultPlaylistFilenameTemplate *template.Template
 }
 

@@ -169,6 +169,8 @@ func TestWriteTagsRequest(t *testing.T) {
 	assert.Equal(t, "Test Track", request.TrackTags["title"])
 	assert.Equal(t, "Test Artist", request.TrackTags["artist"])
 	assert.Equal(t, "Test Album", request.TrackTags["album"])
+	assert.Equal(t, "/path/to/cover.jpg", request.CoverPath)
+	assert.Equal(t, TrackQualityMP3Mid, request.Quality)
 }
 
 // TestAudioCollection tests the audioCollection structure.

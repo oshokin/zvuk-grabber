@@ -14,40 +14,56 @@ import (
 	"github.com/oshokin/zvuk-grabber/internal/utils"
 )
 
-// Static error definitions for better error handling.
-var (
-	ErrEmptyAuthToken       = errors.New("authentication token cannot be empty")
-	ErrInvalidFormat        = errors.New("invalid format")
-	ErrUnknownLogLevel      = errors.New("unknown log level")
-	ErrInvalidRetryAttempts = errors.New("retry attempts count must a positive integer")
-)
-
 // Config holds all configuration settings.
 type Config struct {
-	AuthToken                string `mapstructure:"auth_token"`
-	DownloadFormat           uint8  `mapstructure:"download_format"`
-	OutputPath               string `mapstructure:"output_path"`
-	TrackFilenameTemplate    string `mapstructure:"track_filename_template"`
-	AlbumFolderTemplate      string `mapstructure:"album_folder_template"`
+	// AuthToken is the authentication token for API access.
+	AuthToken string `mapstructure:"auth_token"`
+	// DownloadFormat specifies the audio quality/format (1=MP3 128k, 2=MP3 320k, 3=FLAC).
+	DownloadFormat uint8 `mapstructure:"download_format"`
+	// OutputPath is the directory path where downloaded files will be saved.
+	OutputPath string `mapstructure:"output_path"`
+	// TrackFilenameTemplate is the template for naming individual track files.
+	TrackFilenameTemplate string `mapstructure:"track_filename_template"`
+	// AlbumFolderTemplate is the template for naming album folders.
+	AlbumFolderTemplate string `mapstructure:"album_folder_template"`
+	// PlaylistFilenameTemplate is the template for naming playlist track files.
 	PlaylistFilenameTemplate string `mapstructure:"playlist_filename_template"`
-	DownloadLyrics           bool   `mapstructure:"download_lyrics"`
-	ReplaceTracks            bool   `mapstructure:"replace_tracks"`
-	ReplaceCovers            bool   `mapstructure:"replace_covers"`
-	ReplaceLyrics            bool   `mapstructure:"replace_lyrics"`
-	LogLevel                 string `mapstructure:"log_level"`
-	DownloadSpeedLimit       string `mapstructure:"download_speed_limit"`
-	CreateFolderForSingles   bool   `mapstructure:"create_folder_for_singles"`
-	MaxFolderNameLength      int64  `mapstructure:"max_folder_name_length"`
-	RetryAttemptsCount       int64  `mapstructure:"retry_attempts_count"`
-	MaxDownloadPause         string `mapstructure:"max_download_pause"`
-	MinRetryPause            string `mapstructure:"min_retry_pause"`
-	MaxRetryPause            string `mapstructure:"max_retry_pause"`
-	ZvukBaseURL              string
+	// DownloadLyrics indicates whether to download lyrics for tracks.
+	DownloadLyrics bool `mapstructure:"download_lyrics"`
+	// ReplaceTracks indicates whether to replace existing track files.
+	ReplaceTracks bool `mapstructure:"replace_tracks"`
+	// ReplaceCovers indicates whether to replace existing cover art files.
+	ReplaceCovers bool `mapstructure:"replace_covers"`
+	// ReplaceLyrics indicates whether to replace existing lyrics files.
+	ReplaceLyrics bool `mapstructure:"replace_lyrics"`
+	// LogLevel specifies the logging verbosity level.
+	LogLevel string `mapstructure:"log_level"`
+	// DownloadSpeedLimit sets the maximum download speed (e.g., "1MB", "500KB").
+	DownloadSpeedLimit string `mapstructure:"download_speed_limit"`
+	// CreateFolderForSingles indicates whether to create folders for single tracks.
+	CreateFolderForSingles bool `mapstructure:"create_folder_for_singles"`
+	// MaxFolderNameLength is the maximum length for folder names.
+	MaxFolderNameLength int64 `mapstructure:"max_folder_name_length"`
+	// RetryAttemptsCount is the number of retry attempts for failed downloads.
+	RetryAttemptsCount int64 `mapstructure:"retry_attempts_count"`
+	// MaxDownloadPause is the maximum pause duration between downloads.
+	MaxDownloadPause string `mapstructure:"max_download_pause"`
+	// MinRetryPause is the minimum pause duration before retrying.
+	MinRetryPause string `mapstructure:"min_retry_pause"`
+	// MaxRetryPause is the maximum pause duration before retrying.
+	MaxRetryPause string `mapstructure:"max_retry_pause"`
+	// ZvukBaseURL is the base URL for the Zvuk API (set automatically).
+	ZvukBaseURL string
+	// ParsedDownloadSpeedLimit is the parsed download speed limit in bytes.
 	ParsedDownloadSpeedLimit int64
-	ParsedLogLevel           zapcore.Level
-	ParsedMaxDownloadPause   time.Duration
-	ParsedMinRetryPause      time.Duration
-	ParsedMaxRetryPause      time.Duration
+	// ParsedLogLevel is the parsed zap log level.
+	ParsedLogLevel zapcore.Level
+	// ParsedMaxDownloadPause is the parsed maximum download pause duration.
+	ParsedMaxDownloadPause time.Duration
+	// ParsedMinRetryPause is the parsed minimum retry pause duration.
+	ParsedMinRetryPause time.Duration
+	// ParsedMaxRetryPause is the parsed maximum retry pause duration.
+	ParsedMaxRetryPause time.Duration
 }
 
 const (
@@ -69,8 +85,22 @@ const (
 	// DefaultMaxLogLength is the default maximum size (in bytes) for log files.
 	DefaultMaxLogLength = 1 * 1024 * 1024 // 1 MB
 
+	// minDownloadFormat is the minimum valid download format value.
 	minDownloadFormat = 1
+	// maxDownloadFormat is the maximum valid download format value.
 	maxDownloadFormat = 3
+)
+
+// Static error definitions for better error handling.
+var (
+	// ErrEmptyAuthToken indicates that the authentication token is missing.
+	ErrEmptyAuthToken = errors.New("authentication token cannot be empty")
+	// ErrInvalidFormat indicates that the download format is invalid.
+	ErrInvalidFormat = errors.New("invalid format")
+	// ErrUnknownLogLevel indicates that the log level is not recognized.
+	ErrUnknownLogLevel = errors.New("unknown log level")
+	// ErrInvalidRetryAttempts indicates that the retry attempts count is invalid.
+	ErrInvalidRetryAttempts = errors.New("retry attempts count must a positive integer")
 )
 
 // LoadConfig loads configuration settings from a YAML file.

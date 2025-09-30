@@ -16,12 +16,15 @@ import (
 // LogTransport is a custom http.RoundTripper that logs HTTP requests and responses.
 // It wraps another http.RoundTripper and logs debug information for each request/response cycle.
 type LogTransport struct {
-	next         http.RoundTripper
+	// next is the underlying HTTP round tripper.
+	next http.RoundTripper
+	// maxLogLength is the maximum length of logged request/response data.
 	maxLogLength uint64
 }
 
 // Static error definitions for better error handling.
 var (
+	// ErrNilRequest indicates that the HTTP request is nil.
 	ErrNilRequest = errors.New("request is nil")
 )
 

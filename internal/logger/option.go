@@ -5,9 +5,12 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
+// coreWithLevel wraps a zapcore.Core with a specific log level.
 type coreWithLevel struct {
+	// Core is the wrapped zapcore.Core.
 	zapcore.Core
 
+	// level is the minimum log level for this core.
 	level zapcore.Level
 }
 

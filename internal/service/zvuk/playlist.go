@@ -15,8 +15,10 @@ import (
 )
 
 const (
+	// defaultPlaylistCoverExtension is the default file extension for playlist cover images.
 	defaultPlaylistCoverExtension = ".png"
-	defaultPlaylistCoverFilename  = "cover" + defaultPlaylistCoverExtension
+	// defaultPlaylistCoverFilename is the default filename for playlist cover images.
+	defaultPlaylistCoverFilename = "cover" + defaultPlaylistCoverExtension
 )
 
 func (s *ServiceImpl) downloadPlaylist(ctx context.Context, playlistID string) {

@@ -6,8 +6,10 @@ import (
 	"go.uber.org/zap"
 )
 
+// contextKey is a custom type for context keys to avoid collisions.
 type contextKey string
 
+// loggerContextKey is the key used to store the logger in the context.
 const loggerContextKey contextKey = "logger"
 
 // ToContext creates a context with the provided logger inside it.

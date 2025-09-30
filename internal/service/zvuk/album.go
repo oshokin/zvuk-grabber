@@ -16,20 +16,28 @@ import (
 	"github.com/oshokin/zvuk-grabber/internal/utils"
 )
 
+// fetchAlbumDataResponse contains the complete metadata for an album.
 type fetchAlbumDataResponse struct {
-	tracks   map[string]*zvuk.Track
-	album    *zvuk.Release
+	// tracks contains track metadata mapped by track ID.
+	tracks map[string]*zvuk.Track
+	// album contains the main album/release metadata.
+	album *zvuk.Release
+	// releases contains additional release metadata mapped by release ID.
 	releases map[string]*zvuk.Release
-	labels   map[string]*zvuk.Label
+	// labels contains music label metadata mapped by label ID.
+	labels map[string]*zvuk.Label
 }
 
 const (
+	// defaultAlbumCoverExtension is the default file extension for album cover images.
 	defaultAlbumCoverExtension = ".jpg"
-	defaultAlbumCoverBasename  = "cover"
+	// defaultAlbumCoverBasename is the default base filename for album cover images.
+	defaultAlbumCoverBasename = "cover"
 )
 
 // Static error definitions for better error handling.
 var (
+	// ErrAlbumNotFound indicates that the requested album was not found.
 	ErrAlbumNotFound = errors.New("album not found")
 )
 

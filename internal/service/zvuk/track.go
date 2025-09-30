@@ -20,29 +20,46 @@ import (
 	"github.com/oshokin/zvuk-grabber/internal/utils"
 )
 
-const defaultLyricsExtension = ".lrc"
-
+// fetchAlbumsDataFromTracksResponse contains album data fetched from tracks.
 type fetchAlbumsDataFromTracksResponse struct {
-	releases     map[string]*zvuk.Release
+	// releases contains release metadata mapped by release ID.
+	releases map[string]*zvuk.Release
+	// releasesTags contains tag metadata for releases.
 	releasesTags map[string]map[string]string
-	labels       map[string]*zvuk.Label
+	// labels contains music label metadata mapped by label ID.
+	labels map[string]*zvuk.Label
 }
 
+// downloadTracksMetadata contains all metadata needed for downloading tracks.
 type downloadTracksMetadata struct {
-	category        DownloadCategory
-	trackIDs        []int64
-	tracksMetadata  map[string]*zvuk.Track
-	albumsMetadata  map[string]*zvuk.Release
-	albumsTags      map[string]map[string]string
-	labelsMetadata  map[string]*zvuk.Label
+	// category indicates the type of download (album, playlist, etc.).
+	category DownloadCategory
+	// trackIDs is the list of track IDs to download.
+	trackIDs []int64
+	// tracksMetadata contains track metadata mapped by track ID.
+	tracksMetadata map[string]*zvuk.Track
+	// albumsMetadata contains album metadata mapped by album ID.
+	albumsMetadata map[string]*zvuk.Release
+	// albumsTags contains tag metadata for albums.
+	albumsTags map[string]map[string]string
+	// labelsMetadata contains music label metadata mapped by label ID.
+	labelsMetadata map[string]*zvuk.Label
+	// audioCollection contains the collection structure for the download.
 	audioCollection *audioCollection
 }
 
+// downloadTrackRequest contains parameters for downloading a single track.
 type downloadTrackRequest struct {
+	// trackIndex is the position of the track in the download queue.
 	trackIndex int64
-	trackID    int64
-	metadata   *downloadTracksMetadata
+	// trackID is the unique identifier of the track.
+	trackID int64
+	// metadata contains all metadata needed for downloading.
+	metadata *downloadTracksMetadata
 }
+
+// defaultLyricsExtension is the default file extension for lyrics files.
+const defaultLyricsExtension = ".lrc"
 
 func (s *ServiceImpl) fetchAlbumsDataFromTracks(
 	ctx context.Context,
