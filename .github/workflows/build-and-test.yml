@@ -4,35 +4,104 @@
 
 name: Build and Test
 
-# Trigger this workflow on pushes to master branch and all pull requests.
+# Define when this workflow should be triggered.
 on:
-  push:
-    branches: ["master"]  # Run on direct pushes to master branch.
+  # Run on all pull requests.
   pull_request:
-    branches: ["master"]  # Run on PRs targeting master branch.
+  # Run on all pushes to any branch.
+  push:
+  # Allow this workflow to be called from other workflows as a reusable workflow.
+  workflow_call:
+  # Enable manually triggering this workflow via the API or web UI.
+  workflow_dispatch:
 
+# Set default configuration for all run commands in this workflow.
+defaults:
+  run:
+    # Use bash as the default shell for all run steps.
+    shell: bash
+
+# Define all jobs that will run as part of this workflow.
 jobs:
-  build-and-test:
-    name: Build and Test
-    runs-on: ubuntu-latest  # Use latest Ubuntu runner for consistency.
-
+  # Job to check code quality and style using golangci-lint.
+  lint:
+    runs-on: ubuntu-latest
     steps:
-      # Check out the repository code with full history.
-      - name: Check out repository
+      # Checkout the repository code with full git history.
+      - name: Checkout code
         uses: actions/checkout@v5
+        with:
+          # Fetch all commits and branches for complete history.
+          fetch-depth: 0
+      # Run golangci-lint to check code quality, style, and potential bugs.
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v8
+        with:
+          version: v2.5.0
 
-      # Set up Go environment using version specified in go.mod file.
-      # Enable caching to speed up subsequent builds.
-      - name: Set up Go
+  # Job to test the application on multiple Go versions and platforms.
+  test-go-versions:
+    runs-on: ${{ matrix.platform }}
+    strategy:
+      # Continue running other matrix jobs even if one fails.
+      fail-fast: false
+      # Create a matrix of 4 jobs: 2 Go versions × 2 platforms.
+      matrix:
+        go-version: [1.24.x, 1.25.x]
+        platform: [ubuntu-latest, windows-latest]
+    steps:
+      # Checkout the repository code.
+      - name: Checkout code
+        uses: actions/checkout@v5
+      # Install the Go version specified in the matrix.
+      - name: Install Go ${{ matrix.go-version }}
         uses: actions/setup-go@v6
         with:
-          go-version-file: go.mod  # Read Go version from go.mod file.
-          cache: true              # Cache Go modules and build cache.
+          # Use the Go version from the matrix.
+          go-version: ${{ matrix.go-version }}
+          cache: true
+      # Run all tests with race detection.
+      - name: Run tests
+        run: |
+          # Show which Go binary is being used.
+          which go
+          # Display the Go version.
+          go version
+          # Run tests with race detector, 800 second timeout, for all packages.
+          go test -race -timeout 800s ./...
 
-      # Build all packages in the project to ensure compilation succeeds.
-      - name: Build
-        run: go build -v ./...
-
-      # Run all tests with verbose output to catch any failures.
-      - name: Test
-        run: go test -v ./...
+  # Job to verify that the application builds correctly.
+  test-build:
+    runs-on: ${{ matrix.platform }}
+    strategy:
+      # Continue running other matrix jobs even if one fails.
+      fail-fast: false
+      # Create a matrix of 2 jobs: 2 platforms.
+      matrix:
+        platform: [ubuntu-latest, windows-latest]
+    steps:
+      # Checkout the repository code.
+      - name: Checkout code
+        uses: actions/checkout@v5
+      # Install Go 1.25.x for the build test.
+      - name: Install Go
+        uses: actions/setup-go@v6
+        with:
+          # Use Go version 1.25.x.
+          go-version: 1.25.x
+          cache: true
+      # Build the application and verify it works.
+      - name: Check build
+        run: |
+          # Display the Go version being used.
+          go version
+          # Show current directory and list its contents.
+          pwd && ls -l
+          # Build the application.
+          go build -v ./...
+          # Verify the binary works (if it exists).
+          if [ -f "./zvuk-grabber" ]; then
+            ./zvuk-grabber --help
+          elif [ -f "./zvuk-grabber.exe" ]; then
+            ./zvuk-grabber.exe --help
+          fi

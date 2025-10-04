@@ -10,7 +10,7 @@ set -euo pipefail
 #   - else any starting with "feat:"            -> MINOR bump
 #   - else any starting with "fix:"             -> PATCH bump
 #   - else any other commits                    -> PATCH bump (default)
-# If no tag exists, current version is 1.0.0.
+# If no tag exists, current version is 1.0.0 (initial release).
 # When bumping MINOR, reset PATCH to 0; when bumping MAJOR, reset MINOR/PATCH to 0.
 #
 # Standard outputs (stdout by default):

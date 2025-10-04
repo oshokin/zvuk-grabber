@@ -30,6 +30,7 @@ jobs:
         uses: actions/setup-go@v6
         with:
           go-version: 'stable'  # Use latest stable Go version.
+          cache: true
 
       # Analyze commit messages since last tag to determine version bump.
       # Uses the semver_next.sh script to implement semantic versioning logic.

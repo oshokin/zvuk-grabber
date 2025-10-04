@@ -7,8 +7,6 @@ updates:
     schedule:
       interval: "weekly" # Check for updates weekly
       day: "monday" # Run the update check every Monday
-    reviewers:
-      - "oshokin" # Assign a specific reviewer for dependency update PRs
     assignees:
       - "oshokin" # Assign a specific assignee for dependency update PRs
     labels:
@@ -21,8 +19,6 @@ updates:
     schedule:
       interval: "weekly" # Check for updates weekly
       day: "monday" # Run the update check every Monday
-    reviewers:
-      - "oshokin" # Assign a specific reviewer for dependency update PRs
     assignees:
       - "oshokin" # Assign a specific assignee for dependency update PRs
     labels:

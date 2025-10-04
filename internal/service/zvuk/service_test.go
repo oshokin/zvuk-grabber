@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
 
 	"github.com/oshokin/zvuk-grabber/internal/client/zvuk"
 	mock_zvuk_client "github.com/oshokin/zvuk-grabber/internal/client/zvuk/mocks"

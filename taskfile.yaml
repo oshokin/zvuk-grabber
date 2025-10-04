@@ -3,47 +3,64 @@ version: "3"
 silent: true
 
 vars:
-  # Platform-specific path separator and commands.
-  PS: '{{fromSlash "/"}}' # Path separator for the current operating system
+  # -------------------------------
+  # Platform Configuration
+  # -------------------------------
 
-  # Command to recursively remove files and directories.
-  # On Windows, PowerShell is used because it lacks a native `rm -rf` equivalent.
-  RMRF: '{{if eq OS "windows"}}powershell Remove-Item -Force -Recurse -ErrorAction SilentlyContinue{{else}}rm -rf{{end}}'
+  # Path separator per OS.
+  PS: '{{fromSlash "/"}}'
 
-  # Command to create directories.
-  # On Windows, PowerShell is used because it lacks a native `mkdir -p` equivalent.
-  MKDIR: '{{if eq OS "windows"}}powershell New-Item -ItemType Directory -Force{{else}}mkdir -p{{end}}'
+  # Cross-platform mkdir/rm helpers.
+  RMRF: '{{if eq OS "windows"}}powershell.exe -Command "Remove-Item -Force -Recurse -ErrorAction SilentlyContinue -Path{{else}}rm -rf{{end}}'
+  RMRF_END: '{{if eq OS "windows"}}; exit 0"{{end}}'
+  MKDIR: '{{if eq OS "windows"}}powershell.exe -Command "New-Item -ItemType Directory -Force -Path{{else}}mkdir -p{{end}}'
+  MKDIR_END: '{{if eq OS "windows"}} | Out-Null"{{end}}'
 
-  # Local binary directory and application paths.
-  LOCAL_BIN: "{{.TASKFILE_DIR}}{{.PS}}bin" # Directory for locally installed binaries
-  APP: "zvuk-grabber" # Name of the application
-  APP_BINARY: "{{.LOCAL_BIN}}{{.PS}}{{.APP}}{{exeExt}}" # Path to the application binary
-  GOLANGCI_BIN: "{{.LOCAL_BIN}}{{.PS}}golangci-lint{{exeExt}}" # Path to the golangci-lint binary
+  # -------------------------------
+  # Project Directories
+  # -------------------------------
 
-  # Always install the latest version of golangci-lint.
-  GOLANGCI_TAG: "latest" # Tag for the latest version of golangci-lint
+  # Local bin & temp dirs (kept in repo root).
+  LOCAL_BIN: "{{.TASKFILE_DIR}}{{.PS}}bin"
+  APP: "zvuk-grabber"
+  APP_BINARY: "{{.LOCAL_BIN}}{{.PS}}{{.APP}}{{exeExt}}"
+
+  # -------------------------------
+  # Tool Versions
+  # -------------------------------
+
+  # Linting tool version.
+  GOLANGCI_TAG: "latest"
+  # GoMock binary version (uber-go/mock fork).
+  MOCKGEN_TAG: "v0.6.0"
+
+  # -------------------------------
+  # Tool Binaries
+  # -------------------------------
+
+  GOLANGCI_BIN: "{{.LOCAL_BIN}}{{.PS}}golangci-lint{{exeExt}}"
+  MOCKGEN_BIN: "{{.LOCAL_BIN}}{{.PS}}mockgen{{exeExt}}"
+
+  # -------------------------------
+  # Version Detection
+  # -------------------------------
+
+  # Commands to check current versions of installed tools.
   GOLANGCI_VERSION_OUTPUT:
-    sh: '"{{.GOLANGCI_BIN}}" version 2> /dev/null || true' # Get the current golangci-lint version, suppressing errors
-
-  # These regex expressions are complex because the regexFind function doesn't support named groups, \d, \w, or \s.
-  # First, we find 'version vXXX.XXX.XXXaaa ', then extract vXXX.XXX.XXXaaa from the result.
-  GOLANGCI_CURRENT_TAG: '{{regexFind "v([0-9]+.){2}([0-9a-z])+" (regexFind "version v([0-9]+.){2}([0-9a-z])+ " .GOLANGCI_VERSION_OUTPUT)}}'
-
-  # Golangci-lint configuration files.
-  # The first configuration is for normal checks, while the second is stricter for identifying potential issues.
-  GOLANGCI_CONFIG: ".golangci.yaml" # Default configuration file
-  GOLANGCI_STRICT_CONFIG: ".golangci-strict.yaml" # Strict configuration file for more rigorous checks
-
-  # GoMock binary path and version management.
-  MOCKGEN_BIN: "{{.LOCAL_BIN}}{{.PS}}mockgen{{exeExt}}" # Path to the mockgen binary
-
-  # Always install the latest version of mockgen.
-  MOCKGEN_TAG: "v1.6.0" # Tag for the specific version of mockgen
+    sh: '{{if eq OS "windows"}}powershell -Command "try { if (Test-Path ''{{.GOLANGCI_BIN}}'') { & ''{{.GOLANGCI_BIN}}'' version } } catch { }; exit 0"{{else}}"{{.GOLANGCI_BIN}}" version 2> /dev/null || true{{end}}'
   MOCKGEN_VERSION_OUTPUT:
-    sh: '"{{.MOCKGEN_BIN}}" -version 2> /dev/null || true' # Get the current mockgen version, suppressing errors
+    sh: '{{if eq OS "windows"}}powershell -Command "try { if (Test-Path ''{{.MOCKGEN_BIN}}'') { & ''{{.MOCKGEN_BIN}}'' -version } } catch { }; exit 0"{{else}}"{{.MOCKGEN_BIN}}" -version 2> /dev/null || true{{end}}'
 
-  # Extract current mockgen version tag.
+  # Regex patterns to extract version numbers from tool outputs.
+  GOLANGCI_CURRENT_TAG: '{{regexFind "v([0-9]+.){2}([0-9a-z])+" (regexFind "version v([0-9]+.){2}([0-9a-z])+ " .GOLANGCI_VERSION_OUTPUT)}}'
   MOCKGEN_CURRENT_TAG: '{{regexFind "v([0-9]+.){2}([0-9a-z])+" .MOCKGEN_VERSION_OUTPUT}}'
+
+  # -------------------------------
+  # Configuration Files
+  # -------------------------------
+
+  GOLANGCI_CONFIG: ".golangci.yaml"
+  GOLANGCI_STRICT_CONFIG: ".golangci-strict.yaml"
 
   # -------------------------------
   # Version Detection and Injection
@@ -63,24 +80,6 @@ vars:
   BUILD_TIME:
     sh: '{{if eq OS "windows"}}powershell -Command "Get-Date -UFormat \"%Y-%m-%dT%H:%M:%SZ\""{{else}}date -u +"%Y-%m-%dT%H:%M:%SZ"{{end}}'
 
-  # Clean version string (strip 'v' prefix) for injection.
-  CLEAN_VERSION:
-    sh: |
-      if [[ -n "{{.LATEST_SEMVER_TAG}}" ]]; then
-        echo "{{.LATEST_SEMVER_TAG}}" | sed 's/^v//'
-      else
-        echo ""
-      fi
-
-  # Build flags for version injection (only set if semantic tag exists).
-  VERSION_LDFLAGS:
-    sh: |
-      if [[ -n "{{.LATEST_SEMVER_TAG}}" ]]; then
-        echo "-s -w -X github.com/oshokin/zvuk-grabber/internal/version.Version={{.CLEAN_VERSION}} -X github.com/oshokin/zvuk-grabber/internal/version.Commit={{.GIT_COMMIT}} -X github.com/oshokin/zvuk-grabber/internal/version.BuildTime={{.BUILD_TIME}}"
-      else
-        echo ""
-      fi
-
 tasks:
   # -------------------------------
   # Default & Help
@@ -91,36 +90,55 @@ tasks:
       - task -l
 
   # -------------------------------
-  # Development Environment Setup
+  # Tool Installation
   # -------------------------------
 
-  install-lint:
-    desc: "Install golangci-lint if not already installed or if the version doesn't match"
+  _ensure-bin:
+    internal: true
     cmds:
-      # Create the local bin directory if it doesn't exist.
-      - '{{.MKDIR}} "{{.LOCAL_BIN}}"'
+      - '{{.MKDIR}} ''{{.LOCAL_BIN}}''{{.MKDIR_END}}'
+
+  install-lint:
+    desc: "Install golangci-lint into ./bin"
+    deps: [_ensure-bin]
+    cmds:
       - |
+        # Only install if current version doesn't match desired version.
         {{if (not (eq .GOLANGCI_CURRENT_TAG .GOLANGCI_TAG))}}
-          echo "Installing golangci-lint..."
-          go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@{{.GOLANGCI_TAG}} # Install the required version
+          echo "Installing golangci-lint, version: {{.GOLANGCI_TAG}}..."
+          {{if eq OS "windows"}}
+            powershell.exe -Command "\$env:GOBIN = '{{.LOCAL_BIN}}'; go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@{{.GOLANGCI_TAG}}"
+          {{else}}
+            go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@{{.GOLANGCI_TAG}}
+          {{end}}
         {{end}}
     env:
-      # Set GOBIN to install golangci-lint in the local bin directory.
       GOBIN: "{{.LOCAL_BIN}}"
 
   install-mockgen:
-    desc: "Install mockgen if not already installed or if the version doesn't match"
+    desc: "Install mockgen into ./bin"
+    deps: [_ensure-bin]
     cmds:
-      # Create the local bin directory if it doesn't exist.
-      - '{{.MKDIR}} "{{.LOCAL_BIN}}"'
       - |
+        # Only install if current version doesn't match desired version.
         {{if (not (eq .MOCKGEN_CURRENT_TAG .MOCKGEN_TAG))}}
-          echo "Installing mockgen..."
-          go install github.com/golang/mock/mockgen@{{.MOCKGEN_TAG}} # Install the required version
+          echo "Installing mockgen, version: {{.MOCKGEN_TAG}}..."
+          {{if eq OS "windows"}}
+            powershell.exe -Command "\$env:GOBIN = '{{.LOCAL_BIN}}'; go install go.uber.org/mock/mockgen@{{.MOCKGEN_TAG}}"
+          {{else}}
+            go install go.uber.org/mock/mockgen@{{.MOCKGEN_TAG}}
+          {{end}}
         {{end}}
     env:
-      # Set GOBIN to install mockgen in the local bin directory.
       GOBIN: "{{.LOCAL_BIN}}"
+
+  install-tools:
+    desc: "Install golangci-lint and mockgen"
+    deps: [install-lint, install-mockgen]
+
+  # -------------------------------
+  # Git Hooks
+  # -------------------------------
 
   install-githooks:
     desc: "Configure Git hooks for this repository"
@@ -128,7 +146,9 @@ tasks:
       - |
         echo "Setting up Git hooks..."
         git config --local core.hooksPath .githooks
-        chmod +x .githooks/commit-msg
+        {{if ne OS "windows"}}
+          chmod +x .githooks/commit-msg
+        {{end}}
         echo "Git hooks configured successfully!"
         echo "Commit messages must now start with: fix:, feat:, or major:"
 
@@ -138,7 +158,6 @@ tasks:
       - |
         echo "Disabling Git hooks..."
         git config --local --unset core.hooksPath || echo "Hooks path was not set"
-        chmod -x .githooks/commit-msg 2>/dev/null || echo "Hook file not found"
         echo "Git hooks disabled. You can now use any commit message format."
 
   # -------------------------------
@@ -157,39 +176,31 @@ tasks:
       MOCKGEN: "{{.MOCKGEN_BIN}}"
 
   # -------------------------------
-  # Code Quality & Linting
+  # Code Quality
   # -------------------------------
 
-  lint:
-    desc: "Run standard golangci-lint checks on changed files"
-    # Ensure golangci-lint is installed before running.
-    deps: [install-lint]
-    cmds:
-      # Run with the default configuration.
-      - '"{{.GOLANGCI_BIN}}" run --new-from-rev=origin/master --config={{.GOLANGCI_CONFIG}}'
-
   lint-fix:
-    desc: "Run standard golangci-lint checks on changed files and auto-fix"
-    # Ensure golangci-lint is installed before running.
+    desc: "Run golangci-lint with --fix (includes gofmt formatting)"
     deps: [install-lint]
     cmds:
-      # Run with auto-fix.
-      - '"{{.GOLANGCI_BIN}}" run --new-from-rev=origin/master --config={{.GOLANGCI_CONFIG}} --fix'
+      - '"{{.GOLANGCI_BIN}}" run --fix'
+
+  lint:
+    desc: "Run golangci-lint (no fix)"
+    deps: [install-lint]
+    cmds:
+      - '"{{.GOLANGCI_BIN}}" run'
 
   lint-full:
-    desc: "Run standard golangci-lint checks on all files"
-    # Ensure golangci-lint is installed before running.
+    desc: "Run golangci-lint on all files"
     deps: [install-lint]
     cmds:
-      # Run for all files with the default configuration.
       - '"{{.GOLANGCI_BIN}}" run --config={{.GOLANGCI_CONFIG}}'
 
   lint-full-fix:
-    desc: "Run standard golangci-lint checks on all files and auto-fix"
-    # Ensure golangci-lint is installed before running.
+    desc: "Run golangci-lint on all files with --fix (includes gofmt formatting)"
     deps: [install-lint]
     cmds:
-      # Run for all files with auto-fix.
       - '"{{.GOLANGCI_BIN}}" run --config={{.GOLANGCI_CONFIG}} --fix'
 
   # -------------------------------
@@ -197,19 +208,21 @@ tasks:
   # -------------------------------
 
   test:
-    desc: "Run all tests with verbose output"
+    desc: "Run unit tests"
     cmds:
-      # Run tests with verbose output.
       - go test -v ./...
 
   test-race:
-    desc: "Run tests with race detector enabled"
+    desc: "Run unit tests with race detector"
     cmds:
-      - '{{if eq OS "windows"}}echo "Ensure gcc is installed or use WSL for a smoother experience"{{end}}' # Windows-specific note
-      # Run tests with the race detector enabled.
-      - go test -race -v ./...
+      - |
+        {{if eq OS "windows"}}
+          echo "Note: Race detector requires CGO. If this fails, install gcc (MinGW-w64) or use WSL."
+          powershell.exe -Command "\$env:CGO_ENABLED = '1'; go test -race -v ./..."
+        {{else}}
+          go test -race -v ./...
+        {{end}}
     env:
-      # Enable CGo for the race detector.
       CGO_ENABLED: "1"
 
   # -------------------------------
@@ -217,37 +230,14 @@ tasks:
   # -------------------------------
 
   build:
-    desc: "Build the {{.APP}} binary with version injection"
+    desc: "Build the {{.APP}} binary"
     cmds:
       # Create the local bin directory if it doesn't exist.
-      - '{{.MKDIR}} "{{.LOCAL_BIN}}"'
+      - '{{.MKDIR}} ''{{.LOCAL_BIN}}''{{.MKDIR_END}}'
       - |
-        # Fetch latest tags and detect version AFTER deps have run
-        git fetch --tags origin >/dev/null 2>&1 || true
-
-        # Dynamically detect the latest semantic version tag
-        LATEST_TAG=$(git describe --tags --match "v[0-9]*.[0-9]*.[0-9]*" --abbrev=0 2>/dev/null || echo "")
-
-        if [[ -n "$LATEST_TAG" ]]; then
-          CLEAN_VERSION=$(echo "$LATEST_TAG" | sed 's/^v//')
-          GIT_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "dev")
-          BUILD_TIME=$({{if eq OS "windows"}}powershell -Command "Get-Date -UFormat \"%Y-%m-%dT%H:%M:%SZ\""{{else}}date -u +"%Y-%m-%dT%H:%M:%SZ"{{end}})
-          VERSION_LDFLAGS="-s -w -X github.com/oshokin/zvuk-grabber/internal/version.Version=$CLEAN_VERSION -X github.com/oshokin/zvuk-grabber/internal/version.Commit=$GIT_COMMIT -X github.com/oshokin/zvuk-grabber/internal/version.BuildTime=$BUILD_TIME"
-          
-          echo "Found semantic version tag: $LATEST_TAG"
-          echo "Building release version $CLEAN_VERSION with metadata injection..."
-          go build -ldflags "$VERSION_LDFLAGS" -o "{{.APP_BINARY}}" main.go
-          
-          echo "Build completed successfully!"
-          echo "Version info: $CLEAN_VERSION (commit: $GIT_COMMIT, built: $BUILD_TIME)"
-        else
-          echo "No semantic version tags found (v*.*.* format)"
-          echo "Building development version without injection..."
-          go build -o "{{.APP_BINARY}}" main.go
-          
-          echo "Build completed successfully!"
-          echo "Tip: Create a semantic version tag (e.g., 'git tag v1.0.0') to enable version injection"
-        fi
+        echo "Building {{.APP}}..."
+        go build -o "{{.APP_BINARY}}" main.go
+        echo "Build completed successfully!"
 
   run:
     desc: "Run the {{.APP}} binary"
@@ -260,23 +250,33 @@ tasks:
         "{{.APP_BINARY}}" # Run the application binary
 
   # -------------------------------
-  # Cleanup & Maintenance
+  # Cleanup
   # -------------------------------
 
   clean:
-    desc: "Remove the {{.APP}} binary"
+    desc: "Remove binaries and temporary files"
     cmds:
-      # Remove the application binary.
-      - cmd: '{{.RMRF}} "{{.APP_BINARY}}"'
-        # Ignore errors if the binary doesn't exist.
-        ignore_error: true
+      - '{{.RMRF}} ''{{.LOCAL_BIN}}''{{.RMRF_END}}'
 
   # -------------------------------
   # Version Management
   # -------------------------------
 
-  version-pull-tags:
-    desc: "Fetch latest tags from remote"
+  fetch-tags:
+    desc: "Fetch tags from origin"
     cmds:
-      - git fetch --tags origin
-    silent: false
+      - |
+        echo "Fetching tags from origin..."
+        git fetch --tags
+
+  version-check:
+    desc: "Check what the next version would be based on commits"
+    deps: [fetch-tags]
+    cmds:
+      - |
+        echo "Analyzing commits for version bump..."
+        {{if eq OS "windows"}}
+          powershell -ExecutionPolicy Bypass -File scripts/semver_next.ps1
+        {{else}}
+          bash scripts/semver_next.sh
+        {{end}}
