@@ -38,7 +38,7 @@ jobs:
       - name: Compute next version
         id: bump
         run: |
-          # Ensure we have the absolute latest tags for accurate version calculation
+          # Ensure we have the absolute latest tags for accurate version calculation.
           git fetch --tags origin
           bash scripts/semver_next.sh --emit-gh-output
 
@@ -63,17 +63,17 @@ jobs:
       - name: Create and push tag
         if: steps.bump.outputs.has_release == '1'
         run: |
-          # Fetch latest tags to ensure we have the most recent state
+          # Fetch latest tags to ensure we have the most recent state.
           git fetch --tags origin
           
-          # Re-check if our calculated tag already exists (race condition protection)
+          # Re-check if our calculated tag already exists (race condition protection).
           if git rev-parse "${{ steps.bump.outputs.next_tag }}" >/dev/null 2>&1; then
             echo "Tag ${{ steps.bump.outputs.next_tag }} already exists! Another release beat us to it."
             echo "This is expected behavior with concurrent PRs. Skipping release."
             exit 0
           fi
           
-          # Create and push tag atomically
+          # Create and push tag atomically.
           git tag "${{ steps.bump.outputs.next_tag }}"
           git push origin "${{ steps.bump.outputs.next_tag }}"
 

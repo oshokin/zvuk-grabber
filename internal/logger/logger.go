@@ -27,7 +27,7 @@ func New(level zapcore.LevelEnabler, options ...zap.Option) *zap.SugaredLogger {
 		level = defaultLevel
 	}
 
-	//nolint:exhaustruct // I'm okay with default encoder configuration values
+	//nolint:exhaustruct // I'm okay with default encoder configuration values.
 	defaultEncoder := zapcore.NewConsoleEncoder(zapcore.EncoderConfig{
 		MessageKey:       "message",
 		LevelKey:         "level",
@@ -174,7 +174,7 @@ func Fatalf(ctx context.Context, format string, args ...any) {
 }
 
 // FatalKV writes a message and key-value pairs
-// at the fatal error level using the logger from the context
+// at the fatal error level using the logger from the context.
 // and then calls os.Exit(1).
 func FatalKV(ctx context.Context, message string, kvs ...any) {
 	FromContext(ctx).Fatalw(message, kvs...)
@@ -193,7 +193,7 @@ func Panicf(ctx context.Context, format string, args ...any) {
 }
 
 // PanicKV writes a message and key-value pairs
-// at the panic level using the logger from the context
+// at the panic level using the logger from the context.
 // and then calls panic().
 func PanicKV(ctx context.Context, message string, kvs ...any) {
 	FromContext(ctx).Panicw(message, kvs...)

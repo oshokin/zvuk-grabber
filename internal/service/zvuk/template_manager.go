@@ -103,11 +103,11 @@ func (s *TemplateManagerImpl) GetTrackFilename(
 
 			// Fall back to the default template if execution fails.
 			buffer.Reset()
-			_ = defaultTextBuilder.Execute(&buffer, trackTags)
+			_ = defaultTextBuilder.Execute(&buffer, trackTags) //nolint:errcheck // Default template is always valid.
 		}
 	} else {
 		// Use default template if custom template is nil.
-		_ = defaultTextBuilder.Execute(&buffer, trackTags)
+		_ = defaultTextBuilder.Execute(&buffer, trackTags) //nolint:errcheck // Default template is always valid.
 	}
 
 	// Unescape HTML entities in the generated filename.
@@ -135,12 +135,12 @@ func (s *TemplateManagerImpl) GetAlbumFolderName(ctx context.Context, tags map[s
 			buffer.Reset()
 
 			textBuilder = s.defaultAlbumFolderTemplate
-			_ = textBuilder.Execute(&buffer, tags)
+			_ = textBuilder.Execute(&buffer, tags) //nolint:errcheck // Default template is always valid.
 		}
 	} else {
 		// Use default template if custom template is nil.
 		textBuilder = s.defaultAlbumFolderTemplate
-		_ = textBuilder.Execute(&buffer, tags)
+		_ = textBuilder.Execute(&buffer, tags) //nolint:errcheck // Default template is always valid.
 	}
 
 	// Unescape HTML entities in the generated folder name.

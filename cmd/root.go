@@ -63,7 +63,7 @@ func Execute() {
 	ctx, stop := signal.NotifyContext(context.Background(), signals...)
 
 	defer func() {
-		_ = logger.Logger().Sync()
+		_ = logger.Logger().Sync() //nolint:errcheck // No need to check the error here, application will exit anyway.
 	}()
 
 	defer stop()
@@ -127,7 +127,7 @@ func initConfig(cmd *cobra.Command, _ []string) {
 	}
 
 	// Bind flags to config before validation.
-	if err := bindFlagsToConfig(cmd.Flags(), appConfig); err != nil {
+	if err = bindFlagsToConfig(cmd.Flags(), appConfig); err != nil {
 		logger.Fatalf(cmd.Context(), "Failed to parse flags: %v", err)
 	}
 
@@ -135,21 +135,38 @@ func initConfig(cmd *cobra.Command, _ []string) {
 }
 
 func bindFlagsToConfig(flags *pflag.FlagSet, cfg *config.Config) error {
+	var err error
+
 	if flag := flags.Lookup("format"); flag != nil && flag.Changed {
-		formatValue, _ := flags.GetInt("format")
+		var formatValue int
+
+		formatValue, err = flags.GetInt("format")
+		if err != nil {
+			return fmt.Errorf("failed to get format value: %w", err)
+		}
+
 		cfg.DownloadFormat = utils.SafeIntToUint8(formatValue)
 	}
 
 	if flag := flags.Lookup("output"); flag != nil && flag.Changed {
-		cfg.OutputPath, _ = flags.GetString("output")
+		cfg.OutputPath, err = flags.GetString("output")
+		if err != nil {
+			return fmt.Errorf("failed to get output value: %w", err)
+		}
 	}
 
 	if flag := flags.Lookup("lyrics"); flag != nil && flag.Changed {
-		cfg.DownloadLyrics, _ = flags.GetBool("lyrics")
+		cfg.DownloadLyrics, err = flags.GetBool("lyrics")
+		if err != nil {
+			return fmt.Errorf("failed to get lyrics value: %w", err)
+		}
 	}
 
 	if flag := flags.Lookup("speed-limit"); flag != nil && flag.Changed {
-		cfg.DownloadSpeedLimit, _ = flags.GetString("speed-limit")
+		cfg.DownloadSpeedLimit, err = flags.GetString("speed-limit")
+		if err != nil {
+			return fmt.Errorf("failed to get speed limit value: %w", err)
+		}
 	}
 
 	return config.ValidateConfig(cfg)
@@ -178,6 +195,5 @@ func dumpConfig(cfg *config.Config) {
 		os.Exit(1)
 	}
 
-	//nolint:forbidigo // Debug output to stdout is intentional for config dump feature.
 	fmt.Println(string(jsonData))
 }

@@ -23,6 +23,8 @@ func (c *coreWithLevel) Enabled(l zapcore.Level) bool {
 // Check adds the core to a checked entry if the log entry level is enabled for logging.
 // It returns the checked entry with the added core or the original checked entry
 // if the level is disabled.
+//
+//nolint:gocritic // AddCore requires ent to be passed by value.
 func (c *coreWithLevel) Check(ent zapcore.Entry, ce *zapcore.CheckedEntry) *zapcore.CheckedEntry {
 	if c.Enabled(ent.Level) {
 		return ce.AddCore(ent, c)

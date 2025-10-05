@@ -41,20 +41,20 @@ func (dc DownloadCategory) String() string {
 
 // DownloadItem represents a full downloadable item, including its category, URL, and unique identifier.
 type DownloadItem struct {
-	// Type of content (track, album, playlist, etc.)
+	// Category is the type of content. (track, album, playlist, etc.).
 	Category DownloadCategory
-	// Direct URL to the item
+	// URL is the direct URL to the item.
 	URL string
-	// Unique identifier of the item
+	// ItemID is the unique identifier of the item.
 	ItemID string
 }
 
 // ShortDownloadItem is a lightweight version of DownloadItem without the URL.
 // It is useful when storing or processing items without needing the actual download link.
 type ShortDownloadItem struct {
-	// Type of content
+	// Category is the type of content.
 	Category DownloadCategory
-	// Unique identifier of the item
+	// ItemID is the unique identifier of the item.
 	ItemID string
 }
 

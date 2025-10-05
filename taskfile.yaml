@@ -166,13 +166,13 @@ tasks:
 
   generate-mocks:
     desc: "Generate all mocks using go generate"
-    deps: [install-mockgen] # Ensure mockgen is installed before running
+    deps: [install-mockgen] # Ensure mockgen is installed before running.
     cmds:
       - echo "Generating mocks for all interfaces..."
       - go generate ./...
       - echo "Mock generation completed successfully!"
     env:
-      # Set MOCKGEN environment variable to the local binary path
+      # Set MOCKGEN environment variable to the local binary path.
       MOCKGEN: "{{.MOCKGEN_BIN}}"
 
   # -------------------------------
@@ -183,24 +183,28 @@ tasks:
     desc: "Run golangci-lint with --fix (includes gofmt formatting)"
     deps: [install-lint]
     cmds:
+      - '"{{.GOLANGCI_BIN}}" config verify'
       - '"{{.GOLANGCI_BIN}}" run --fix'
 
   lint:
     desc: "Run golangci-lint (no fix)"
     deps: [install-lint]
     cmds:
+      - '"{{.GOLANGCI_BIN}}" config verify'
       - '"{{.GOLANGCI_BIN}}" run'
 
   lint-full:
     desc: "Run golangci-lint on all files"
     deps: [install-lint]
     cmds:
+      - '"{{.GOLANGCI_BIN}}" config verify --config={{.GOLANGCI_CONFIG}}'
       - '"{{.GOLANGCI_BIN}}" run --config={{.GOLANGCI_CONFIG}}'
 
   lint-full-fix:
     desc: "Run golangci-lint on all files with --fix (includes gofmt formatting)"
     deps: [install-lint]
     cmds:
+      - '"{{.GOLANGCI_BIN}}" config verify --config={{.GOLANGCI_CONFIG}}'
       - '"{{.GOLANGCI_BIN}}" run --config={{.GOLANGCI_CONFIG}} --fix'
 
   # -------------------------------

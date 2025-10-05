@@ -50,7 +50,7 @@ func TestUserAgentInjector_RoundTrip_WithExistingUserAgent(t *testing.T) {
 	injector := NewUserAgentInjector(http.DefaultTransport, mockProvider)
 
 	// Create request with existing User-Agent header.
-	req, err := http.NewRequest(http.MethodGet, server.URL, nil) //nolint:noctx // Test code, context not needed.
+	req, err := http.NewRequest(http.MethodGet, server.URL, nil)
 	require.NoError(t, err)
 	req.Header.Set("User-Agent", "ExistingAgent/1.0")
 
@@ -58,7 +58,7 @@ func TestUserAgentInjector_RoundTrip_WithExistingUserAgent(t *testing.T) {
 	resp, err := injector.RoundTrip(req)
 	require.NoError(t, err)
 
-	defer resp.Body.Close() //nolint:errcheck // Test cleanup, error is not critical.
+	defer resp.Body.Close()
 
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 }
@@ -84,14 +84,14 @@ func TestUserAgentInjector_RoundTrip_WithoutUserAgent(t *testing.T) {
 	injector := NewUserAgentInjector(http.DefaultTransport, mockProvider)
 
 	// Create request without User-Agent header.
-	req, err := http.NewRequest(http.MethodGet, server.URL, nil) //nolint:noctx // Test code, context not needed.
+	req, err := http.NewRequest(http.MethodGet, server.URL, nil)
 	require.NoError(t, err)
 
 	// Execute request.
 	resp, err := injector.RoundTrip(req)
 	require.NoError(t, err)
 
-	defer resp.Body.Close() //nolint:errcheck // Test cleanup, error is not critical.
+	defer resp.Body.Close()
 
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 }
@@ -117,7 +117,7 @@ func TestUserAgentInjector_RoundTrip_WithEmptyUserAgent(t *testing.T) {
 	injector := NewUserAgentInjector(http.DefaultTransport, mockProvider)
 
 	// Create request with empty User-Agent header.
-	req, err := http.NewRequest(http.MethodGet, server.URL, nil) //nolint:noctx // Test code, context not needed
+	req, err := http.NewRequest(http.MethodGet, server.URL, nil)
 	require.NoError(t, err)
 	req.Header.Set("User-Agent", "")
 
@@ -125,7 +125,7 @@ func TestUserAgentInjector_RoundTrip_WithEmptyUserAgent(t *testing.T) {
 	resp, err := injector.RoundTrip(req)
 	require.NoError(t, err)
 
-	defer resp.Body.Close() //nolint:errcheck // Test cleanup, error is not critical.
+	defer resp.Body.Close()
 
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 }
@@ -143,8 +143,8 @@ func TestUserAgentInjector_RoundTrip_ErrorHandling(t *testing.T) {
 	// Create injector with mock provider.
 	injector := NewUserAgentInjector(http.DefaultTransport, mockProvider)
 
-	// Create request with invalid URL that will definitely fail
-	req, err := http.NewRequest(http.MethodGet, "http://[::1]:0", nil) //nolint:noctx // Test code, context not needed
+	// Create request with invalid URL that will definitely fail.
+	req, err := http.NewRequest(http.MethodGet, "http://[::1]:0", nil)
 	require.NoError(t, err)
 
 	// Execute request. - should return an error.
@@ -169,14 +169,14 @@ func TestUserAgentInjector_IntegrationWithSimpleUserAgentProvider(t *testing.T) 
 	injector := NewUserAgentInjector(http.DefaultTransport, provider)
 
 	// Create request without User-Agent header.
-	req, err := http.NewRequest(http.MethodGet, server.URL, nil) //nolint:noctx // Test code, context not needed.
+	req, err := http.NewRequest(http.MethodGet, server.URL, nil)
 	require.NoError(t, err)
 
 	// Execute request.
 	resp, err := injector.RoundTrip(req)
 	require.NoError(t, err)
 
-	defer resp.Body.Close() //nolint:errcheck // Test cleanup, error is not critical.
+	defer resp.Body.Close()
 
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 }
@@ -203,12 +203,13 @@ func TestUserAgentInjector_MultipleRequests(t *testing.T) {
 
 	// Make multiple requests.
 	for range 5 {
-		req, err := http.NewRequest(http.MethodGet, server.URL, nil) //nolint:noctx // Test code, context not needed.
+		req, err := http.NewRequest(http.MethodGet, server.URL, nil)
 		require.NoError(t, err)
 
 		resp, err := injector.RoundTrip(req)
 		require.NoError(t, err)
-		resp.Body.Close() //nolint:errcheck,gosec // Test cleanup, error is not critical.
+
+		resp.Body.Close()
 
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 	}

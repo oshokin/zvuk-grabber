@@ -19,7 +19,7 @@ func TestNewURLProcessor(t *testing.T) {
 
 // TestURLPatterns tests URL pattern matching.
 //
-//nolint:funlen // It's a test function.
+
 func TestURLPatterns(t *testing.T) {
 	t.Parallel()
 
@@ -93,7 +93,7 @@ func TestURLPatterns(t *testing.T) {
 
 // TestURLProcessorImpl_DeduplicateDownloadItems tests the DeduplicateDownloadItems method.
 //
-//nolint:funlen // It's a test function.
+
 func TestURLProcessorImpl_DeduplicateDownloadItems(t *testing.T) {
 	t.Parallel()
 
@@ -172,7 +172,7 @@ func TestURLProcessorImpl_DeduplicateDownloadItems(t *testing.T) {
 
 // TestURLProcessorImpl_ExtractDownloadItems tests the ExtractDownloadItems method.
 //
-//nolint:funlen // It's a test function.
+
 func TestURLProcessorImpl_ExtractDownloadItems(t *testing.T) {
 	t.Parallel()
 

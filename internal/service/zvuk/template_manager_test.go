@@ -114,7 +114,7 @@ func TestTemplateManagerImpl_EdgeCases(t *testing.T) {
 
 // TestTemplateManagerImpl_GetAlbumFolderName tests the GetAlbumFolderName method.
 //
-//nolint:funlen // It's a test function.
+
 func TestTemplateManagerImpl_GetAlbumFolderName(t *testing.T) {
 	t.Parallel()
 
@@ -190,7 +190,7 @@ func TestTemplateManagerImpl_GetAlbumFolderName(t *testing.T) {
 
 // TestTemplateManagerImpl_GetTrackFilename tests the GetTrackFilename method.
 //
-//nolint:funlen // It's a test function.
+
 func TestTemplateManagerImpl_GetTrackFilename(t *testing.T) {
 	t.Parallel()
 
@@ -302,14 +302,14 @@ func TestTemplateManagerImpl_UnicodeCharacters(t *testing.T) {
 	}
 	manager := NewTemplateManager(ctx, cfg)
 
-	// Test Unicode characters in track title
+	// Test Unicode characters in track title.
 	trackTags := map[string]string{
 		"trackTitle": "Тест Трек 🎵",
 	}
 	result := manager.GetTrackFilename(ctx, false, trackTags, 1)
 	assert.Contains(t, result, "Тест Трек 🎵")
 
-	// Test Unicode characters in album title
+	// Test Unicode characters in album title.
 	albumTags := map[string]string{
 		"albumTitle": "Альбом 🎶",
 	}

@@ -214,20 +214,20 @@ func (tp *TagProcessorImpl) embedFLACCover(ctx context.Context, f *flac.File, im
 
 func (tp *TagProcessorImpl) writeMP3Tags(ctx context.Context, req *WriteTagsRequest, image *imageMetadata) error {
 	// Open the MP3 file for writing metadata.
-	//nolint:exhaustruct // ParseFrames intentionally omitted when Parse=false (parsing disabled)
+	//nolint:exhaustruct // ParseFrames intentionally omitted when Parse=false (parsing disabled).
 	tag, err := id3v2.Open(req.TrackPath, id3v2.Options{Parse: false})
 	if err != nil {
 		return err
 	}
 
-	defer tag.Close() //nolint:errcheck // Error on close is not critical here.
+	defer tag.Close()
 
 	// Add metadata tags to the MP3 file.
 	tp.addMP3Tags(ctx, tag, req)
 
 	// Embed the cover art into the MP3 file if provided.
 	if image != nil {
-		//nolint:exhaustruct // Description field intentionally empty for cover images
+		//nolint:exhaustruct // Description field intentionally empty for cover images.
 		tag.AddAttachedPicture(id3v2.PictureFrame{
 			Encoding:    id3v2.EncodingUTF8,
 			MimeType:    image.mimeType,
@@ -270,41 +270,48 @@ func (tp *TagProcessorImpl) addMP3Tags(ctx context.Context, tag *id3v2.Tag, req 
 	tag.AddTextFrame(tag.CommonID("Publisher"), tag.DefaultEncoding(), req.TrackTags["recordLabel"])
 
 	// Add lyrics if available.
-	if req.TrackLyrics != nil {
-		lyrics := strings.TrimSpace(req.TrackLyrics.Lyrics)
-		if req.TrackLyrics.Type == zvuk.LyricsTypeSubtitle {
-			// Parse the LRC file content into a SynchronisedLyricsFrame.
-			result, err := id3v2.ParseLRCFile(strings.NewReader(lyrics))
-			if err != nil {
-				logger.Errorf(ctx, "Failed to parse LRC file content: %v", err)
-			}
-
-			// Create a SynchronisedLyricsFrame from the parsed result.
-			sylf := id3v2.SynchronisedLyricsFrame{
-				Encoding: id3v2.EncodingUTF8,
-				// Field is required, so we just use lingua franca.
-				Language: id3v2.EnglishISO6392Code,
-				// Use absolute timestamps.
-				TimestampFormat: id3v2.SYLTAbsoluteMillisecondsTimestampFormat,
-				// Mark as lyrics.
-				ContentType: id3v2.SYLTLyricsContentType,
-				// Descriptor for lyrics.
-				ContentDescriptor: "Lyrics",
-				// The actual synchronized lyrics.
-				SynchronizedTexts: result.SynchronizedTexts,
-			}
-
-			// Add the synchronized lyrics frame to the tag.
-			tag.AddSynchronisedLyricsFrame(sylf)
-		} else {
-			tag.AddUnsynchronisedLyricsFrame(
-				//nolint:exhaustruct // ContentDescriptor not available in source data
-				id3v2.UnsynchronisedLyricsFrame{
-					Encoding: id3v2.EncodingUTF8,
-					Lyrics:   lyrics,
-					// Field is required, so we just use lingua franca.
-					Language: id3v2.EnglishISO6392Code,
-				})
-		}
+	if req.TrackLyrics == nil {
+		return
 	}
+
+	lyrics := strings.TrimSpace(req.TrackLyrics.Lyrics)
+
+	// If the lyrics type is subtitle, parse the LRC file content into a SynchronisedLyricsFrame.
+	if req.TrackLyrics.Type == zvuk.LyricsTypeSubtitle {
+		// Parse the LRC file content into a SynchronisedLyricsFrame.
+		result, err := id3v2.ParseLRCFile(strings.NewReader(lyrics))
+		if err != nil {
+			logger.Errorf(ctx, "Failed to parse LRC file content: %v", err)
+		}
+
+		// Create a SynchronisedLyricsFrame from the parsed result.
+		sylf := id3v2.SynchronisedLyricsFrame{
+			Encoding: id3v2.EncodingUTF8,
+			// Field is required, so we just use lingua franca.
+			Language: id3v2.EnglishISO6392Code,
+			// Use absolute timestamps.
+			TimestampFormat: id3v2.SYLTAbsoluteMillisecondsTimestampFormat,
+			// Mark as lyrics.
+			ContentType: id3v2.SYLTLyricsContentType,
+			// Descriptor for lyrics.
+			ContentDescriptor: "Lyrics",
+			// The actual synchronized lyrics.
+			SynchronizedTexts: result.SynchronizedTexts,
+		}
+
+		// Add the synchronized lyrics frame to the tag.
+		tag.AddSynchronisedLyricsFrame(sylf)
+
+		return
+	}
+
+	// Add the unsynchronised lyrics frame to the tag.
+	tag.AddUnsynchronisedLyricsFrame(
+		//nolint:exhaustruct // ContentDescriptor not available in source data.
+		id3v2.UnsynchronisedLyricsFrame{
+			Encoding: id3v2.EncodingUTF8,
+			Lyrics:   lyrics,
+			// Field is required, so we just use lingua franca.
+			Language: id3v2.EnglishISO6392Code,
+		})
 }

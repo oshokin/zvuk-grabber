@@ -5,24 +5,86 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+// ConfigDump represents the config dump structure.
+type ConfigDump struct {
+	// DownloadFormat is the audio quality/format.
+	DownloadFormat uint8 `json:"download_format"`
+	// OutputPath is the directory path for downloads.
+	OutputPath string `json:"output_path"`
+	// DownloadLyrics indicates whether lyrics should be downloaded.
+	DownloadLyrics bool `json:"download_lyrics"`
+	// DownloadSpeedLimit is the speed limit for downloads.
+	DownloadSpeedLimit string `json:"download_speed_limit"`
+}
+
 const (
 	// testBinaryName is the name of the test binary for E2E tests.
 	testBinaryName = "zvuk-grabber-test"
 )
 
+var (
+	// testBinaryPath is the absolute path to the test binary.
+	testBinaryPath string
+	// testBuildOnce ensures the binary is built only once.
+	testBuildOnce sync.Once
+	// testBuildErr stores any error that occurred during build.
+	testBuildErr error //nolint:errname // This is a test error, not intended to be used in production.
+)
+
+// getTestBinaryName returns the test binary name with the correct extension for the platform.
+func getTestBinaryName() string {
+	if runtime.GOOS == "windows" {
+		return testBinaryName + ".exe"
+	}
+
+	return testBinaryName
+}
+
+// ensureTestBinary ensures the test binary exists and is built.
+func ensureTestBinary() error {
+	testBuildOnce.Do(func() {
+		// Check if binary already exists.
+		if _, err := os.Stat(testBinaryPath); err == nil {
+			testBuildErr = nil // Binary exists, no error.
+			return
+		}
+
+		// Build the binary.
+		buildCmd := exec.Command("go", "build", "-o", testBinaryPath, "..")
+		testBuildErr = buildCmd.Run()
+	})
+
+	return testBuildErr
+}
+
+// execTestBinary executes the test binary with the given arguments.
+func execTestBinary(args ...string) *exec.Cmd {
+	return exec.Command(testBinaryPath, args...)
+}
+
 // TestMain builds the binary before running E2E tests.
 func TestMain(m *testing.M) {
+	// Get the current working directory.
+	wd, err := os.Getwd()
+	if err != nil {
+		os.Exit(1)
+	}
+
+	// Set the absolute path to the test binary with correct extension.
+	testBinaryPath = filepath.Join(wd, getTestBinaryName())
+
 	// Build the binary for testing.
-	//nolint:noctx // TestMain doesn't have access to context, and build is needed before tests run.
-	buildCmd := exec.Command("go", "build", "-o", testBinaryName, "../.")
-	if err := buildCmd.Run(); err != nil {
+
+	if err = ensureTestBinary(); err != nil {
 		os.Exit(1)
 	}
 
@@ -30,7 +92,7 @@ func TestMain(m *testing.M) {
 	code := m.Run()
 
 	// Cleanup.
-	_ = os.Remove(testBinaryName)
+	_ = os.Remove(testBinaryPath)
 
 	os.Exit(code)
 }
@@ -89,7 +151,7 @@ max_retry_pause: "3s"
 			// Create temp directory and config file.
 			tempDir := t.TempDir()
 			configPath := filepath.Join(tempDir, "test-config.yaml")
-			err := os.WriteFile(configPath, []byte(baseConfig), 0o644) //nolint:gosec // It's a test file.
+			err := os.WriteFile(configPath, []byte(baseConfig), 0o644)
 			require.NoError(t, err)
 
 			// Run and get config dump.
@@ -105,7 +167,7 @@ max_retry_pause: "3s"
 
 // TestE2E_FlagOverrides_AllFlags tests all flags together.
 //
-//nolint:funlen // It's a comprehensive E2E test.
+
 func TestE2E_FlagOverrides_AllFlags(t *testing.T) {
 	t.Parallel()
 
@@ -203,7 +265,7 @@ max_retry_pause: "3s"
 			// Create temp directory and config file.
 			tempDir := t.TempDir()
 			configPath := filepath.Join(tempDir, "test-config.yaml")
-			err := os.WriteFile(configPath, []byte(baseConfig), 0o644) //nolint:gosec // It's a test file.
+			err := os.WriteFile(configPath, []byte(baseConfig), 0o644)
 			require.NoError(t, err)
 
 			// Run and get config dump.
@@ -225,7 +287,7 @@ max_retry_pause: "3s"
 
 // TestE2E_FlagOverrides_InvalidValues tests that invalid flag values are rejected.
 //
-//nolint:funlen // Comprehensive E2E test with multiple test cases.
+
 func TestE2E_FlagOverrides_InvalidValues(t *testing.T) {
 	t.Parallel()
 
@@ -279,7 +341,7 @@ max_retry_pause: "3s"
 			// Create temp directory and config file.
 			tempDir := t.TempDir()
 			configPath := filepath.Join(tempDir, "test-config.yaml")
-			err := os.WriteFile(configPath, []byte(baseConfig), 0o644) //nolint:gosec // It's a test file.
+			err := os.WriteFile(configPath, []byte(baseConfig), 0o644)
 			require.NoError(t, err)
 
 			// Prepare arguments.
@@ -289,9 +351,14 @@ max_retry_pause: "3s"
 			}
 			args = append(args, tt.flags...)
 
+			// Ensure test binary exists.
+			if err = ensureTestBinary(); err != nil {
+				t.Fatalf("Failed to build test binary: %v", err)
+			}
+
 			// Run the binary.
-			//nolint:gosec,noctx // Test binary name is a constant, not user input. No context available in test.
-			cmd := exec.Command("./"+testBinaryName, args...)
+
+			cmd := execTestBinary(args...)
 			output, err := cmd.CombinedOutput()
 
 			// Should fail with error.
@@ -306,21 +373,14 @@ max_retry_pause: "3s"
 	}
 }
 
-// ConfigDump represents the config dump structure.
-type ConfigDump struct {
-	// DownloadFormat is the audio quality/format.
-	DownloadFormat uint8 `json:"download_format"`
-	// OutputPath is the directory path for downloads.
-	OutputPath string `json:"output_path"`
-	// DownloadLyrics indicates whether lyrics should be downloaded.
-	DownloadLyrics bool `json:"download_lyrics"`
-	// DownloadSpeedLimit is the speed limit for downloads.
-	DownloadSpeedLimit string `json:"download_speed_limit"`
-}
-
 // runWithConfigDump runs the app with config dump enabled and parses the output.
 func runWithConfigDump(t *testing.T, configPath string, flags []string) *ConfigDump {
 	t.Helper()
+
+	// Ensure test binary exists.
+	if err := ensureTestBinary(); err != nil {
+		t.Fatalf("Failed to build test binary: %v", err)
+	}
 
 	args := []string{
 		"--config", configPath,
@@ -328,8 +388,7 @@ func runWithConfigDump(t *testing.T, configPath string, flags []string) *ConfigD
 	}
 	args = append(args, flags...)
 
-	//nolint:gosec,noctx // Test binary name is a constant, not user input. No context available in test.
-	cmd := exec.Command("./"+testBinaryName, args...)
+	cmd := execTestBinary(args...)
 
 	cmd.Env = append(os.Environ(), "ZVUK_GRABBER_DUMP_CONFIG=1")
 
@@ -341,7 +400,7 @@ func runWithConfigDump(t *testing.T, configPath string, flags []string) *ConfigD
 
 	// Parse JSON config dump from output.
 	var config ConfigDump
-	if err := json.Unmarshal(output, &config); err != nil {
+	if err = json.Unmarshal(output, &config); err != nil {
 		t.Logf("Failed to parse config: %v, output: %s", err, string(output))
 		return nil
 	}

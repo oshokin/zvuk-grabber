@@ -66,7 +66,7 @@ func TestConstants(t *testing.T) {
 
 // TestLoadConfig tests the LoadConfig function.
 //
-//nolint:funlen, tparallel // It's a test function and it's not parallel to avoid race conditions.
+//nolint:tparallel // It's a test function and it's not parallel to avoid race conditions.
 func TestLoadConfig(t *testing.T) {
 	t.Parallel()
 
@@ -136,7 +136,7 @@ invalid: yaml: content: [unclosed
 			switch {
 			case tt.configContent != "":
 				configPath = filepath.Join(tempDir, tt.configFilename)
-				err := os.WriteFile(configPath, []byte(tt.configContent), 0o644) //nolint:gosec // It's a test file.
+				err := os.WriteFile(configPath, []byte(tt.configContent), 0o644)
 
 				require.NoError(t, err)
 			case tt.configFilename != "":
@@ -164,7 +164,7 @@ invalid: yaml: content: [unclosed
 
 // TestValidateConfig tests the ValidateConfig function.
 //
-//nolint:funlen, tparallel // It's a test function and it's not parallel to avoid race conditions.
+//nolint:tparallel // It's a test function and it's not parallel to avoid race conditions.
 func TestValidateConfig(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -358,7 +358,7 @@ func TestValidateConfig(t *testing.T) {
 
 // TestValidateConfig_DownloadSpeedLimit tests download speed limit validation.
 //
-//nolint:funlen, tparallel // It's a test function and it's not parallel to avoid race conditions.
+//nolint:tparallel // It's a test function and it's not parallel to avoid race conditions.
 func TestValidateConfig_DownloadSpeedLimit(t *testing.T) {
 	tests := []struct {
 		name          string

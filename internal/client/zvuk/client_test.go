@@ -27,7 +27,7 @@ func newMockZvukClient() *mockZvukClient {
 }
 
 func (m *mockZvukClient) DownloadFromURL(_ context.Context, url string) (io.ReadCloser, error) {
-	resp, err := http.Get(url) //nolint:gosec,noctx // It's a test mock.
+	resp, err := http.Get(url)
 	if err != nil {
 		return nil, err
 	}
@@ -36,7 +36,7 @@ func (m *mockZvukClient) DownloadFromURL(_ context.Context, url string) (io.Read
 }
 
 func (m *mockZvukClient) FetchTrack(_ context.Context, trackURL string) (io.ReadCloser, int64, error) {
-	resp, err := http.Get(trackURL) //nolint:gosec,noctx // It's a test mock.
+	resp, err := http.Get(trackURL)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -155,7 +155,7 @@ func mockHandler(w http.ResponseWriter, r *http.Request) {
 		// For download requests.
 		w.Header().Set("Content-Type", "application/octet-stream")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("test content")) //nolint:errcheck,gosec // Test mock handler, error is not critical.
+		w.Write([]byte("test content")) //nolint:errcheck // Test mock handler, error is not critical.
 	}
 }
 
@@ -173,7 +173,7 @@ func handleGraphQLRequest(w http.ResponseWriter, _ *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response) //nolint:errcheck,errchkjson,gosec // Test mock handler, error is not critical.
+	json.NewEncoder(w).Encode(response) //nolint:errcheck,errchkjson // Test mock handler, error is not critical.
 }
 
 // handleStreamRequest handles stream metadata requests.
@@ -185,7 +185,7 @@ func handleStreamRequest(w http.ResponseWriter, _ *http.Request, _ url.Values) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response) //nolint:errcheck,errchkjson,gosec // Test mock handler, error is not critical.
+	json.NewEncoder(w).Encode(response) //nolint:errcheck,errchkjson // Test mock handler, error is not critical.
 }
 
 // handleLyricsRequest handles lyrics requests.
@@ -198,7 +198,7 @@ func handleLyricsRequest(w http.ResponseWriter, _ *http.Request, _ url.Values) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response) //nolint:errcheck,errchkjson,gosec // Test mock handler, error is not critical.
+	json.NewEncoder(w).Encode(response) //nolint:errcheck,errchkjson // Test mock handler, error is not critical.
 }
 
 // handleProfileRequest handles user profile requests.
@@ -213,7 +213,7 @@ func handleProfileRequest(w http.ResponseWriter, _ *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response) //nolint:errcheck,errchkjson,gosec // Test mock handler, error is not critical.
+	json.NewEncoder(w).Encode(response) //nolint:errcheck,errchkjson // Test mock handler, error is not critical.
 }
 
 // handleTracksRequest handles track metadata requests.
@@ -230,7 +230,7 @@ func handleTracksRequest(w http.ResponseWriter, _ *http.Request, _ url.Values) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response) //nolint:errcheck,errchkjson,gosec // Test mock handler, error is not critical.
+	json.NewEncoder(w).Encode(response) //nolint:errcheck,errchkjson // Test mock handler, error is not critical.
 }
 
 // handleReleasesRequest handles release metadata requests.
@@ -245,7 +245,7 @@ func handleReleasesRequest(w http.ResponseWriter, _ *http.Request, _ url.Values)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response) //nolint:errcheck,errchkjson,gosec // Test mock handler, error is not critical.
+	json.NewEncoder(w).Encode(response) //nolint:errcheck,errchkjson // Test mock handler, error is not critical.
 }
 
 // handlePlaylistsRequest handles playlist metadata requests.
@@ -260,7 +260,7 @@ func handlePlaylistsRequest(w http.ResponseWriter, _ *http.Request, _ url.Values
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response) //nolint:errcheck,errchkjson,gosec // Test mock handler, error is not critical.
+	json.NewEncoder(w).Encode(response) //nolint:errcheck,errchkjson // Test mock handler, error is not critical.
 }
 
 // handleLabelsRequest handles label metadata requests.
@@ -274,7 +274,7 @@ func handleLabelsRequest(w http.ResponseWriter, _ *http.Request, _ url.Values) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response) //nolint:errcheck,errchkjson,gosec // Test mock handler, error is not critical.
+	json.NewEncoder(w).Encode(response) //nolint:errcheck,errchkjson // Test mock handler, error is not critical.
 }
 
 // TestNewClient tests the NewClient function.
@@ -347,7 +347,7 @@ func TestClientImpl_DownloadFromURL(t *testing.T) {
 	content, err := io.ReadAll(reader)
 	require.NoError(t, err)
 	assert.Equal(t, "test content", string(content))
-	reader.Close() //nolint:errcheck,gosec // Test cleanup, error is not critical.
+	reader.Close()
 }
 
 // TestClientImpl_FetchTrack tests the FetchTrack method.
@@ -365,7 +365,7 @@ func TestClientImpl_FetchTrack(t *testing.T) {
 	assert.NotNil(t, reader)
 	assert.Equal(t, int64(12), size) // "test content" length
 
-	reader.Close() //nolint:errcheck,gosec // Test cleanup, error is not critical.
+	reader.Close()
 }
 
 // TestClientImpl_GetAlbumsMetadata tests the GetAlbumsMetadata method.

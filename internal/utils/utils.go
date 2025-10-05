@@ -99,7 +99,7 @@ func SanitizeFilename(name string) string {
 
 	result := invalidCharsPattern.ReplaceAllString(name, "_")
 
-	// Extract base filename (without extension) for comparison
+	// Extract base filename (without extension) for comparison.
 	baseName := result
 	if dotIndex := strings.LastIndex(result, "."); dotIndex != -1 {
 		baseName = result[:dotIndex]
@@ -185,7 +185,7 @@ func ReadUniqueLinesFromFile(path string) ([]string, error) {
 		return nil, err
 	}
 
-	defer file.Close() //nolint:errcheck // Error on close is not critical here.
+	defer file.Close()
 
 	var (
 		uniqueLines = make(map[string]struct{})

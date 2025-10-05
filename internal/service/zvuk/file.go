@@ -43,7 +43,7 @@ func (s *ServiceImpl) downloadAndSaveFile(ctx context.Context, url, destinationP
 		return err
 	}
 
-	defer file.Close() //nolint:errcheck // Error on close is not critical here.
+	defer file.Close()
 
 	// Download the file content from the URL.
 	reader, err := s.zvukClient.DownloadFromURL(ctx, url)
@@ -51,7 +51,7 @@ func (s *ServiceImpl) downloadAndSaveFile(ctx context.Context, url, destinationP
 		return err
 	}
 
-	defer reader.Close() //nolint:errcheck // Error on close is not critical here.
+	defer reader.Close()
 
 	// Copy the downloaded content to the file.
 	_, err = io.Copy(file, reader)

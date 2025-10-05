@@ -45,9 +45,9 @@ jobs:
     strategy:
       # Continue running other matrix jobs even if one fails.
       fail-fast: false
-      # Create a matrix of 4 jobs: 2 Go versions × 2 platforms.
+      # Create a matrix of 2 jobs: 1 Go version × 2 platforms.
       matrix:
-        go-version: [1.24.x, 1.25.x]
+        go-version: [1.25.x]
         platform: [ubuntu-latest, windows-latest]
     steps:
       # Checkout the repository code.

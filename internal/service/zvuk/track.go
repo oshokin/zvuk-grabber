@@ -99,7 +99,7 @@ func (s *ServiceImpl) fetchAlbumsDataFromTracks(
 			return strconv.FormatInt(v.LabelID, 10)
 		})
 
-	// Fetch label metadata
+	// Fetch label metadata.
 	labelsMetadata, err := s.zvukClient.GetLabelsMetadata(ctx, labelIDs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get labels metadata: %w", err)
@@ -128,7 +128,7 @@ func (s *ServiceImpl) downloadTracks(ctx context.Context, metadata *downloadTrac
 	}
 }
 
-//nolint:cyclop,funlen // Function orchestrates complex download workflow with multiple sequential steps.
+//nolint:funlen // Function orchestrates complex download workflow with multiple sequential steps.
 func (s *ServiceImpl) downloadTrack(
 	ctx context.Context,
 	req *downloadTrackRequest,
@@ -449,7 +449,7 @@ func (s *ServiceImpl) writeLyrics(ctx context.Context, lyrics, destinationPath s
 		return false, err
 	}
 
-	defer file.Close() //nolint:errcheck // Error on close is not critical here.
+	defer file.Close()
 
 	_, err = file.WriteString(lyrics)
 

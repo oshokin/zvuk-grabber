@@ -46,7 +46,7 @@ func TestNew(t *testing.T) {
 
 // TestParseLogLevel tests the ParseLogLevel function.
 //
-//nolint:funlen // It's a test function.
+
 func TestParseLogLevel(t *testing.T) {
 	t.Parallel()
 

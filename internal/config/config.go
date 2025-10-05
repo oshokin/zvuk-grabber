@@ -125,7 +125,7 @@ func LoadConfig(configFilename string) (*Config, error) {
 
 // ValidateConfig checks the configuration for validity and sets derived fields.
 //
-//nolint:cyclop // It's a validation function, not a complex one.
+
 func ValidateConfig(cfg *Config) error {
 	var (
 		downloadSpeedLimit       = strings.TrimSpace(cfg.DownloadSpeedLimit)

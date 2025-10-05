@@ -92,7 +92,7 @@ func TestServiceImpl_DownloadURLs(t *testing.T) {
 	mockTemplateManager := &mockTemplateManager{}
 	mockTagProcessor := &mockTagProcessor{}
 
-	// Setup mock expectations
+	// Setup mock expectations.
 	mockClient.EXPECT().GetUserProfile(gomock.Any()).Return(&zvuk.UserProfile{
 		Subscription: &zvuk.UserSubscription{
 			Title:      "Premium",
@@ -111,7 +111,7 @@ func TestServiceImpl_DownloadURLs(t *testing.T) {
 	ctx := context.Background()
 	urls := []string{"https://zvuk.com/track/123"}
 
-	// This should not panic
+	// This should not panic.
 	service.DownloadURLs(ctx, urls)
 }
 
@@ -150,7 +150,7 @@ func TestServiceImpl_DownloadURLs_EmptyURLs(t *testing.T) {
 	ctx := context.Background()
 	urls := []string{}
 
-	// This should not panic
+	// This should not panic.
 	service.DownloadURLs(ctx, urls)
 }
 
@@ -190,6 +190,6 @@ func TestServiceImpl_DownloadURLs_NilURLs(t *testing.T) {
 
 	var urls []string
 
-	// This should not panic
+	// This should not panic.
 	service.DownloadURLs(ctx, urls)
 }

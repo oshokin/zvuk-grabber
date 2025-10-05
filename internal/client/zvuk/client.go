@@ -23,7 +23,7 @@ import (
 
 // Client defines the interface for interacting with Zvuk's API.
 //
-//nolint:interfacebloat // It's big by design, it's a client interface.
+
 type Client interface {
 	// DownloadFromURL downloads content from the specified URL.
 	DownloadFromURL(ctx context.Context, url string) (io.ReadCloser, error)
@@ -146,7 +146,7 @@ func NewClient(cfg *config.Config) (Client, error) {
 
 // DownloadFromURL downloads content from the specified URL.
 func (c *ClientImpl) DownloadFromURL(ctx context.Context, url string) (io.ReadCloser, error) {
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
 	if err != nil {
 		return nil, err
 	}
@@ -157,7 +157,7 @@ func (c *ClientImpl) DownloadFromURL(ctx context.Context, url string) (io.ReadCl
 	}
 
 	if response.StatusCode != http.StatusOK {
-		response.Body.Close() //nolint:errcheck,gosec // Error on close is not critical here.
+		response.Body.Close() //nolint:gosec // Error on close is not critical here.
 
 		return nil, fmt.Errorf("%w: %d", ErrUnexpectedHTTPStatus, response.StatusCode)
 	}
@@ -167,7 +167,7 @@ func (c *ClientImpl) DownloadFromURL(ctx context.Context, url string) (io.ReadCl
 
 // FetchTrack fetches track data from the specified URL.
 func (c *ClientImpl) FetchTrack(ctx context.Context, trackURL string) (io.ReadCloser, int64, error) {
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, trackURL, nil)
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, trackURL, http.NoBody)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -181,7 +181,7 @@ func (c *ClientImpl) FetchTrack(ctx context.Context, trackURL string) (io.ReadCl
 	}
 
 	if response.StatusCode != http.StatusOK && response.StatusCode != http.StatusPartialContent {
-		response.Body.Close() //nolint:errcheck,gosec // Error on close is not critical here.
+		response.Body.Close() //nolint:gosec // Error on close is not critical here.
 
 		return nil, 0, fmt.Errorf("%w: %d", ErrUnexpectedHTTPStatus, response.StatusCode)
 	}
@@ -401,19 +401,19 @@ func (c *ClientImpl) getEntitiesMetadata(
 	return response.Result, nil
 }
 
-//nolint:revive // has no sense, it's cause Go doesn't allow struct methods to be generic
+//nolint:revive // has no sense, it's cause Go doesn't allow struct methods to be generic.
 func fetchJSON[T any](c *ClientImpl, ctx context.Context, uri string) (*T, int, error) {
 	return fetchJSONWithQuery[T](c, ctx, uri, nil)
 }
 
-//nolint:revive // has no sense, it's cause Go doesn't allow struct methods to be generic
+//nolint:revive // has no sense, it's cause Go doesn't allow struct methods to be generic.
 func fetchJSONWithQuery[T any](c *ClientImpl, ctx context.Context, uri string, query url.Values) (*T, int, error) {
 	route, err := url.JoinPath(c.baseURL, uri)
 	if err != nil {
 		return nil, 0, err
 	}
 
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, route, nil)
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, route, http.NoBody)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -427,7 +427,7 @@ func fetchJSONWithQuery[T any](c *ClientImpl, ctx context.Context, uri string, q
 		return nil, 0, err
 	}
 
-	defer response.Body.Close() //nolint:errcheck // Error on close is not critical here.
+	defer response.Body.Close()
 
 	if response.StatusCode != http.StatusOK {
 		return nil, response.StatusCode, fmt.Errorf("%w: %d", ErrUnexpectedHTTPStatus, response.StatusCode)
