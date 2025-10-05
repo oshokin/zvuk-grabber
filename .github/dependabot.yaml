@@ -1,26 +1,26 @@
-version: 2 # Required: Specifies the Dependabot configuration version (v2 is the latest)
+version: 2 # Required: Specifies the Dependabot configuration version (v2 is the latest).
 
 updates:
-  # Configuration for updating GitHub Actions dependencies
-  - package-ecosystem: "github-actions" # Specifies the package ecosystem (GitHub Actions)
-    directory: "/" # Directory where the dependency files are located (root directory)
+  # Configuration for updating GitHub Actions dependencies.
+  - package-ecosystem: "github-actions" # Specifies the package ecosystem (GitHub Actions).
+    directory: "/" # Directory where the dependency files are located (root directory).
     schedule:
-      interval: "weekly" # Check for updates weekly
-      day: "monday" # Run the update check every Monday
+      interval: "weekly" # Check for updates weekly.
+      day: "monday" # Run the update check every Monday.
     assignees:
-      - "oshokin" # Assign a specific assignee for dependency update PRs
+      - "oshokin" # Assign a specific assignee for dependency update PRs.
     labels:
-      - "github-actions dependencies" # Apply a label to dependency update PRs for GitHub Actions
-    open-pull-requests-limit: 1 # Limit the number of open PRs to 1 at a time
+      - "github-actions dependencies" # Apply a label to dependency update PRs for GitHub Actions.
+    open-pull-requests-limit: 1 # Limit the number of open PRs to 1 at a time.
 
-  # Configuration for updating Go module dependencies
-  - package-ecosystem: "gomod" # Specifies the package ecosystem (Go modules)
-    directory: "/" # Directory where the dependency files are located (root directory)
+  # Configuration for updating Go module dependencies.
+  - package-ecosystem: "gomod" # Specifies the package ecosystem (Go modules).
+    directory: "/" # Directory where the dependency files are located (root directory).
     schedule:
-      interval: "weekly" # Check for updates weekly
-      day: "monday" # Run the update check every Monday
+      interval: "weekly" # Check for updates weekly.
+      day: "monday" # Run the update check every Monday.
     assignees:
-      - "oshokin" # Assign a specific assignee for dependency update PRs
+      - "oshokin" # Assign a specific assignee for dependency update PRs.
     labels:
-      - "go dependencies" # Apply a label to dependency update PRs for Go modules
-    open-pull-requests-limit: 1 # Limit the number of open PRs to 1 at a time
+      - "go dependencies" # Apply a label to dependency update PRs for Go modules.
+    open-pull-requests-limit: 1 # Limit the number of open PRs to 1 at a time.

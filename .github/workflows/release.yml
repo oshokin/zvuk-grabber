@@ -8,28 +8,28 @@ name: Release
 # Only master branch pushes should trigger releases in production.
 on:
   push:
-    branches: [ master ]  # Automated releases on master branch pushes.
-  workflow_dispatch: {}   # Allow manual release triggering when needed.
+    branches: [master] # Automated releases on master branch pushes.
+  workflow_dispatch: {} # Allow manual release triggering when needed.
 
 # Grant write permissions to create releases and push tags.
 permissions:
-  contents: write  # Required to create releases and push Git tags.
+  contents: write # Required to create releases and push Git tags.
 
 jobs:
   release:
-    runs-on: ubuntu-latest  # Use Ubuntu for consistent tooling environment.
+    runs-on: ubuntu-latest # Use Ubuntu for consistent tooling environment.
     steps:
       # Check out repository with full Git history for version analysis.
       - name: Checkout
         uses: actions/checkout@v5
         with:
-          fetch-depth: 0  # Fetch all tags and history for semantic versioning.
+          fetch-depth: 0 # Fetch all tags and history for semantic versioning.
 
       # Set up Go environment for building release binaries.
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version: 'stable'  # Use latest stable Go version.
+          go-version: "stable" # Use latest stable Go version.
           cache: true
 
       # Analyze commit messages since last tag to determine version bump.
@@ -65,14 +65,14 @@ jobs:
         run: |
           # Fetch latest tags to ensure we have the most recent state.
           git fetch --tags origin
-          
+
           # Re-check if our calculated tag already exists (race condition protection).
           if git rev-parse "${{ steps.bump.outputs.next_tag }}" >/dev/null 2>&1; then
             echo "Tag ${{ steps.bump.outputs.next_tag }} already exists! Another release beat us to it."
             echo "This is expected behavior with concurrent PRs. Skipping release."
             exit 0
           fi
-          
+
           # Create and push tag atomically.
           git tag "${{ steps.bump.outputs.next_tag }}"
           git push origin "${{ steps.bump.outputs.next_tag }}"
@@ -83,7 +83,7 @@ jobs:
         if: steps.bump.outputs.has_release == '1'
         uses: goreleaser/goreleaser-action@v6
         with:
-          version: v2.12.3    # Pin to specific version to avoid warnings.
-          args: release --clean  # Clean previous builds and create release.
+          version: v2.12.3 # Pin to specific version to avoid warnings.
+          args: release --clean # Clean previous builds and create release.
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Token for GitHub API access.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Token for GitHub API access.

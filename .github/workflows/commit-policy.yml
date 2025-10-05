@@ -7,17 +7,17 @@ name: Commit Policy
 # Trigger on all pull requests and pushes to any branch.
 # This ensures commit message validation across all development activity.
 on:
-  pull_request:  # Validate PR commits before they reach master.
-  push:          # Validate direct pushes to any branch.
+  pull_request: # Validate PR commits before they reach master.
+  push: # Validate direct pushes to any branch.
 
 jobs:
   validate-commit-messages:
-    runs-on: ubuntu-latest  # Use Ubuntu for consistent bash behavior.
+    runs-on: ubuntu-latest # Use Ubuntu for consistent bash behavior.
     steps:
       # Check out repository with full Git history for commit analysis.
       - uses: actions/checkout@v5
         with:
-          fetch-depth: 0  # Fetch all history to access commit ranges.
+          fetch-depth: 0 # Fetch all history to access commit ranges.
 
       # Check if this is a fork PR (external contributor).
       # Fork PRs are exempt from semantic commit rules to encourage contributions.
@@ -67,10 +67,10 @@ jobs:
         run: |
           set -euo pipefail  # Exit on error, undefined variables, pipe failures.
           range='${{ steps.range.outputs.range }}'
-          
+
           # Define the required commit message pattern (matches Git hook).
           pattern='^(fix|feat|major): '
-          
+
           # Check if the range is valid (may be invalid after force push).
           # If invalid, validate just the current commit instead.
           if ! git rev-parse "$range" >/dev/null 2>&1; then
@@ -80,18 +80,18 @@ jobs:
           else
             echo "Checking commits in range: $range"
           fi
-          
+
           # Extract commit subjects from the specified range.
           msgs=$(git log --format=%s "$range" 2>/dev/null || git log --format=%s -1 "${{ github.sha }}")
-          
+
           # Handle edge case where no commits exist in range.
           if [[ -z "$msgs" ]]; then
             echo "No commits to check (range may be empty)."; exit 0
           fi
-          
+
           # Check if ANY commit follows semantic versioning.
           semantic_commits=$(printf '%s\n' "$msgs" | grep -E "$pattern" || true)
-          
+
           if [[ -n "$semantic_commits" ]]; then
             # Found semantic commits - validate ALL commits must follow pattern.
             bad=$(printf '%s\n' "$msgs" | grep -Ev "$pattern" || true)
@@ -111,7 +111,7 @@ jobs:
             echo "Commits in this push:"
             printf '%s\n' "$msgs" | sed 's/^/  - /'
           fi
-          
+
           echo "All commit messages conform to policy."
 
       # Acknowledge fork PRs and explain the policy.

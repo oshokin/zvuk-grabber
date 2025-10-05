@@ -220,13 +220,18 @@ tasks:
   # -------------------------------
 
   build:
-    desc: "Build the {{.APP}} binary"
+    desc: "Build the {{.APP}} binary with version injection"
+    deps: [fetch-tags]
     cmds:
       # Create the local bin directory if it doesn't exist.
       - '{{.MKDIR}} ''{{.LOCAL_BIN}}''{{.MKDIR_END}}'
       - |
         echo "Building {{.APP}}..."
-        go build -o "{{.APP_BINARY}}" main.go
+        {{if eq OS "windows"}}
+          powershell.exe -Command "go build -ldflags '-X github.com/oshokin/zvuk-grabber/internal/version.Version={{.LATEST_SEMVER_TAG}} -X github.com/oshokin/zvuk-grabber/internal/version.Commit={{.GIT_COMMIT}} -X github.com/oshokin/zvuk-grabber/internal/version.BuildTime={{.BUILD_TIME}}' -o '{{.APP_BINARY}}' main.go"
+        {{else}}
+          go build -ldflags "-X github.com/oshokin/zvuk-grabber/internal/version.Version={{.LATEST_SEMVER_TAG}} -X github.com/oshokin/zvuk-grabber/internal/version.Commit={{.GIT_COMMIT}} -X github.com/oshokin/zvuk-grabber/internal/version.BuildTime={{.BUILD_TIME}}" -o "{{.APP_BINARY}}" main.go
+        {{end}}
         echo "Build completed successfully!"
 
   run:
