@@ -221,16 +221,22 @@ tasks:
 
   build:
     desc: "Build the {{.APP}} binary with version injection"
-    deps: [fetch-tags]
+    vars:
+      DYNAMIC_VERSION:
+        sh: 'git fetch --tags 2>/dev/null && git describe --tags --match  "v[0-9]*.[0-9]*.[0-9]*" --abbrev=0 2>/dev/null || echo ""'
+      DYNAMIC_COMMIT:
+        sh: 'git rev-parse --short HEAD 2>/dev/null || echo "dev"'
+      DYNAMIC_BUILD_TIME:
+        sh: '{{if eq OS "windows"}}powershell -Command "Get-Date -UFormat \"%Y-%m-%dT%H:%M:%SZ\""{{else}}date -u +"%Y-%m-%dT%H:%M:%SZ"{{end}}'
     cmds:
       # Create the local bin directory if it doesn't exist.
       - '{{.MKDIR}} ''{{.LOCAL_BIN}}''{{.MKDIR_END}}'
       - |
         echo "Building {{.APP}}..."
         {{if eq OS "windows"}}
-          powershell.exe -Command "go build -ldflags '-X github.com/oshokin/zvuk-grabber/internal/version.Version={{.LATEST_SEMVER_TAG}} -X github.com/oshokin/zvuk-grabber/internal/version.Commit={{.GIT_COMMIT}} -X github.com/oshokin/zvuk-grabber/internal/version.BuildTime={{.BUILD_TIME}}' -o '{{.APP_BINARY}}' main.go"
+          go build -ldflags "-X github.com/oshokin/zvuk-grabber/internal/version.Version={{.DYNAMIC_VERSION}} -X github.com/oshokin/zvuk-grabber/internal/version.Commit={{.DYNAMIC_COMMIT}} -X github.com/oshokin/zvuk-grabber/internal/version.BuildTime={{.DYNAMIC_BUILD_TIME}}" -o "{{.APP_BINARY}}" main.go
         {{else}}
-          go build -ldflags "-X github.com/oshokin/zvuk-grabber/internal/version.Version={{.LATEST_SEMVER_TAG}} -X github.com/oshokin/zvuk-grabber/internal/version.Commit={{.GIT_COMMIT}} -X github.com/oshokin/zvuk-grabber/internal/version.BuildTime={{.BUILD_TIME}}" -o "{{.APP_BINARY}}" main.go
+          go build -ldflags "-X github.com/oshokin/zvuk-grabber/internal/version.Version={{.DYNAMIC_VERSION}} -X github.com/oshokin/zvuk-grabber/internal/version.Commit={{.DYNAMIC_COMMIT}} -X github.com/oshokin/zvuk-grabber/internal/version.BuildTime={{.DYNAMIC_BUILD_TIME}}" -o "{{.APP_BINARY}}" main.go
         {{end}}
         echo "Build completed successfully!"
 
