@@ -1,0 +1,95 @@
+# GitHub Actions workflow for automated semantic versioning and releases.
+# This workflow analyzes commit messages to determine version bumps and creates releases.
+# Integrates with GoReleaser to build and publish cross-platform binaries.
+
+name: Release
+
+# Trigger on pushes to master branch and allow manual triggering.
+# Only master branch pushes should trigger releases in production.
+on:
+  push:
+    branches: [master]
+  workflow_dispatch: {}
+
+# Environment variables (constants for configuration).
+env:
+  # Tool versions.
+  GORELEASER_VERSION: "v2.12.3"
+  GO_VERSION: "stable"
+
+  # Git configuration for automated commits.
+  GIT_BOT_NAME: "github-actions[bot]"
+  GIT_BOT_EMAIL: "41898282+github-actions[bot]@users.noreply.github.com"
+
+# Grant write permissions to create releases and push tags.
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      # Check out repository with full Git history for version analysis.
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      # Set up Go environment for building release binaries.
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      # Analyze commit messages since last tag to determine version bump.
+      # Uses the semver_next.sh script to implement semantic versioning logic.
+      - name: Compute next version
+        id: bump
+        run: |
+          # Ensure we have the absolute latest tags for accurate version calculation.
+          git fetch --tags origin
+          bash scripts/semver_next.sh --emit-gh-output
+
+      # Skip release if no commits found (should rarely happen).
+      - name: Skip if no commits
+        if: steps.bump.outputs.has_release != '1'
+        run: |
+          echo "No commits found since last tag — skipping release."
+
+      # Configure Git user for automated tag creation.
+      # Uses GitHub Actions bot identity for audit trail.
+      - name: Configure git
+        if: steps.bump.outputs.has_release == '1'
+        run: |
+          git config user.name "${{ env.GIT_BOT_NAME }}"
+          git config user.email "${{ env.GIT_BOT_EMAIL }}"
+
+      # Create and push the new version tag to trigger GoReleaser.
+      # Tag creation must happen before GoReleaser runs.
+      - name: Create and push tag
+        if: steps.bump.outputs.has_release == '1'
+        run: |
+          # Fetch latest tags to ensure we have the most recent state.
+          git fetch --tags origin
+
+          # Re-check if our calculated tag already exists (race condition protection).
+          if git rev-parse "${{ steps.bump.outputs.next_tag }}" >/dev/null 2>&1; then
+            echo "Tag ${{ steps.bump.outputs.next_tag }} already exists! Another release beat us to it."
+            echo "This is expected behavior with concurrent PRs. Skipping release."
+            exit 0
+          fi
+
+          # Create and push tag atomically.
+          git tag "${{ steps.bump.outputs.next_tag }}"
+          git push origin "${{ steps.bump.outputs.next_tag }}"
+
+      # Run GoReleaser to build binaries and create GitHub release.
+      - name: GoReleaser
+        if: steps.bump.outputs.has_release == '1'
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          version: ${{ env.GORELEASER_VERSION }}
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

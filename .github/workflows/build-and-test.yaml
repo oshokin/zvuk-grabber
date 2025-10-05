@@ -1,0 +1,116 @@
+# GitHub Actions workflow for continuous integration.
+# This workflow builds and tests the zvuk-grabber project on every push and PR.
+# Release automation is handled separately in release.yaml workflow.
+
+name: Build and Test
+
+# Define when this workflow should be triggered.
+on:
+  # Run on all pull requests.
+  pull_request:
+  # Run on all pushes to any branch.
+  push:
+  # Allow this workflow to be called from other workflows as a reusable workflow.
+  workflow_call:
+  # Enable manually triggering this workflow via the API or web UI.
+  workflow_dispatch:
+
+# Environment variables (constants for configuration).
+env:
+  # Tool versions.
+  GOLANGCI_LINT_VERSION: "v2.5.0"
+  GO_VERSION: "1.25.x"
+
+  # Test configuration.
+  TEST_TIMEOUT: "600s"
+
+# Set default configuration for all run commands in this workflow.
+defaults:
+  run:
+    # Use bash as the default shell for all run steps.
+    shell: bash
+
+# Define all jobs that will run as part of this workflow.
+jobs:
+  # Job to check code quality and style using golangci-lint.
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      # Checkout the repository code with full git history.
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          # Fetch all commits and branches for complete history.
+          fetch-depth: 0
+      # Run golangci-lint to check code quality, style, and potential bugs.
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v8
+        with:
+          version: ${{ env.GOLANGCI_LINT_VERSION }}
+
+  # Job to test the application on multiple Go versions and platforms.
+  test-go-versions:
+    runs-on: ${{ matrix.platform }}
+    strategy:
+      # Continue running other matrix jobs even if one fails.
+      fail-fast: false
+      # Create a matrix of 2 jobs: 1 Go version × 2 platforms.
+      matrix:
+        go-version: ["1.25.x"]
+        platform: [ubuntu-latest, windows-latest]
+    steps:
+      # Checkout the repository code.
+      - name: Checkout code
+        uses: actions/checkout@v5
+      # Install the Go version specified in the matrix.
+      - name: Install Go ${{ matrix.go-version }}
+        uses: actions/setup-go@v6
+        with:
+          # Use the Go version from the matrix.
+          go-version: ${{ matrix.go-version }}
+          cache: true
+      # Run all tests with race detection.
+      - name: Run tests
+        run: |
+          # Show which Go binary is being used.
+          which go
+          # Display the Go version.
+          go version
+          # Run tests with race detector, configurable timeout, for all packages.
+          go test -race -timeout ${{ env.TEST_TIMEOUT }} ./...
+
+  # Job to verify that the application builds correctly.
+  test-build:
+    runs-on: ${{ matrix.platform }}
+    strategy:
+      # Continue running other matrix jobs even if one fails.
+      fail-fast: false
+      # Create a matrix of 2 jobs: 2 platforms.
+      matrix:
+        platform: [ubuntu-latest, windows-latest]
+    steps:
+      # Checkout the repository code.
+      - name: Checkout code
+        uses: actions/checkout@v5
+      # Install Go for the build test.
+      - name: Install Go
+        uses: actions/setup-go@v6
+        with:
+          # Use the configured Go version.
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+      # Build the application and verify it works.
+      - name: Check build
+        run: |
+          # Display the Go version being used.
+          go version
+          # Show current directory and list its contents.
+          pwd && ls -l
+          # Build the application.
+          go build -v ./...
+          # Verify the binary works (if it exists).
+          if [ -f "./zvuk-grabber" ]; then
+            ./zvuk-grabber --help
+          elif [ -f "./zvuk-grabber.exe" ]; then
+            ./zvuk-grabber.exe --help
+          fi
