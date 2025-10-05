@@ -62,24 +62,6 @@ vars:
   GOLANGCI_CONFIG: ".golangci.yaml"
   GOLANGCI_STRICT_CONFIG: ".golangci-strict.yaml"
 
-  # -------------------------------
-  # Version Detection and Injection
-  # -------------------------------
-
-  # Detect the latest semantic version tag (v1.2.3 format only).
-  # Note: This variable is computed before deps run.
-  # For fresh tags, use dynamic detection in build task.
-  LATEST_SEMVER_TAG:
-    sh: 'git describe --tags --match "v[0-9]*.[0-9]*.[0-9]*" --abbrev=0 2>/dev/null || echo ""'
-
-  # Current Git commit hash for build metadata.
-  GIT_COMMIT:
-    sh: 'git rev-parse --short HEAD 2>/dev/null || echo "dev"'
-
-  # Build timestamp in UTC ISO format.
-  BUILD_TIME:
-    sh: '{{if eq OS "windows"}}powershell -Command "Get-Date -UFormat \"%Y-%m-%dT%H:%M:%SZ\""{{else}}date -u +"%Y-%m-%dT%H:%M:%SZ"{{end}}'
-
 tasks:
   # -------------------------------
   # Default & Help
