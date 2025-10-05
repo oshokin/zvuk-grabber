@@ -10,7 +10,8 @@ on:
     workflows: ["Build and Test"]
     types: [completed]
     branches: [master]
-  workflow_dispatch: {}
+  # Allow manual release triggering when needed.
+  workflow_dispatch:
 
 # Environment variables (constants for configuration).
 env:
@@ -29,8 +30,8 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
-    # Only run if the build-and-test workflow succeeded.
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    # Only run if the Build and Test workflow succeeded.
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
     steps:
       # Check out repository with full Git history for version analysis.
       - name: Checkout
