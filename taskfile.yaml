@@ -180,32 +180,18 @@ tasks:
   # -------------------------------
 
   lint-fix:
-    desc: "Run golangci-lint with --fix (includes gofmt formatting)"
+    desc: "Run golangci-lint with --fix"
     deps: [install-lint]
     cmds:
       - '"{{.GOLANGCI_BIN}}" config verify'
       - '"{{.GOLANGCI_BIN}}" run --fix'
 
   lint:
-    desc: "Run golangci-lint (no fix)"
+    desc: "Run golangci-lint"
     deps: [install-lint]
     cmds:
       - '"{{.GOLANGCI_BIN}}" config verify'
       - '"{{.GOLANGCI_BIN}}" run'
-
-  lint-full:
-    desc: "Run golangci-lint on all files"
-    deps: [install-lint]
-    cmds:
-      - '"{{.GOLANGCI_BIN}}" config verify --config={{.GOLANGCI_CONFIG}}'
-      - '"{{.GOLANGCI_BIN}}" run --config={{.GOLANGCI_CONFIG}}'
-
-  lint-full-fix:
-    desc: "Run golangci-lint on all files with --fix (includes gofmt formatting)"
-    deps: [install-lint]
-    cmds:
-      - '"{{.GOLANGCI_BIN}}" config verify --config={{.GOLANGCI_CONFIG}}'
-      - '"{{.GOLANGCI_BIN}}" run --config={{.GOLANGCI_CONFIG}} --fix'
 
   # -------------------------------
   # Testing
