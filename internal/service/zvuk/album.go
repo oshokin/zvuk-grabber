@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/oshokin/zvuk-grabber/internal/client/zvuk"
+	"github.com/oshokin/zvuk-grabber/internal/constants"
 	"github.com/oshokin/zvuk-grabber/internal/logger"
 	"github.com/oshokin/zvuk-grabber/internal/utils"
 )
@@ -136,7 +137,7 @@ func (s *ServiceImpl) registerAlbumCollection(
 	// Create the album folder path by joining with the base output path.
 	albumPath := filepath.Join(s.cfg.OutputPath, albumFolderName)
 
-	err := os.MkdirAll(albumPath, defaultFolderPermissions)
+	err := os.MkdirAll(albumPath, constants.DefaultFolderPermissions)
 	if err != nil {
 		logger.Errorf(ctx, "Failed to create album folder '%s': %v", albumPath, err)
 

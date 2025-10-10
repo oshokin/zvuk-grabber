@@ -16,6 +16,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/oshokin/zvuk-grabber/internal/client/zvuk"
+	"github.com/oshokin/zvuk-grabber/internal/constants"
 	"github.com/oshokin/zvuk-grabber/internal/logger"
 	"github.com/oshokin/zvuk-grabber/internal/utils"
 )
@@ -333,7 +334,7 @@ func (s *ServiceImpl) downloadAndSaveTrack(ctx context.Context, trackURL, trackP
 	defer body.Close() //nolint:errcheck // Error on close is not critical here.
 
 	// Attempt to open file.
-	f, err := os.OpenFile(filepath.Clean(trackPath), fileOptions, defaultFilePermissions)
+	f, err := os.OpenFile(filepath.Clean(trackPath), fileOptions, constants.DefaultFolderPermissions)
 	if err != nil {
 		if os.IsExist(err) && !s.cfg.ReplaceTracks {
 			logger.Infof(ctx, "Track '%s' already exists, skipping download", trackPath)
@@ -438,7 +439,7 @@ func (s *ServiceImpl) writeLyrics(ctx context.Context, lyrics, destinationPath s
 		fileOptions = createNewFileOptions
 	}
 
-	file, err := os.OpenFile(filepath.Clean(destinationPath), fileOptions, defaultFilePermissions)
+	file, err := os.OpenFile(filepath.Clean(destinationPath), fileOptions, constants.DefaultFolderPermissions)
 	if err != nil {
 		if os.IsExist(err) && !s.cfg.ReplaceLyrics {
 			logger.Infof(ctx, "File '%s' already exists, skipping download", destinationPath)

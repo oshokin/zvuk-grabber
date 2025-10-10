@@ -12,6 +12,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/oshokin/zvuk-grabber/internal/constants"
 )
 
 // ConfigDump represents the config dump structure.
@@ -151,7 +153,7 @@ max_retry_pause: "3s"
 			// Create temp directory and config file.
 			tempDir := t.TempDir()
 			configPath := filepath.Join(tempDir, "test-config.yaml")
-			err := os.WriteFile(configPath, []byte(baseConfig), 0o644)
+			err := os.WriteFile(configPath, []byte(baseConfig), constants.DefaultFilePermissions)
 			require.NoError(t, err)
 
 			// Run and get config dump.
@@ -166,8 +168,6 @@ max_retry_pause: "3s"
 }
 
 // TestE2E_FlagOverrides_AllFlags tests all flags together.
-//
-
 func TestE2E_FlagOverrides_AllFlags(t *testing.T) {
 	t.Parallel()
 
@@ -265,7 +265,7 @@ max_retry_pause: "3s"
 			// Create temp directory and config file.
 			tempDir := t.TempDir()
 			configPath := filepath.Join(tempDir, "test-config.yaml")
-			err := os.WriteFile(configPath, []byte(baseConfig), 0o644)
+			err := os.WriteFile(configPath, []byte(baseConfig), constants.DefaultFilePermissions)
 			require.NoError(t, err)
 
 			// Run and get config dump.
@@ -286,8 +286,6 @@ max_retry_pause: "3s"
 }
 
 // TestE2E_FlagOverrides_InvalidValues tests that invalid flag values are rejected.
-//
-
 func TestE2E_FlagOverrides_InvalidValues(t *testing.T) {
 	t.Parallel()
 
@@ -341,7 +339,7 @@ max_retry_pause: "3s"
 			// Create temp directory and config file.
 			tempDir := t.TempDir()
 			configPath := filepath.Join(tempDir, "test-config.yaml")
-			err := os.WriteFile(configPath, []byte(baseConfig), 0o644)
+			err := os.WriteFile(configPath, []byte(baseConfig), constants.DefaultFilePermissions)
 			require.NoError(t, err)
 
 			// Prepare arguments.

@@ -3,13 +3,16 @@ package config
 import (
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
 	"github.com/dustin/go-humanize"
 	"github.com/spf13/viper"
 	"go.uber.org/zap/zapcore"
+	"gopkg.in/yaml.v3"
 
+	"github.com/oshokin/zvuk-grabber/internal/constants"
 	"github.com/oshokin/zvuk-grabber/internal/logger"
 	"github.com/oshokin/zvuk-grabber/internal/utils"
 )
@@ -124,8 +127,6 @@ func LoadConfig(configFilename string) (*Config, error) {
 }
 
 // ValidateConfig checks the configuration for validity and sets derived fields.
-//
-
 func ValidateConfig(cfg *Config) error {
 	var (
 		downloadSpeedLimit       = strings.TrimSpace(cfg.DownloadSpeedLimit)
@@ -181,4 +182,91 @@ func ValidateConfig(cfg *Config) error {
 	}
 
 	return nil
+}
+
+// SaveConfig saves the configuration to the file while preserving the original format and order.
+func SaveConfig(cfg *Config) error {
+	configFile := getConfigFilePath()
+
+	// Read the original file content.
+	originalContent, err := os.ReadFile(configFile)
+	if err != nil {
+		return handleMissingConfigFile(configFile, cfg.AuthToken, err)
+	}
+
+	// Parse YAML while preserving order using yaml.Node.
+	var node yaml.Node
+	if err = yaml.Unmarshal(originalContent, &node); err != nil {
+		return fmt.Errorf("failed to parse YAML: %w", err)
+	}
+
+	// Update the auth_token value in the node tree.
+	updateAuthTokenInNode(&node, cfg.AuthToken)
+
+	// Marshal back to YAML (preserves order).
+	newContent, err := yaml.Marshal(&node)
+	if err != nil {
+		return fmt.Errorf("failed to marshal YAML: %w", err)
+	}
+
+	// Write the file back with preserved order.
+	if err = os.WriteFile(configFile, newContent, constants.DefaultFilePermissions); err != nil {
+		return fmt.Errorf("failed to write config file: %w", err)
+	}
+
+	return nil
+}
+
+// getConfigFilePath returns the config file path from viper or the default.
+func getConfigFilePath() string {
+	configFile := viper.ConfigFileUsed()
+	if configFile == "" {
+		return DefaultConfigFilename
+	}
+
+	return configFile
+}
+
+// handleMissingConfigFile creates a new config file if it doesn't exist.
+func handleMissingConfigFile(configFile, authToken string, err error) error {
+	if !os.IsNotExist(err) {
+		return fmt.Errorf("failed to read config file: %w", err)
+	}
+
+	// File doesn't exist, create it with viper.
+	viper.Set("auth_token", authToken)
+
+	if err = viper.SafeWriteConfigAs(configFile); err != nil {
+		return fmt.Errorf("failed to create config file: %w", err)
+	}
+
+	return nil
+}
+
+// updateAuthTokenInNode updates the auth_token value in the YAML node tree.
+func updateAuthTokenInNode(node *yaml.Node, authToken string) {
+	// The root node is a document node, content[0] is the actual map.
+	if len(node.Content) == 0 || node.Content[0].Kind != yaml.MappingNode {
+		return
+	}
+
+	mapNode := node.Content[0]
+
+	// Iterate through key-value pairs (stored as alternating nodes).
+	for i := 0; i < len(mapNode.Content); i += 2 {
+		keyNode := mapNode.Content[i]
+		valueNode := mapNode.Content[i+1]
+
+		if keyNode.Value == "auth_token" {
+			// Update the value while preserving style.
+			valueNode.Value = authToken
+
+			// Ensure it's quoted if it contains special characters.
+			if valueNode.Style == 0 {
+				valueNode.Style = yaml.DoubleQuotedStyle
+			}
+
+			break
+		}
+	}
 }

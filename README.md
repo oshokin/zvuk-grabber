@@ -1,12 +1,11 @@
-Zvuk Grabber 🎵
-===============
+# Zvuk Grabber 🎵
 
 [Zvuk (Звук)](https://zvuk.com/) grabber written in Go.\
 This tool allows you to download artists, albums, tracks, and playlists from Zvuk.
 
 * * *
 
-### Quick Start 🚀
+## Quick Start 🚀
 
 1. **Download the Latest Release**:  
    Grab the pre-built binary for your OS from the [Releases page](https://github.com/oshokin/zvuk-grabber/releases).
@@ -26,6 +25,23 @@ This tool allows you to download artists, albums, tracks, and playlists from Zvu
      ```
 
 3. **Set Up Authentication Token**:  
+
+   **Option 1: Automatic Browser Login (Recommended)**
+
+   Run the interactive login command:
+
+   ```bash
+   zvuk-grabber auth login
+   ```
+
+   This will:
+   - Open a browser window
+   - Let you log in manually (phone number + SMS code)
+   - Automatically extract and save your auth token
+   - Update your `.zvuk-grabber.yaml` configuration
+
+   **Option 2: Manual Token Extraction**
+
    Open the `.zvuk-grabber.yaml` file and set your `auth_token`.\
    You can obtain it by logging into [Zvuk's API](https://zvuk.com/api/v2/tiny/profile) and locating the token in the JSON response using the JSON path `$.result.profile.token`.
 
@@ -48,8 +64,7 @@ This tool allows you to download artists, albums, tracks, and playlists from Zvu
 
 * * *
 
-Installation 🛠️
-------------
+## Installation 🛠️
 
 ### Download Pre-built Binaries
 
@@ -84,7 +99,14 @@ Pre-built binaries for **macOS**, **Windows**, and **Linux** (for both `arm64` a
     ```
 
 3. **Set Up Authentication Token**:  
-    Open the `.zvuk-grabber.yaml` file and set your authentication token in the `auth_token` field.\
+
+    **Automatic (Recommended)**:
+
+    ```bash
+    zvuk-grabber auth login
+    ```
+
+    **Manual**: Open the `.zvuk-grabber.yaml` file and set your authentication token in the `auth_token` field.\
     You can obtain the token by logging into [Zvuk's API](https://zvuk.com/api/v2/tiny/profile) and locating the token using the JSON path `$.result.profile.token`.
 
 4. **Run the Binary**:  
@@ -133,8 +155,110 @@ If you want to modify the code or build the binary yourself, you'll need the fol
 
 * * *
 
-Usage 🎧
------
+## Authentication 🔐
+
+### Browser-Based Login (The Easy Way)
+
+**I've wanted to automate the authentication cookie extraction for ages!** But as we all know, UI/UX automation is usually painful because we approach the website like a black box and poke it with a stick hoping to discover the right behavior and side effects. Like a blind chicken in the dark, basically.
+
+**But IT WORKS!** Well... mostly.
+
+#### The Good News
+
+Run this command and watch the magic happen:
+
+```bash
+zvuk-grabber auth login
+```
+
+This will:
+
+1. Open a browser window (Chrome/Chromium) with **stealth mode** enabled
+2. Navigate to the Zvuk homepage (to establish proper origin for OAuth)
+3. Wait for you to manually log in (phone number + SMS code)
+4. **Simulate human behavior** while waiting (mouse movements, scrolling, random delays)
+5. Detect when login completes and OAuth flow finishes
+6. Extract the `auth` cookie from your browser
+7. Save it to `.zvuk-grabber.yaml`
+8. Close the browser and celebrate
+
+#### Anti-Bot Detection Stack
+
+The tool employs multiple techniques to evade bot detection:
+
+1. **Stealth Mode** ([go-rod/stealth](https://github.com/go-rod/stealth))
+   - Hides `navigator.webdriver` flag
+   - Patches browser automation signatures
+   - Spoofs plugin lists and permissions
+   - Makes CDP (Chrome DevTools Protocol) invisible
+
+2. **Human Behavior Simulation**
+   - Random mouse movements across the page
+   - Occasional scrolling (up/down)
+   - Variable timing between actions (500ms-2s)
+   - Random pauses to mimic reading/thinking
+   - Randomized interaction patterns
+
+3. **Fresh Browser Profile**
+   - Each login uses a temporary incognito profile
+   - No persistent cookies or history between sessions
+   - Clean slate helps avoid detection patterns
+
+4. **Smart OAuth Flow**
+   - Starts on `zvuk.com` domain (not login page directly)
+   - Avoids CORS errors during OAuth callback
+   - Bypasses broken automatic redirects manually
+   - Detects auth cookie directly without rate-limited API calls
+
+#### The Bad News (Windows Edition)
+
+On **Windows 10 with ESET Security**, you might get a fun notification that our code is infected with some virus. **It's not.** Both this project and `go-rod` have source code available - feel free to audit it yourself.
+
+**TL;DR: It's a false positive. Ignore the warning or whitelist the application.**
+
+#### Troubleshooting Login Issues
+
+If the login process gets stuck or fails:
+
+1. **Enable debug logging** in `.zvuk-grabber.yaml`:
+
+   ```yaml
+   log_level: debug
+   ```
+
+2. **Run the command again**:
+
+   ```bash
+   zvuk-grabber auth login
+   ```
+
+3. **Create an issue** with the debug output
+
+And if the moon phase is in the right wavelength of light and Mercury's retrograde isn't too retrograde, I might just take a look at what's going on in your code.
+
+#### Known Issues
+
+- **CORS/API Issues**: Zvuk's OAuth callback sometimes fails with CORS errors. The tool now automatically bypasses this by manually redirecting to the main page.
+- **Rate Limiting**: If you try too many times, Zvuk might rate-limit you. The tool now minimizes API calls during login to avoid this.
+- **Browser Compatibility**: Works best with Chrome/Chromium. Firefox might work but is untested.
+- **Cleanup Warnings**: You might see warnings about temp directory cleanup on Windows. This is normal and non-critical - Chrome takes time to release file locks.
+
+### Manual Token Extraction (The Old-School Way)
+
+If the browser automation fails or you prefer doing things manually:
+
+1. **Log in to Zvuk** in your browser
+2. **Navigate to** [https://zvuk.com/api/v2/tiny/profile](https://zvuk.com/api/v2/tiny/profile)
+3. **Find the token** in the JSON response at `$.result.profile.token`
+4. **Copy it** to `.zvuk-grabber.yaml`:
+
+   ```yaml
+   auth_token: "your_token_here"
+   ```
+
+* * *
+
+## Usage 🎧
 
 ### Downloading Content
 
@@ -174,10 +298,51 @@ Usage 🎧
     zvuk-grabber 1.txt 2.txt
     ```
 
+### Command-Line Flags
+
+You can override configuration settings using command-line flags:
+
+```bash
+zvuk-grabber [flags] {urls}
+```
+
+**Available flags:**
+
+- `-c, --config <path>` - Path to configuration file (default: `.zvuk-grabber.yaml`)
+- `-f, --format <1-3>` - Audio format:
+  - `1` = MP3, 128 Kbps
+  - `2` = MP3, 320 Kbps
+  - `3` = FLAC, 16-bit/44.1kHz
+- `-o, --output <path>` - Output directory for downloads
+- `-l, --lyrics` - Download lyrics if available
+- `-s, --speed-limit <speed>` - Download speed limit (e.g., `500KB`, `1MB`, `1.5MB`)
+
+**Examples:**
+
+```bash
+# Download album in FLAC format
+zvuk-grabber -f 3 https://zvuk.com/release/3393328
+
+# Download with custom output directory and lyrics
+zvuk-grabber -o "/Music/Zvuk" -l https://zvuk.com/release/5895112
+
+# Download with speed limit
+zvuk-grabber -s 1MB https://zvuk.com/release/8045705
+
+# Combine multiple flags
+zvuk-grabber -f 3 -o "/Music" -l -s 2MB https://zvuk.com/release/38858441
+```
+
+### Available Commands
+
+- `zvuk-grabber {urls}` - Download content from URLs
+- `zvuk-grabber auth login` - Interactive browser-based authentication
+- `zvuk-grabber version` - Show version information
+- `zvuk-grabber help` - Show help information
+
 * * *
 
-Configuration ⚙️
--------------
+## Configuration ⚙️
 
 The default configuration is already set in the `.zvuk-grabber.yaml` file.\
 You only need to modify it if you want to customize the behavior.\
@@ -186,7 +351,8 @@ Key options include:
 ### Authentication
 
 - **`auth_token`**: Your Zvuk API authentication token.\
-    To obtain your token, log in to [Zvuk's API](https://zvuk.com/api/v2/tiny/profile) and locate the token using the JSON path `$.result.profile.token`.  
+    **Easiest way**: Run `zvuk-grabber auth login` to automatically extract it.\
+    **Manual way**: Log in to [Zvuk's API](https://zvuk.com/api/v2/tiny/profile) and locate the token using the JSON path `$.result.profile.token`.  
     Example:
 
     ```yaml
@@ -397,8 +563,7 @@ Key options include:
 
 * * *
 
-Troubleshooting 🐛
-------------------
+## Troubleshooting 🐛
 
 Having trouble? Follow these steps:
 
@@ -413,7 +578,7 @@ Having trouble? Follow these steps:
 
 2. **Check Your Token**:\
     Ensure your `auth_token` is valid and properly set in the `.zvuk-grabber.yaml` file.\
-    If it's not working, log in again and obtain a new token.
+    If it's not working, run `zvuk-grabber auth login` to get a fresh token.
 
 3. **Check Your Internet Connection**:\
     A stable connection is essential. If downloads are failing, wait a moment and try again.
@@ -423,8 +588,7 @@ Having trouble? Follow these steps:
 
 * * *
 
-Support the Project 💖
-----------------------
+## Support the Project 💖
 
 If you find Zvuk Grabber useful and want to support its development, here's how you can help:
 
@@ -434,16 +598,14 @@ If you find Zvuk Grabber useful and want to support its development, here's how 
 
 * * *
 
-Bug Fixes and Updates 🛠️
--------------------------
+## Bug Fixes and Updates 🛠️
 
 I add new features and fix bugs when the stars align, the moon's in the right phase, and my cat's purring just right.\
 If you're waiting for a fix, feel free to open an issue or create a PR.
 
 * * *
 
-Disclaimer ⚠️
-----------
+## Disclaimer ⚠️
 
 - Use Zvuk Grabber responsibly and in compliance with the laws of your country.
 

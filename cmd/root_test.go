@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/oshokin/zvuk-grabber/internal/config"
+	"github.com/oshokin/zvuk-grabber/internal/constants"
 )
 
 const testBaseConfigContent = `
@@ -256,7 +257,11 @@ func TestFlagOverrides(t *testing.T) {
 			tempDir := t.TempDir()
 			configPath := filepath.Join(tempDir, "test-config.yaml")
 
-			err := os.WriteFile(configPath, []byte(testBaseConfigContent), 0o644) //nolint:gosec // It's a test file.
+			err := os.WriteFile(
+				configPath,
+				[]byte(testBaseConfigContent),
+				constants.DefaultFilePermissions,
+			) //nolint:gosec // It's a test file.
 			require.NoError(t, err)
 
 			// Load configuration.
@@ -345,7 +350,11 @@ max_retry_pause: "3s"
 			tempDir := t.TempDir()
 			configPath := filepath.Join(tempDir, "test-config.yaml")
 
-			err := os.WriteFile(configPath, []byte(testBaseConfigContent), 0o644) //nolint:gosec // It's a test file.
+			err := os.WriteFile(
+				configPath,
+				[]byte(testBaseConfigContent),
+				constants.DefaultFilePermissions,
+			) //nolint:gosec // It's a test file.
 			require.NoError(t, err)
 
 			// Load configuration.
@@ -406,7 +415,11 @@ func TestFlagOverrides_InvalidValues(t *testing.T) {
 			tempDir := t.TempDir()
 			configPath := filepath.Join(tempDir, "test-config.yaml")
 
-			err := os.WriteFile(configPath, []byte(testBaseConfigContent), 0o644) //nolint:gosec // It's a test file.
+			err := os.WriteFile(
+				configPath,
+				[]byte(testBaseConfigContent),
+				constants.DefaultFilePermissions,
+			) //nolint:gosec // It's a test file.
 			require.NoError(t, err)
 
 			// Load configuration.
@@ -460,7 +473,11 @@ min_retry_pause: "1s"
 max_retry_pause: "3s"
 `
 
-	err := os.WriteFile(configPath, []byte(configContent), 0o644) //nolint:gosec // It's a test file.
+	err := os.WriteFile(
+		configPath,
+		[]byte(configContent),
+		constants.DefaultFilePermissions,
+	) //nolint:gosec // It's a test file.
 	require.NoError(t, err)
 
 	// Load configuration.

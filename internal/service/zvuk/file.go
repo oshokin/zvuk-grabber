@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/oshokin/zvuk-grabber/internal/constants"
 	"github.com/oshokin/zvuk-grabber/internal/logger"
 )
 
@@ -15,12 +16,6 @@ const (
 
 	// File options for creating a new file (fails if the file already exists).
 	createNewFileOptions = os.O_CREATE | os.O_EXCL | os.O_WRONLY
-
-	// Default file permissions (read and write for owner, read-only for others).
-	defaultFilePermissions os.FileMode = 0o644
-
-	// Default folder permissions (read, write, and execute for owner, read and execute for others).
-	defaultFolderPermissions os.FileMode = 0o755
 )
 
 func (s *ServiceImpl) downloadAndSaveFile(ctx context.Context, url, destinationPath string, overwrite bool) error {
@@ -31,7 +26,7 @@ func (s *ServiceImpl) downloadAndSaveFile(ctx context.Context, url, destinationP
 	}
 
 	// Open the file with the chosen options.
-	file, err := os.OpenFile(filepath.Clean(destinationPath), fileOptions, defaultFilePermissions)
+	file, err := os.OpenFile(filepath.Clean(destinationPath), fileOptions, constants.DefaultFilePermissions)
 	if err != nil {
 		// If the file already exists and we're not overwriting, log and skip.
 		if os.IsExist(err) && !overwrite {

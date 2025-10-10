@@ -6,8 +6,6 @@ import (
 	"net/http/httputil"
 	"time"
 
-	"go.uber.org/zap/zapcore"
-
 	"github.com/oshokin/zvuk-grabber/internal/config"
 	"github.com/oshokin/zvuk-grabber/internal/logger"
 	"github.com/oshokin/zvuk-grabber/internal/utils"
@@ -49,7 +47,7 @@ func (t *LogTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 
 	// Skip logging if the logger is not at debug level.
-	if logger.Level() != zapcore.DebugLevel {
+	if !logger.IsDebugLevel() {
 		return t.next.RoundTrip(req)
 	}
 

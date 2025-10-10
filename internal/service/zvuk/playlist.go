@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/oshokin/zvuk-grabber/internal/client/zvuk"
+	"github.com/oshokin/zvuk-grabber/internal/constants"
 	"github.com/oshokin/zvuk-grabber/internal/logger"
 	"github.com/oshokin/zvuk-grabber/internal/utils"
 )
@@ -79,7 +80,7 @@ func (s *ServiceImpl) addPlaylistToAudioContainer(
 	playlistPath := filepath.Join(s.cfg.OutputPath, playlistFolderName)
 
 	// Create the playlist folder.
-	err := os.MkdirAll(playlistPath, defaultFolderPermissions)
+	err := os.MkdirAll(playlistPath, constants.DefaultFolderPermissions)
 	if err != nil {
 		logger.Errorf(ctx, "Failed to create playlist folder '%s': %v", playlistPath, err)
 

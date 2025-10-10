@@ -113,8 +113,6 @@ func TestTemplateManagerImpl_EdgeCases(t *testing.T) {
 }
 
 // TestTemplateManagerImpl_GetAlbumFolderName tests the GetAlbumFolderName method.
-//
-
 func TestTemplateManagerImpl_GetAlbumFolderName(t *testing.T) {
 	t.Parallel()
 
@@ -189,8 +187,6 @@ func TestTemplateManagerImpl_GetAlbumFolderName(t *testing.T) {
 }
 
 // TestTemplateManagerImpl_GetTrackFilename tests the GetTrackFilename method.
-//
-
 func TestTemplateManagerImpl_GetTrackFilename(t *testing.T) {
 	t.Parallel()
 

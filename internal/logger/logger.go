@@ -78,6 +78,11 @@ func Level() zapcore.Level {
 	return defaultLevel.Level()
 }
 
+// IsDebugLevel returns true if the current logging level is debug.
+func IsDebugLevel() bool {
+	return Level() == zapcore.DebugLevel
+}
+
 // Logger returns the global logger.
 func Logger() *zap.SugaredLogger {
 	return global

@@ -10,6 +10,7 @@ import (
 
 	"github.com/oshokin/zvuk-grabber/internal/client/zvuk"
 	"github.com/oshokin/zvuk-grabber/internal/config"
+	"github.com/oshokin/zvuk-grabber/internal/constants"
 	"github.com/oshokin/zvuk-grabber/internal/logger"
 	"github.com/oshokin/zvuk-grabber/internal/utils"
 )
@@ -60,7 +61,7 @@ func NewService(
 // DownloadURLs orchestrates the full download pipeline, from URL processing to file creation.
 func (s *ServiceImpl) DownloadURLs(ctx context.Context, urls []string) {
 	// Ensure the output directory exists.
-	err := os.MkdirAll(s.cfg.OutputPath, defaultFolderPermissions)
+	err := os.MkdirAll(s.cfg.OutputPath, constants.DefaultFolderPermissions)
 	if err != nil {
 		logger.Fatalf(ctx, "Failed to create output path: %v", err)
 	}

@@ -8,6 +8,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zapcore"
+
+	"github.com/oshokin/zvuk-grabber/internal/constants"
 )
 
 // TestConfigStruct tests the Config struct fields.
@@ -136,7 +138,7 @@ invalid: yaml: content: [unclosed
 			switch {
 			case tt.configContent != "":
 				configPath = filepath.Join(tempDir, tt.configFilename)
-				err := os.WriteFile(configPath, []byte(tt.configContent), 0o644)
+				err := os.WriteFile(configPath, []byte(tt.configContent), constants.DefaultFilePermissions)
 
 				require.NoError(t, err)
 			case tt.configFilename != "":

@@ -22,8 +22,6 @@ import (
 )
 
 // Client defines the interface for interacting with Zvuk's API.
-//
-
 type Client interface {
 	// DownloadFromURL downloads content from the specified URL.
 	DownloadFromURL(ctx context.Context, url string) (io.ReadCloser, error)
