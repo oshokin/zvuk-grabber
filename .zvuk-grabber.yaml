@@ -1,5 +1,8 @@
 auth_token: "a3f8e7b2c5d946f1a0b9e8d7c6f5e4a2"
-download_format: 3
+quality: 3
+min_quality: 0
+min_duration: ""
+max_duration: ""
 output_path: "zvuk downloads"
 track_filename_template: "{{.trackNumberPad}} - {{.trackTitle}}"
 album_folder_template: "{{.releaseYear}} - {{.albumArtist}} - {{.albumTitle}}"
@@ -16,3 +19,4 @@ retry_attempts_count: 5
 max_download_pause: "2s"
 min_retry_pause: "3s"
 max_retry_pause: "7s"
+max_concurrent_downloads: 1

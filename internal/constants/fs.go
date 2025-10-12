@@ -15,3 +15,10 @@ const (
 	// Others: read and execute.
 	DefaultFolderPermissions os.FileMode = 0o755
 )
+
+// File extension constants.
+const (
+	ExtensionMP3  = ".mp3"
+	ExtensionFLAC = ".flac"
+	ExtensionBin  = ".bin"
+)

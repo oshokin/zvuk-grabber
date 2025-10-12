@@ -51,3 +51,15 @@ func (mr *MockServiceMockRecorder) DownloadURLs(ctx, urls any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DownloadURLs", reflect.TypeOf((*MockService)(nil).DownloadURLs), ctx, urls)
 }
+
+// PrintDownloadSummary mocks base method.
+func (m *MockService) PrintDownloadSummary(ctx context.Context) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "PrintDownloadSummary", ctx)
+}
+
+// PrintDownloadSummary indicates an expected call of PrintDownloadSummary.
+func (mr *MockServiceMockRecorder) PrintDownloadSummary(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PrintDownloadSummary", reflect.TypeOf((*MockService)(nil).PrintDownloadSummary), ctx)
+}

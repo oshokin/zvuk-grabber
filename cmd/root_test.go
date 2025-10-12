@@ -3,6 +3,7 @@ package cmd
 import (
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -16,7 +17,8 @@ import (
 
 const testBaseConfigContent = `
 auth_token: "config_token"
-download_format: 1
+quality: 1
+min_quality: 0
 output_path: "/config/output"
 download_lyrics: false
 download_speed_limit: "500KB"
@@ -33,6 +35,7 @@ retry_attempts_count: 3
 max_download_pause: "5s"
 min_retry_pause: "1s"
 max_retry_pause: "3s"
+max_concurrent_downloads: 1
 `
 
 // TestFlagOverrides tests that command-line flags correctly override configuration file values.
@@ -41,28 +44,28 @@ max_retry_pause: "3s"
 func TestFlagOverrides(t *testing.T) {
 	tests := []struct {
 		name           string
-		flags          map[string]interface{}
+		flags          map[string]any
 		expectedConfig func(*testing.T, *config.Config)
 	}{
 		{
 			name:  "no flags - use config values",
-			flags: map[string]interface{}{},
+			flags: map[string]any{},
 			expectedConfig: func(t *testing.T, cfg *config.Config) {
 				t.Helper()
-				assert.Equal(t, uint8(1), cfg.DownloadFormat)
+				assert.Equal(t, uint8(1), cfg.Quality)
 				assert.Equal(t, "/config/output", cfg.OutputPath)
 				assert.False(t, cfg.DownloadLyrics)
 				assert.Equal(t, "500KB", cfg.DownloadSpeedLimit)
 			},
 		},
 		{
-			name: "format flag only - override format",
-			flags: map[string]interface{}{
-				"format": 2,
+			name: "quality flag only - override quality",
+			flags: map[string]any{
+				"quality": 2,
 			},
 			expectedConfig: func(t *testing.T, cfg *config.Config) {
 				t.Helper()
-				assert.Equal(t, uint8(2), cfg.DownloadFormat)
+				assert.Equal(t, uint8(2), cfg.Quality)
 				assert.Equal(t, "/config/output", cfg.OutputPath)
 				assert.False(t, cfg.DownloadLyrics)
 				assert.Equal(t, "500KB", cfg.DownloadSpeedLimit)
@@ -70,12 +73,12 @@ func TestFlagOverrides(t *testing.T) {
 		},
 		{
 			name: "output flag only - override output path",
-			flags: map[string]interface{}{
+			flags: map[string]any{
 				"output": "/flag/output",
 			},
 			expectedConfig: func(t *testing.T, cfg *config.Config) {
 				t.Helper()
-				assert.Equal(t, uint8(1), cfg.DownloadFormat)
+				assert.Equal(t, uint8(1), cfg.Quality)
 				assert.Equal(t, "/flag/output", cfg.OutputPath)
 				assert.False(t, cfg.DownloadLyrics)
 				assert.Equal(t, "500KB", cfg.DownloadSpeedLimit)
@@ -83,12 +86,12 @@ func TestFlagOverrides(t *testing.T) {
 		},
 		{
 			name: "lyrics flag only - override lyrics",
-			flags: map[string]interface{}{
+			flags: map[string]any{
 				"lyrics": true,
 			},
 			expectedConfig: func(t *testing.T, cfg *config.Config) {
 				t.Helper()
-				assert.Equal(t, uint8(1), cfg.DownloadFormat)
+				assert.Equal(t, uint8(1), cfg.Quality)
 				assert.Equal(t, "/config/output", cfg.OutputPath)
 				assert.True(t, cfg.DownloadLyrics)
 				assert.Equal(t, "500KB", cfg.DownloadSpeedLimit)
@@ -96,12 +99,12 @@ func TestFlagOverrides(t *testing.T) {
 		},
 		{
 			name: "speed-limit flag only - override speed limit",
-			flags: map[string]interface{}{
+			flags: map[string]any{
 				"speed-limit": "1MB",
 			},
 			expectedConfig: func(t *testing.T, cfg *config.Config) {
 				t.Helper()
-				assert.Equal(t, uint8(1), cfg.DownloadFormat)
+				assert.Equal(t, uint8(1), cfg.Quality)
 				assert.Equal(t, "/config/output", cfg.OutputPath)
 				assert.False(t, cfg.DownloadLyrics)
 				assert.Equal(t, "1MB", cfg.DownloadSpeedLimit)
@@ -109,43 +112,43 @@ func TestFlagOverrides(t *testing.T) {
 		},
 		{
 			name: "all flags - override everything",
-			flags: map[string]interface{}{
-				"format":      3,
+			flags: map[string]any{
+				"quality":     3,
 				"output":      "/all/flags/output",
 				"lyrics":      true,
 				"speed-limit": "2MB",
 			},
 			expectedConfig: func(t *testing.T, cfg *config.Config) {
 				t.Helper()
-				assert.Equal(t, uint8(3), cfg.DownloadFormat)
+				assert.Equal(t, uint8(3), cfg.Quality)
 				assert.Equal(t, "/all/flags/output", cfg.OutputPath)
 				assert.True(t, cfg.DownloadLyrics)
 				assert.Equal(t, "2MB", cfg.DownloadSpeedLimit)
 			},
 		},
 		{
-			name: "format and output flags - partial override",
-			flags: map[string]interface{}{
-				"format": 2,
-				"output": "/partial/output",
+			name: "quality and output flags - partial override",
+			flags: map[string]any{
+				"quality": 2,
+				"output":  "/partial/output",
 			},
 			expectedConfig: func(t *testing.T, cfg *config.Config) {
 				t.Helper()
-				assert.Equal(t, uint8(2), cfg.DownloadFormat)
+				assert.Equal(t, uint8(2), cfg.Quality)
 				assert.Equal(t, "/partial/output", cfg.OutputPath)
 				assert.False(t, cfg.DownloadLyrics)
 				assert.Equal(t, "500KB", cfg.DownloadSpeedLimit)
 			},
 		},
 		{
-			name: "format and lyrics flags - partial override",
-			flags: map[string]interface{}{
-				"format": 3,
-				"lyrics": true,
+			name: "quality and lyrics flags - partial override",
+			flags: map[string]any{
+				"quality": 3,
+				"lyrics":  true,
 			},
 			expectedConfig: func(t *testing.T, cfg *config.Config) {
 				t.Helper()
-				assert.Equal(t, uint8(3), cfg.DownloadFormat)
+				assert.Equal(t, uint8(3), cfg.Quality)
 				assert.Equal(t, "/config/output", cfg.OutputPath)
 				assert.True(t, cfg.DownloadLyrics)
 				assert.Equal(t, "500KB", cfg.DownloadSpeedLimit)
@@ -153,13 +156,13 @@ func TestFlagOverrides(t *testing.T) {
 		},
 		{
 			name: "output and speed-limit flags - partial override",
-			flags: map[string]interface{}{
+			flags: map[string]any{
 				"output":      "/speed/output",
 				"speed-limit": "3MB",
 			},
 			expectedConfig: func(t *testing.T, cfg *config.Config) {
 				t.Helper()
-				assert.Equal(t, uint8(1), cfg.DownloadFormat)
+				assert.Equal(t, uint8(1), cfg.Quality)
 				assert.Equal(t, "/speed/output", cfg.OutputPath)
 				assert.False(t, cfg.DownloadLyrics)
 				assert.Equal(t, "3MB", cfg.DownloadSpeedLimit)
@@ -167,58 +170,58 @@ func TestFlagOverrides(t *testing.T) {
 		},
 		{
 			name: "lyrics and speed-limit flags - partial override",
-			flags: map[string]interface{}{
+			flags: map[string]any{
 				"lyrics":      true,
 				"speed-limit": "750KB",
 			},
 			expectedConfig: func(t *testing.T, cfg *config.Config) {
 				t.Helper()
-				assert.Equal(t, uint8(1), cfg.DownloadFormat)
+				assert.Equal(t, uint8(1), cfg.Quality)
 				assert.Equal(t, "/config/output", cfg.OutputPath)
 				assert.True(t, cfg.DownloadLyrics)
 				assert.Equal(t, "750KB", cfg.DownloadSpeedLimit)
 			},
 		},
 		{
-			name: "format, output, and lyrics flags - triple override",
-			flags: map[string]interface{}{
-				"format": 2,
-				"output": "/triple/output",
-				"lyrics": true,
+			name: "quality, output, and lyrics flags - triple override",
+			flags: map[string]any{
+				"quality": 2,
+				"output":  "/triple/output",
+				"lyrics":  true,
 			},
 			expectedConfig: func(t *testing.T, cfg *config.Config) {
 				t.Helper()
-				assert.Equal(t, uint8(2), cfg.DownloadFormat)
+				assert.Equal(t, uint8(2), cfg.Quality)
 				assert.Equal(t, "/triple/output", cfg.OutputPath)
 				assert.True(t, cfg.DownloadLyrics)
 				assert.Equal(t, "500KB", cfg.DownloadSpeedLimit)
 			},
 		},
 		{
-			name: "format, output, and speed-limit flags - triple override",
-			flags: map[string]interface{}{
-				"format":      1,
+			name: "quality, output, and speed-limit flags - triple override",
+			flags: map[string]any{
+				"quality":     1,
 				"output":      "/speed-triple/output",
 				"speed-limit": "1.5MB",
 			},
 			expectedConfig: func(t *testing.T, cfg *config.Config) {
 				t.Helper()
-				assert.Equal(t, uint8(1), cfg.DownloadFormat)
+				assert.Equal(t, uint8(1), cfg.Quality)
 				assert.Equal(t, "/speed-triple/output", cfg.OutputPath)
 				assert.False(t, cfg.DownloadLyrics)
 				assert.Equal(t, "1.5MB", cfg.DownloadSpeedLimit)
 			},
 		},
 		{
-			name: "format, lyrics, and speed-limit flags - triple override",
-			flags: map[string]interface{}{
-				"format":      3,
+			name: "quality, lyrics, and speed-limit flags - triple override",
+			flags: map[string]any{
+				"quality":     3,
 				"lyrics":      true,
 				"speed-limit": "2.5MB",
 			},
 			expectedConfig: func(t *testing.T, cfg *config.Config) {
 				t.Helper()
-				assert.Equal(t, uint8(3), cfg.DownloadFormat)
+				assert.Equal(t, uint8(3), cfg.Quality)
 				assert.Equal(t, "/config/output", cfg.OutputPath)
 				assert.True(t, cfg.DownloadLyrics)
 				assert.Equal(t, "2.5MB", cfg.DownloadSpeedLimit)
@@ -226,14 +229,14 @@ func TestFlagOverrides(t *testing.T) {
 		},
 		{
 			name: "output, lyrics, and speed-limit flags - triple override",
-			flags: map[string]interface{}{
+			flags: map[string]any{
 				"output":      "/another-triple/output",
 				"lyrics":      true,
 				"speed-limit": "100KB",
 			},
 			expectedConfig: func(t *testing.T, cfg *config.Config) {
 				t.Helper()
-				assert.Equal(t, uint8(1), cfg.DownloadFormat)
+				assert.Equal(t, uint8(1), cfg.Quality)
 				assert.Equal(t, "/another-triple/output", cfg.OutputPath)
 				assert.True(t, cfg.DownloadLyrics)
 				assert.Equal(t, "100KB", cfg.DownloadSpeedLimit)
@@ -241,7 +244,7 @@ func TestFlagOverrides(t *testing.T) {
 		},
 		{
 			name: "lyrics false flag - explicit false override",
-			flags: map[string]interface{}{
+			flags: map[string]any{
 				"lyrics": false,
 			},
 			expectedConfig: func(t *testing.T, cfg *config.Config) {
@@ -274,7 +277,7 @@ func TestFlagOverrides(t *testing.T) {
 			}
 
 			// Add the same flags as root command.
-			testCmd.Flags().IntP("format", "f", 1, "audio format")
+			testCmd.Flags().IntP("quality", "q", 1, "audio quality")
 			testCmd.Flags().StringP("output", "o", "", "output directory")
 			testCmd.Flags().BoolP("lyrics", "l", false, "include lyrics")
 			testCmd.Flags().StringP("speed-limit", "s", "", "download speed limit")
@@ -309,13 +312,14 @@ func TestFlagOverrides(t *testing.T) {
 	}
 }
 
-// TestFlagOverrides_AllFormatValues tests all valid format values (1, 2, 3).
+// TestFlagOverrides_AllQualityValues tests all valid quality values (1, 2, 3).
 //
 //nolint:nolintlint,tparallel // Cannot run in parallel due to Viper global state.
-func TestFlagOverrides_AllFormatValues(t *testing.T) {
+func TestFlagOverrides_AllQualityValues(t *testing.T) {
 	testBaseConfigContent := `
 auth_token: "config_token"
-download_format: 1
+quality: 1
+min_quality: 0
 output_path: "/config/output"
 download_lyrics: false
 download_speed_limit: "500KB"
@@ -332,19 +336,20 @@ retry_attempts_count: 3
 max_download_pause: "5s"
 min_retry_pause: "1s"
 max_retry_pause: "3s"
+max_concurrent_downloads: 1
 `
 
-	formatTests := []struct {
+	qualityTests := []struct {
 		name           string
-		formatValue    int
+		qualityValue   int
 		expectedFormat uint8
 	}{
-		{"format 1 - MP3 128 Kbps", 1, 1},
-		{"format 2 - MP3 320 Kbps", 2, 2},
-		{"format 3 - FLAC 16-bit/44.1kHz", 3, 3},
+		{"quality 1 - MP3 128 Kbps", 1, 1},
+		{"quality 2 - MP3 320 Kbps", 2, 2},
+		{"quality 3 - FLAC 16-bit/44.1kHz", 3, 3},
 	}
 
-	for _, tt := range formatTests {
+	for _, tt := range qualityTests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create temporary directory and config file.
 			tempDir := t.TempDir()
@@ -363,18 +368,92 @@ max_retry_pause: "3s"
 
 			// Create a test command with flags.
 			testCmd := &cobra.Command{Use: "test"}
-			testCmd.Flags().IntP("format", "f", 1, "audio format")
+			testCmd.Flags().IntP("quality", "q", 1, "audio quality")
 
-			// Set format flag.
-			err = testCmd.Flags().Set("format", string(rune(tt.formatValue+'0')))
+			// Set quality flag.
+			err = testCmd.Flags().Set("quality", string(rune(tt.qualityValue+'0')))
 			require.NoError(t, err)
 
 			// Bind flags to config.
 			err = bindFlagsToConfig(testCmd.Flags(), cfg)
 			require.NoError(t, err)
 
-			// Verify format was overridden correctly.
-			assert.Equal(t, tt.expectedFormat, cfg.DownloadFormat)
+			// Verify quality was overridden correctly.
+			assert.Equal(t, tt.expectedFormat, cfg.Quality)
+		})
+	}
+}
+
+// TestFlagOverrides_MinQualityValues tests min-quality flag with various values.
+//
+//nolint:nolintlint,tparallel // Cannot run in parallel due to Viper global state.
+func TestFlagOverrides_MinQualityValues(t *testing.T) {
+	testConfigContent := `
+auth_token: "config_token"
+quality: 3
+min_quality: 0
+output_path: "/config/output"
+download_lyrics: false
+download_speed_limit: "500KB"
+log_level: "info"
+track_filename_template: "{{.trackNumberPad}} - {{.trackTitle}}"
+album_folder_template: "{{.releaseYear}} - {{.albumArtist}} - {{.albumTitle}}"
+playlist_filename_template: "{{.trackNumberPad}} - {{.trackArtist}} - {{.trackTitle}}"
+replace_tracks: false
+replace_covers: false
+replace_lyrics: false
+create_folder_for_singles: false
+max_folder_name_length: 100
+retry_attempts_count: 3
+max_download_pause: "5s"
+min_retry_pause: "1s"
+max_retry_pause: "3s"
+max_concurrent_downloads: 1
+`
+
+	minQualityTests := []struct {
+		name               string
+		minQualityValue    int
+		expectedMinQuality uint8
+	}{
+		{"min-quality 0 - no filtering", 0, 0},
+		{"min-quality 1 - MP3 128 minimum", 1, 1},
+		{"min-quality 2 - MP3 320 minimum", 2, 2},
+		{"min-quality 3 - FLAC minimum", 3, 3},
+	}
+
+	for _, tt := range minQualityTests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create temporary directory and config file.
+			tempDir := t.TempDir()
+			configPath := filepath.Join(tempDir, "test-config.yaml")
+
+			err := os.WriteFile(
+				configPath,
+				[]byte(testConfigContent),
+				constants.DefaultFilePermissions,
+			) //nolint:gosec // It's a test file.
+			require.NoError(t, err)
+
+			// Load configuration.
+			cfg, err := config.LoadConfig(configPath)
+			require.NoError(t, err)
+
+			// Create a test command with flags.
+			testCmd := &cobra.Command{Use: "test"}
+			testCmd.Flags().IntP("min-quality", "m", 0, "minimum quality")
+
+			// Set the min-quality flag.
+			err = testCmd.Flags().Set("min-quality", strconv.Itoa(tt.minQualityValue))
+			require.NoError(t, err)
+
+			// Bind flags to config.
+			err = bindFlagsToConfig(testCmd.Flags(), cfg)
+			require.NoError(t, err)
+
+			// Verify min-quality was applied.
+			assert.Equal(t, tt.expectedMinQuality, cfg.MinQuality,
+				"MinQuality should be set to %d", tt.expectedMinQuality)
 		})
 	}
 }
@@ -390,16 +469,22 @@ func TestFlagOverrides_InvalidValues(t *testing.T) {
 		expectedError string
 	}{
 		{
-			name:          "invalid format - too low",
-			flagName:      "format",
+			name:          "invalid quality - too low",
+			flagName:      "quality",
 			flagValue:     "0",
-			expectedError: "invalid format: must be between",
+			expectedError: "invalid quality: must be between",
 		},
 		{
-			name:          "invalid format - too high",
-			flagName:      "format",
+			name:          "invalid quality - too high",
+			flagName:      "quality",
 			flagValue:     "4",
-			expectedError: "invalid format: must be between",
+			expectedError: "invalid quality: must be between",
+		},
+		{
+			name:          "invalid min-quality - too high",
+			flagName:      "min-quality",
+			flagValue:     "4",
+			expectedError: "invalid min_quality",
 		},
 		{
 			name:          "invalid speed limit",
@@ -428,7 +513,8 @@ func TestFlagOverrides_InvalidValues(t *testing.T) {
 
 			// Create a test command with flags.
 			testCmd := &cobra.Command{Use: "test"}
-			testCmd.Flags().IntP("format", "f", 1, "audio format")
+			testCmd.Flags().IntP("quality", "q", 1, "audio quality")
+			testCmd.Flags().IntP("min-quality", "m", 0, "minimum quality")
 			testCmd.Flags().StringP("speed-limit", "s", "", "download speed limit")
 
 			// Set the flag.
@@ -454,7 +540,8 @@ func TestBindFlagsToConfig_UnchangedFlags(t *testing.T) {
 	// Use specific config content for this test.
 	configContent := `
 auth_token: "config_token"
-download_format: 2
+quality: 2
+min_quality: 0
 output_path: "/config/output"
 download_lyrics: true
 download_speed_limit: "1MB"
@@ -471,6 +558,7 @@ retry_attempts_count: 3
 max_download_pause: "5s"
 min_retry_pause: "1s"
 max_retry_pause: "3s"
+max_concurrent_downloads: 1
 `
 
 	err := os.WriteFile(
@@ -486,7 +574,7 @@ max_retry_pause: "3s"
 
 	// Create a test command with flags but don't set any.
 	testCmd := &cobra.Command{Use: "test"}
-	testCmd.Flags().IntP("format", "f", 1, "audio format")
+	testCmd.Flags().IntP("quality", "q", 1, "audio quality")
 	testCmd.Flags().StringP("output", "o", "", "output directory")
 	testCmd.Flags().BoolP("lyrics", "l", false, "include lyrics")
 	testCmd.Flags().StringP("speed-limit", "s", "", "download speed limit")
@@ -496,7 +584,7 @@ max_retry_pause: "3s"
 	require.NoError(t, err)
 
 	// Verify config values remain unchanged.
-	assert.Equal(t, uint8(2), cfg.DownloadFormat)
+	assert.Equal(t, uint8(2), cfg.Quality)
 	assert.Equal(t, "/config/output", cfg.OutputPath)
 	assert.True(t, cfg.DownloadLyrics)
 	assert.Equal(t, "1MB", cfg.DownloadSpeedLimit)
@@ -507,13 +595,14 @@ func TestBindFlagsToConfig_EmptyFlagSet(t *testing.T) {
 	t.Parallel()
 
 	cfg := &config.Config{
-		AuthToken:          "test_token",
-		DownloadFormat:     2,
-		LogLevel:           "info",
-		RetryAttemptsCount: 3,
-		MaxDownloadPause:   "5s",
-		MinRetryPause:      "1s",
-		MaxRetryPause:      "3s",
+		AuthToken:              "test_token",
+		Quality:                2,
+		LogLevel:               "info",
+		RetryAttemptsCount:     3,
+		MaxDownloadPause:       "5s",
+		MinRetryPause:          "1s",
+		MaxRetryPause:          "3s",
+		MaxConcurrentDownloads: 1,
 	}
 
 	// Create an empty flag set.

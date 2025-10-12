@@ -22,11 +22,20 @@ const (
 	defaultPlaylistCoverFilename = "cover" + defaultPlaylistCoverExtension
 )
 
-func (s *ServiceImpl) downloadPlaylist(ctx context.Context, playlistID string) {
+func (s *ServiceImpl) downloadPlaylist(ctx context.Context, item *DownloadItem) {
+	playlistID := item.ItemID
+
 	// Fetch metadata for the playlist.
 	getPlaylistsMetadataResponse, err := s.zvukClient.GetPlaylistsMetadata(ctx, []string{playlistID})
 	if err != nil {
 		logger.Errorf(ctx, "Failed to get metadata for playlist with ID '%s': %v", playlistID, err)
+		s.recordError(&ErrorContext{
+			Category:  DownloadCategoryPlaylist,
+			ItemID:    playlistID,
+			ItemTitle: "Playlist ID: " + playlistID,
+			ItemURL:   item.URL,
+			Phase:     "fetching playlist metadata",
+		}, err)
 
 		return
 	}
@@ -35,6 +44,20 @@ func (s *ServiceImpl) downloadPlaylist(ctx context.Context, playlistID string) {
 	fetchAlbumsDataFromTracksResponse, err := s.fetchAlbumsDataFromTracks(ctx, getPlaylistsMetadataResponse.Tracks)
 	if err != nil {
 		logger.Errorf(ctx, "Failed to fetch album and label metadata: %v", err)
+
+		// Get playlist title if available.
+		playlistTitle := "Playlist ID: " + playlistID
+		if playlist, ok := getPlaylistsMetadataResponse.Playlists[playlistID]; ok && playlist != nil {
+			playlistTitle = playlist.Title
+		}
+
+		s.recordError(&ErrorContext{
+			Category:  DownloadCategoryPlaylist,
+			ItemID:    playlistID,
+			ItemTitle: playlistTitle,
+			ItemURL:   item.URL,
+			Phase:     "fetching track metadata",
+		}, err)
 
 		return
 	}
@@ -143,11 +166,17 @@ func (s *ServiceImpl) downloadPlaylistCover(ctx context.Context, bigImageURL, pl
 	playlistCoverPath := filepath.Join(playlistPath, playlistCoverFilename)
 
 	// Download and save the cover art.
-	err = s.downloadAndSaveFile(ctx, playlistCoverURL, playlistCoverPath, s.cfg.ReplaceCovers)
+	isExist, err := s.downloadAndSaveFile(ctx, playlistCoverURL, playlistCoverPath, s.cfg.ReplaceCovers)
 	if err != nil {
 		logger.Errorf(ctx, "Failed to download playlist cover: %v", err)
 
 		return ""
+	}
+
+	if isExist {
+		s.incrementCoverSkipped()
+	} else {
+		s.incrementCoverDownloaded()
 	}
 
 	return playlistCoverPath

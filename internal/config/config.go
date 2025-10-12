@@ -21,8 +21,17 @@ import (
 type Config struct {
 	// AuthToken is the authentication token for API access.
 	AuthToken string `mapstructure:"auth_token"`
-	// DownloadFormat specifies the audio quality/format (1=MP3 128k, 2=MP3 320k, 3=FLAC).
-	DownloadFormat uint8 `mapstructure:"download_format"`
+	// Quality specifies the preferred audio quality (1=MP3 128k, 2=MP3 320k, 3=FLAC).
+	Quality uint8 `mapstructure:"quality"`
+	// MinQuality specifies the minimum acceptable quality (1=MP3 128k, 2=MP3 320k, 3=FLAC).
+	// Tracks below this quality will be skipped. Set to 0 to disable filtering.
+	MinQuality uint8 `mapstructure:"min_quality"`
+	// MinDuration specifies the minimum acceptable track duration (e.g., "30s", "1m").
+	// Tracks shorter than this will be skipped. Empty string disables filtering.
+	MinDuration string `mapstructure:"min_duration"`
+	// MaxDuration specifies the maximum acceptable track duration (e.g., "10m", "1h").
+	// Tracks longer than this will be skipped. Empty string disables filtering.
+	MaxDuration string `mapstructure:"max_duration"`
 	// OutputPath is the directory path where downloaded files will be saved.
 	OutputPath string `mapstructure:"output_path"`
 	// TrackFilenameTemplate is the template for naming individual track files.
@@ -55,8 +64,16 @@ type Config struct {
 	MinRetryPause string `mapstructure:"min_retry_pause"`
 	// MaxRetryPause is the maximum pause duration before retrying.
 	MaxRetryPause string `mapstructure:"max_retry_pause"`
+	// MaxConcurrentDownloads is the maximum number of tracks to download simultaneously.
+	MaxConcurrentDownloads int64 `mapstructure:"max_concurrent_downloads"`
 	// ZvukBaseURL is the base URL for the Zvuk API (set automatically).
 	ZvukBaseURL string
+	// DryRun indicates whether to preview downloads without actually downloading files.
+	DryRun bool
+	// ParsedMinDuration is the parsed minimum track duration.
+	ParsedMinDuration time.Duration
+	// ParsedMaxDuration is the parsed maximum track duration.
+	ParsedMaxDuration time.Duration
 	// ParsedDownloadSpeedLimit is the parsed download speed limit in bytes.
 	ParsedDownloadSpeedLimit int64
 	// ParsedLogLevel is the parsed zap log level.
@@ -88,22 +105,40 @@ const (
 	// DefaultMaxLogLength is the default maximum size (in bytes) for log files.
 	DefaultMaxLogLength = 1 * 1024 * 1024 // 1 MB
 
-	// minDownloadFormat is the minimum valid download format value.
-	minDownloadFormat = 1
-	// maxDownloadFormat is the maximum valid download format value.
-	maxDownloadFormat = 3
+	// minQuality is the minimum valid quality value.
+	minQuality = 1
+	// maxQuality is the maximum valid quality value.
+	maxQuality = 3
 )
 
 // Static error definitions for better error handling.
 var (
 	// ErrEmptyAuthToken indicates that the authentication token is missing.
 	ErrEmptyAuthToken = errors.New("authentication token cannot be empty")
-	// ErrInvalidFormat indicates that the download format is invalid.
-	ErrInvalidFormat = errors.New("invalid format")
+	// ErrInvalidQuality indicates that the quality setting is invalid.
+	ErrInvalidQuality = errors.New("invalid quality")
+	// ErrInvalidMinQuality indicates that the minimum quality setting is invalid.
+	ErrInvalidMinQuality = errors.New("invalid min_quality")
+	// ErrMinQualityTooHigh indicates that min_quality is higher than quality.
+	ErrMinQualityTooHigh = errors.New("min_quality cannot be higher than quality")
+	// ErrInvalidMinDuration indicates that the minimum duration setting is invalid.
+	ErrInvalidMinDuration = errors.New("min_duration must be positive")
+	// ErrInvalidMaxDuration indicates that the maximum duration setting is invalid.
+	ErrInvalidMaxDuration = errors.New("max_duration must be positive")
+	// ErrMaxDurationTooLow indicates that max_duration is not greater than min_duration.
+	ErrMaxDurationTooLow = errors.New("max_duration must be greater than min_duration")
 	// ErrUnknownLogLevel indicates that the log level is not recognized.
 	ErrUnknownLogLevel = errors.New("unknown log level")
 	// ErrInvalidRetryAttempts indicates that the retry attempts count is invalid.
 	ErrInvalidRetryAttempts = errors.New("retry attempts count must a positive integer")
+	// ErrInvalidMaxDownloadPause indicates that the max download pause duration is invalid.
+	ErrInvalidMaxDownloadPause = errors.New("max_download_pause must be positive")
+	// ErrInvalidMinRetryPause indicates that the min retry pause duration is invalid.
+	ErrInvalidMinRetryPause = errors.New("min_retry_pause must be positive")
+	// ErrInvalidMaxRetryPause indicates that the max retry pause duration is invalid.
+	ErrInvalidMaxRetryPause = errors.New("max_retry_pause must be positive")
+	// ErrInvalidConcurrentDownloads indicates that the concurrent downloads count is invalid.
+	ErrInvalidConcurrentDownloads = errors.New("max concurrent downloads must be a positive integer")
 )
 
 // LoadConfig loads configuration settings from a YAML file.
@@ -127,6 +162,8 @@ func LoadConfig(configFilename string) (*Config, error) {
 }
 
 // ValidateConfig checks the configuration for validity and sets derived fields.
+//
+//nolint:funlen,gocognit,cyclop // Validation functions naturally have high complexity and length due to sequential checks.
 func ValidateConfig(cfg *Config) error {
 	var (
 		downloadSpeedLimit       = strings.TrimSpace(cfg.DownloadSpeedLimit)
@@ -141,18 +178,49 @@ func ValidateConfig(cfg *Config) error {
 
 	cfg.ZvukBaseURL = ZvukBaseURL
 
-	if downloadSpeedLimit != "" && downloadSpeedLimit != "0" {
-		parsedDownloadSpeedLimit, err = humanize.ParseBytes(downloadSpeedLimit)
-		if err != nil {
-			return fmt.Errorf("failed to parse download speed limit: %w", err)
+	if cfg.Quality < minQuality || cfg.Quality > maxQuality {
+		return fmt.Errorf("%w: must be between %d and %d", ErrInvalidQuality, minQuality, maxQuality)
+	}
+
+	// Validate min_quality if set (0 means no filtering).
+	if cfg.MinQuality > 0 {
+		if cfg.MinQuality < minQuality || cfg.MinQuality > maxQuality {
+			return fmt.Errorf("%w: must be between %d and %d, or 0 to disable",
+				ErrInvalidMinQuality, minQuality, maxQuality)
+		}
+
+		if cfg.MinQuality > cfg.Quality {
+			return ErrMinQualityTooHigh
 		}
 	}
 
-	// Io.CopyN accepts only int64 so we transform it safely in order to use it later.
-	cfg.ParsedDownloadSpeedLimit = utils.SafeUint64ToInt64(parsedDownloadSpeedLimit)
+	// Parse min_duration if set (empty string means no filtering).
+	if cfg.MinDuration != "" {
+		cfg.ParsedMinDuration, err = time.ParseDuration(cfg.MinDuration)
+		if err != nil {
+			return fmt.Errorf("failed to parse min duration: %w", err)
+		}
 
-	if cfg.DownloadFormat < minDownloadFormat || cfg.DownloadFormat > maxDownloadFormat {
-		return fmt.Errorf("%w: must be between %d and %d", ErrInvalidFormat, minDownloadFormat, maxDownloadFormat)
+		if cfg.ParsedMinDuration <= 0 {
+			return ErrInvalidMinDuration
+		}
+	}
+
+	// Parse max_duration if set (empty string means no filtering).
+	if cfg.MaxDuration != "" {
+		cfg.ParsedMaxDuration, err = time.ParseDuration(cfg.MaxDuration)
+		if err != nil {
+			return fmt.Errorf("failed to parse max duration: %w", err)
+		}
+
+		if cfg.ParsedMaxDuration <= 0 {
+			return ErrInvalidMaxDuration
+		}
+
+		// Validate that max_duration > min_duration if both are set.
+		if cfg.MinDuration != "" && cfg.ParsedMaxDuration <= cfg.ParsedMinDuration {
+			return ErrMaxDurationTooLow
+		}
 	}
 
 	parsedLogLevel, isLogLevelCorrect := logger.ParseLogLevel(cfg.LogLevel)
@@ -161,6 +229,16 @@ func ValidateConfig(cfg *Config) error {
 	}
 
 	cfg.ParsedLogLevel = parsedLogLevel
+
+	if downloadSpeedLimit != "" && downloadSpeedLimit != "0" {
+		parsedDownloadSpeedLimit, err = humanize.ParseBytes(downloadSpeedLimit)
+		if err != nil {
+			return fmt.Errorf("failed to parse download speed limit: %w", err)
+		}
+	}
+
+	// io.CopyN accepts only int64 so we transform it safely in order to use it later.
+	cfg.ParsedDownloadSpeedLimit = utils.SafeUint64ToInt64(parsedDownloadSpeedLimit)
 
 	if cfg.RetryAttemptsCount <= 0 {
 		return ErrInvalidRetryAttempts
@@ -171,14 +249,30 @@ func ValidateConfig(cfg *Config) error {
 		return fmt.Errorf("failed to parse max download pause: %w", err)
 	}
 
+	if cfg.ParsedMaxDownloadPause <= 0 {
+		return ErrInvalidMaxDownloadPause
+	}
+
 	cfg.ParsedMinRetryPause, err = time.ParseDuration(cfg.MinRetryPause)
 	if err != nil {
 		return fmt.Errorf("failed to parse min retry pause: %w", err)
 	}
 
+	if cfg.ParsedMinRetryPause <= 0 {
+		return ErrInvalidMinRetryPause
+	}
+
 	cfg.ParsedMaxRetryPause, err = time.ParseDuration(cfg.MaxRetryPause)
 	if err != nil {
 		return fmt.Errorf("failed to parse max retry pause: %w", err)
+	}
+
+	if cfg.ParsedMaxRetryPause <= 0 {
+		return ErrInvalidMaxRetryPause
+	}
+
+	if cfg.MaxConcurrentDownloads <= 0 {
+		return ErrInvalidConcurrentDownloads
 	}
 
 	return nil

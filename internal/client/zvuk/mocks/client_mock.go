@@ -58,13 +58,12 @@ func (mr *MockClientMockRecorder) DownloadFromURL(ctx, url any) *gomock.Call {
 }
 
 // FetchTrack mocks base method.
-func (m *MockClient) FetchTrack(ctx context.Context, trackURL string) (io.ReadCloser, int64, error) {
+func (m *MockClient) FetchTrack(ctx context.Context, trackURL string) (*zvuk.FetchTrackResult, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchTrack", ctx, trackURL)
-	ret0, _ := ret[0].(io.ReadCloser)
-	ret1, _ := ret[1].(int64)
-	ret2, _ := ret[2].(error)
-	return ret0, ret1, ret2
+	ret0, _ := ret[0].(*zvuk.FetchTrackResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // FetchTrack indicates an expected call of FetchTrack.

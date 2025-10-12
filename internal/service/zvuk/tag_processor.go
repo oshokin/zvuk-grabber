@@ -51,6 +51,14 @@ type imageMetadata struct {
 	mimeType string
 }
 
+// extractFLACCommentResult contains the result of extracting FLAC comment metadata.
+type extractFLACCommentResult struct {
+	// Comment is the FLAC Vorbis comment metadata block.
+	Comment *flacvorbis.MetaDataBlockVorbisComment
+	// Index is the index of the comment block in the FLAC file metadata (-1 if not found).
+	Index int
+}
+
 // Static error definitions for better error handling.
 var (
 	// ErrEmptyTrackPath indicates that the track file path is empty.
@@ -59,7 +67,7 @@ var (
 
 // NewTagProcessor creates a new TagProcessor instance.
 func NewTagProcessor() TagProcessor {
-	return &TagProcessorImpl{}
+	return new(TagProcessorImpl)
 }
 
 // WriteTags writes metadata to audio files based on the provided request.
@@ -101,10 +109,12 @@ func (tp *TagProcessorImpl) writeFLACTags(ctx context.Context, req *WriteTagsReq
 	}
 
 	// Extract existing FLAC comments (metadata) from the file.
-	tag, idx, err := tp.extractFLACComment(req.TrackPath)
+	commentResult, err := tp.extractFLACComment(req.TrackPath)
 	if err != nil {
 		return err
 	}
+
+	tag := commentResult.Comment
 
 	// If no existing comments are found, create a new metadata block.
 	if tag == nil {
@@ -119,8 +129,8 @@ func (tp *TagProcessorImpl) writeFLACTags(ctx context.Context, req *WriteTagsReq
 
 	// Marshal the updated metadata and update the FLAC file's metadata blocks.
 	tagMeta := tag.Marshal()
-	if idx >= 0 {
-		f.Meta[idx] = &tagMeta
+	if commentResult.Index >= 0 {
+		f.Meta[commentResult.Index] = &tagMeta
 	} else {
 		f.Meta = append(f.Meta, &tagMeta)
 	}
@@ -132,10 +142,10 @@ func (tp *TagProcessorImpl) writeFLACTags(ctx context.Context, req *WriteTagsReq
 	return f.Save(req.TrackPath)
 }
 
-func (tp *TagProcessorImpl) extractFLACComment(filename string) (*flacvorbis.MetaDataBlockVorbisComment, int, error) {
+func (tp *TagProcessorImpl) extractFLACComment(filename string) (*extractFLACCommentResult, error) {
 	f, err := flac.ParseFile(filepath.Clean(filename))
 	if err != nil {
-		return nil, 0, err
+		return nil, err
 	}
 
 	// Iterate through the metadata blocks to find the Vorbis comment block.
@@ -149,12 +159,18 @@ func (tp *TagProcessorImpl) extractFLACComment(filename string) (*flacvorbis.Met
 
 		comment, err = flacvorbis.ParseFromMetaDataBlock(*meta)
 		if err == nil {
-			return comment, idx, nil
+			return &extractFLACCommentResult{
+				Comment: comment,
+				Index:   idx,
+			}, nil
 		}
 	}
 
-	// Return nil if no Vorbis comment block is found.
-	return nil, -1, nil
+	// Return nil comment if no Vorbis comment block is found.
+	return &extractFLACCommentResult{
+		Comment: nil,
+		Index:   -1,
+	}, nil
 }
 
 func (tp *TagProcessorImpl) addFLACTags(tag *flacvorbis.MetaDataBlockVorbisComment, req *WriteTagsRequest) error {

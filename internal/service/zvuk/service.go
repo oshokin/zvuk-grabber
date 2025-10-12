@@ -7,6 +7,7 @@ import (
 	"os"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/oshokin/zvuk-grabber/internal/client/zvuk"
 	"github.com/oshokin/zvuk-grabber/internal/config"
@@ -19,6 +20,8 @@ import (
 type Service interface {
 	// DownloadURLs orchestrates the full download pipeline, from URL processing to file creation.
 	DownloadURLs(ctx context.Context, urls []string)
+	// PrintDownloadSummary prints a formatted summary of download statistics.
+	PrintDownloadSummary(ctx context.Context)
 }
 
 // ServiceImpl implements audio download service with deduplication and metadata handling.
@@ -37,6 +40,10 @@ type ServiceImpl struct {
 	audioCollections map[ShortDownloadItem]*audioCollection
 	// audioCollectionsMutex protects concurrent access to audioCollections.
 	audioCollectionsMutex *sync.Mutex
+	// stats tracks download statistics for the current session.
+	stats *DownloadStatistics
+	// statsMutex protects concurrent access to statistics.
+	statsMutex *sync.Mutex
 }
 
 // NewService creates a download service instance with dependency-injected components.
@@ -55,15 +62,24 @@ func NewService(
 		tagProcessor:          tagProcessor,
 		audioCollections:      make(map[ShortDownloadItem]*audioCollection),
 		audioCollectionsMutex: new(sync.Mutex),
+		stats:                 new(DownloadStatistics),
+		statsMutex:            new(sync.Mutex),
 	}
 }
 
 // DownloadURLs orchestrates the full download pipeline, from URL processing to file creation.
 func (s *ServiceImpl) DownloadURLs(ctx context.Context, urls []string) {
+	// Record start time and dry-run mode for statistics.
+	s.statsMutex.Lock()
+	s.stats.StartTime = time.Now()
+	s.stats.IsDryRun = s.cfg.DryRun
+	s.statsMutex.Unlock()
+
 	// Ensure the output directory exists.
 	err := os.MkdirAll(s.cfg.OutputPath, constants.DefaultFolderPermissions)
 	if err != nil {
-		logger.Fatalf(ctx, "Failed to create output path: %v", err)
+		logger.Errorf(ctx, "Failed to create output path: %v", err)
+		return
 	}
 
 	// Verify the user's subscription status before proceeding.
@@ -72,8 +88,7 @@ func (s *ServiceImpl) DownloadURLs(ctx context.Context, urls []string) {
 	// Extract and categorize download items from the provided URLs.
 	downloadItemsByCategories, err := s.urlProcessor.ExtractDownloadItems(ctx, urls)
 	if err != nil {
-		logger.Fatalf(ctx, "Failed to extract items to download: %v", err)
-
+		logger.Errorf(ctx, "Failed to extract items to download: %v", err)
 		return
 	}
 
@@ -91,6 +106,11 @@ func (s *ServiceImpl) DownloadURLs(ctx context.Context, urls []string) {
 	}
 
 	logger.Info(ctx, "Download process completed")
+
+	// Record end time for statistics.
+	s.statsMutex.Lock()
+	s.stats.EndTime = time.Now()
+	s.statsMutex.Unlock()
 }
 
 // fetchAndDeduplicateStandaloneItems processes artist URLs to fetch their albums and removes duplicate entries.
@@ -123,10 +143,10 @@ func (s *ServiceImpl) downloadStandaloneItems(ctx context.Context, items []*Down
 		switch item.Category {
 		case DownloadCategoryAlbum:
 			logger.Infof(ctx, "Downloading item: %v (%d / %d)", item, index+1, itemsCount)
-			s.downloadAlbum(ctx, item.ItemID)
+			s.downloadAlbum(ctx, item)
 		case DownloadCategoryPlaylist:
 			logger.Infof(ctx, "Downloading item: %v (%d / %d)", item, index+1, itemsCount)
-			s.downloadPlaylist(ctx, item.ItemID)
+			s.downloadPlaylist(ctx, item)
 		default:
 			logger.Errorf(ctx, "Unknown URL category: %d", item.Category)
 		}

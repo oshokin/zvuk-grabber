@@ -31,7 +31,7 @@ func TestNewService(t *testing.T) {
 func TestValidateLoginURL(t *testing.T) {
 	t.Parallel()
 
-	service := &ServiceImpl{}
+	service := new(ServiceImpl)
 
 	tests := []struct {
 		name        string

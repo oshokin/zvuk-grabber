@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/schollz/progressbar/v3"
@@ -61,6 +62,21 @@ type downloadTrackRequest struct {
 
 // defaultLyricsExtension is the default file extension for lyrics files.
 const defaultLyricsExtension = ".lrc"
+
+var (
+	// ErrTrackNotFound indicates that the requested track was not found.
+	ErrTrackNotFound = errors.New("track not found")
+	// ErrTrackAlbumNotFound indicates that the album for the track was not found.
+	ErrTrackAlbumNotFound = errors.New("track album not found")
+	// ErrIncompleteDownload indicates that the downloaded file size doesn't match expected size.
+	ErrIncompleteDownload = errors.New("incomplete download")
+	// ErrQualityBelowThreshold indicates that track quality is below the configured minimum.
+	ErrQualityBelowThreshold = errors.New("quality below minimum threshold")
+	// ErrDurationBelowThreshold indicates that track duration is below the configured minimum.
+	ErrDurationBelowThreshold = errors.New("duration below minimum threshold")
+	// ErrDurationAboveThreshold indicates that track duration exceeds the configured maximum.
+	ErrDurationAboveThreshold = errors.New("duration above maximum threshold")
+)
 
 func (s *ServiceImpl) fetchAlbumsDataFromTracks(
 	ctx context.Context,
@@ -114,22 +130,98 @@ func (s *ServiceImpl) fetchAlbumsDataFromTracks(
 }
 
 func (s *ServiceImpl) downloadTracks(ctx context.Context, metadata *downloadTracksMetadata) {
+	maxConcurrent := s.cfg.MaxConcurrentDownloads
+
+	// Sequential download (default behavior when maxConcurrent == 1).
+	if maxConcurrent == 1 {
+		s.downloadTracksSequentially(ctx, metadata)
+
+		return
+	}
+
+	// Concurrent downloads with worker pool pattern.
+	s.downloadTracksConcurrently(ctx, metadata, maxConcurrent)
+}
+
+// executeTrackDownload creates a download request and executes the track download.
+// This is the common logic shared between sequential and concurrent downloads.
+func (s *ServiceImpl) executeTrackDownload(
+	ctx context.Context,
+	trackIndex int,
+	trackID int64,
+	metadata *downloadTracksMetadata,
+) {
+	request := &downloadTrackRequest{
+		// Track numbers start at 1 for user-facing numbering.
+		trackIndex: int64(trackIndex) + 1,
+		trackID:    trackID,
+		metadata:   metadata,
+	}
+
+	s.downloadTrack(ctx, request)
+
+	// Add a random pause between downloads to avoid rate limiting.
+	utils.RandomPause(0, s.cfg.ParsedMaxDownloadPause)
+}
+
+// downloadTracksSequentially downloads tracks one by one (original behavior).
+func (s *ServiceImpl) downloadTracksSequentially(ctx context.Context, metadata *downloadTracksMetadata) {
 	for i, trackID := range metadata.trackIDs {
-		request := &downloadTrackRequest{
-			// Track numbers start at 1 for user-facing numbering.
-			trackIndex: int64(i) + 1,
-			trackID:    trackID,
-			metadata:   metadata,
+		// Check if context was canceled (CTRL+C pressed) - stop immediately.
+		select {
+		case <-ctx.Done():
+			return
+		default:
 		}
 
-		s.downloadTrack(ctx, request)
-
-		// Add a random pause between downloads to avoid rate limiting.
-		utils.RandomPause(0, s.cfg.ParsedMaxDownloadPause)
+		s.executeTrackDownload(ctx, i, trackID, metadata)
 	}
 }
 
-//nolint:funlen // Function orchestrates complex download workflow with multiple sequential steps.
+// downloadTracksConcurrently downloads tracks using a worker pool for concurrent execution.
+func (s *ServiceImpl) downloadTracksConcurrently(
+	ctx context.Context,
+	metadata *downloadTracksMetadata,
+	maxConcurrent int64,
+) {
+	// Create a semaphore channel to limit concurrent downloads.
+	semaphore := make(chan struct{}, maxConcurrent)
+
+	var waitGroup sync.WaitGroup
+
+	// Process each track in a separate goroutine.
+	for index, trackID := range metadata.trackIDs {
+		// Check if context was canceled (CTRL+C pressed) - stop queueing new downloads.
+		select {
+		case <-ctx.Done():
+			goto waitForCompletion
+		default:
+		}
+
+		waitGroup.Add(1)
+
+		go func(trackIndex int, currentTrackID int64) {
+			defer waitGroup.Done()
+
+			// Acquire semaphore slot (blocks if all workers are busy).
+			semaphore <- struct{}{}
+
+			defer func() {
+				// Release semaphore slot when done.
+				<-semaphore
+			}()
+
+			// Execute the track download with common logic.
+			s.executeTrackDownload(ctx, trackIndex, currentTrackID, metadata)
+		}(index, trackID)
+	}
+
+waitForCompletion:
+	// Wait for all in-flight downloads to complete.
+	waitGroup.Wait()
+}
+
+//nolint:funlen,gocognit,cyclop // Function orchestrates complex download workflow with multiple sequential steps.
 func (s *ServiceImpl) downloadTrack(
 	ctx context.Context,
 	req *downloadTrackRequest,
@@ -140,7 +232,14 @@ func (s *ServiceImpl) downloadTrack(
 
 	track, ok := metadata.tracksMetadata[trackIDString]
 	if !ok || track == nil {
+		err := fmt.Errorf("track with ID '%s': %w", trackIDString, ErrTrackNotFound)
 		logger.Errorf(ctx, "Track with ID '%s' is not found", trackIDString)
+		s.recordError(&ErrorContext{
+			Category:  DownloadCategoryTrack,
+			ItemID:    trackIDString,
+			ItemTitle: "Unknown Track",
+			Phase:     "fetching metadata",
+		}, err)
 
 		return
 	}
@@ -150,7 +249,14 @@ func (s *ServiceImpl) downloadTrack(
 
 	album, ok := metadata.albumsMetadata[albumIDString]
 	if !ok || album == nil {
+		err := fmt.Errorf("album with ID '%s': %w", albumIDString, ErrTrackAlbumNotFound)
 		logger.Errorf(ctx, "Album with ID '%s' is not found", albumIDString)
+		s.recordError(&ErrorContext{
+			Category:  DownloadCategoryTrack,
+			ItemID:    trackIDString,
+			ItemTitle: track.Title,
+			Phase:     "fetching album metadata",
+		}, err)
 
 		return
 	}
@@ -187,7 +293,7 @@ func (s *ServiceImpl) downloadTrack(
 	}
 
 	// Determine track quality.
-	quality := TrackQuality(s.cfg.DownloadFormat)
+	quality := TrackQuality(s.cfg.Quality)
 
 	highestQuality := s.getTrackHighestQuality(ctx, track)
 	if highestQuality < quality {
@@ -196,10 +302,86 @@ func (s *ServiceImpl) downloadTrack(
 		logger.Infof(ctx, "Track is only available in quality: %s", highestQuality)
 	}
 
+	// Check minimum quality threshold if set.
+	if s.cfg.MinQuality > 0 && quality < TrackQuality(s.cfg.MinQuality) {
+		logger.Warnf(ctx, "Track quality %s is below minimum threshold %s, skipping",
+			quality, TrackQuality(s.cfg.MinQuality))
+
+		s.incrementTrackSkipped(SkipReasonQuality)
+
+		s.recordError(&ErrorContext{
+			Category:       DownloadCategoryTrack,
+			ItemID:         trackIDString,
+			ItemTitle:      track.Title,
+			Phase:          "quality check",
+			ParentCategory: metadata.category,
+			ParentID:       albumIDString,
+			ParentTitle:    album.Title,
+		}, fmt.Errorf("%w: %s below %s",
+			ErrQualityBelowThreshold, quality, TrackQuality(s.cfg.MinQuality)))
+
+		return
+	}
+
+	// Check minimum duration threshold if set.
+	if s.cfg.ParsedMinDuration > 0 && time.Duration(track.Duration)*time.Second < s.cfg.ParsedMinDuration {
+		logger.Warnf(ctx, "Track duration %ds is below minimum threshold %s, skipping",
+			track.Duration, s.cfg.ParsedMinDuration)
+
+		s.incrementTrackSkipped(SkipReasonDuration)
+
+		s.recordError(&ErrorContext{
+			Category:       DownloadCategoryTrack,
+			ItemID:         trackIDString,
+			ItemTitle:      track.Title,
+			Phase:          "duration check",
+			ParentCategory: metadata.category,
+			ParentID:       albumIDString,
+			ParentTitle:    album.Title,
+		}, fmt.Errorf("%w: %ds below %s",
+			ErrDurationBelowThreshold, track.Duration, s.cfg.ParsedMinDuration))
+
+		return
+	}
+
+	// Check maximum duration threshold if set.
+	if s.cfg.ParsedMaxDuration > 0 && time.Duration(track.Duration)*time.Second > s.cfg.ParsedMaxDuration {
+		logger.Warnf(ctx, "Track duration %ds exceeds maximum threshold %s, skipping",
+			track.Duration, s.cfg.ParsedMaxDuration)
+
+		s.incrementTrackSkipped(SkipReasonDuration)
+
+		s.recordError(&ErrorContext{
+			Category:       DownloadCategoryTrack,
+			ItemID:         trackIDString,
+			ItemTitle:      track.Title,
+			Phase:          "duration check",
+			ParentCategory: metadata.category,
+			ParentID:       albumIDString,
+			ParentTitle:    album.Title,
+		}, fmt.Errorf("%w: %ds exceeds %s",
+			ErrDurationAboveThreshold, track.Duration, s.cfg.ParsedMaxDuration))
+
+		return
+	}
+
 	// Fetch track streaming metadata.
 	streamMetadata, err := s.zvukClient.GetStreamMetadata(ctx, trackIDString, quality.AsStreamURLParameterValue())
 	if err != nil {
-		logger.Errorf(ctx, "Failed to get track streaming metadata: %v", err)
+		// Don't log context cancellation - it's expected when user presses CTRL+C.
+		if !errors.Is(err, context.Canceled) {
+			logger.Errorf(ctx, "Failed to get track streaming metadata: %v", err)
+		}
+
+		s.recordError(&ErrorContext{
+			Category:       DownloadCategoryTrack,
+			ItemID:         trackIDString,
+			ItemTitle:      track.Title,
+			Phase:          "fetching stream metadata",
+			ParentCategory: metadata.category,
+			ParentID:       albumIDString,
+			ParentTitle:    album.Title,
+		}, err)
 
 		return
 	}
@@ -220,7 +402,7 @@ func (s *ServiceImpl) downloadTrack(
 	// Generate track filename with proper extension.
 	trackTags := s.fillTrackTagsForTemplating(trackPosition, track, label.Title, audioCollection, albumTags)
 	trackFilename := s.templateManager.GetTrackFilename(ctx, isPlaylist, trackTags, audioCollection.tracksCount)
-	trackFilename = utils.SetFileExtension(utils.SanitizeFilename(trackFilename), quality.Extension(), false)
+	trackFilename = utils.SetFileExtension(utils.SanitizeFilename(trackFilename), quality.Extension(), true)
 	trackPath := filepath.Join(audioCollection.tracksPath, trackFilename)
 
 	// Download and save the track.
@@ -232,22 +414,41 @@ func (s *ServiceImpl) downloadTrack(
 		track.Title,
 		quality)
 
-	isExist, err := s.downloadAndSaveTrack(ctx, streamURL, trackPath)
+	result, err := s.downloadAndSaveTrack(ctx, streamURL, trackPath)
 	if err != nil {
-		logger.Errorf(ctx, "Failed to download track: %v", err)
+		// Don't log context cancellation - it's expected when user presses CTRL+C.
+		if !errors.Is(err, context.Canceled) {
+			logger.Errorf(ctx, "Failed to download track: %v", err)
+		}
+
+		s.incrementTrackFailed()
+		s.recordError(&ErrorContext{
+			Category:       DownloadCategoryTrack,
+			ItemID:         trackIDString,
+			ItemTitle:      track.Title,
+			Phase:          "downloading file",
+			ParentCategory: metadata.category,
+			ParentID:       albumIDString,
+			ParentTitle:    album.Title,
+		}, err)
 
 		return
 	}
 
-	if isExist {
+	if result.IsExist {
+		s.incrementTrackSkipped(SkipReasonExists)
+
 		return
 	}
+
+	s.incrementTrackDownloaded(result.BytesDownloaded)
 
 	// Download and save track lyrics if available.
 	trackLyrics := s.downloadAndSaveLyrics(ctx, track, trackFilename, audioCollection)
 
+	// Write metadata tags to .part file BEFORE renaming for atomic operation.
 	writeTagsRequest := &WriteTagsRequest{
-		TrackPath:                  trackPath,
+		TrackPath:                  result.TempPath, // Write to .part file.
 		CoverPath:                  audioCollection.coverPath,
 		Quality:                    quality,
 		TrackTags:                  trackTags,
@@ -255,12 +456,46 @@ func (s *ServiceImpl) downloadTrack(
 		IsCoverEmbeddedToTrackTags: !isPlaylist,
 	}
 
-	// Write metadata tags to track.
-	err = s.tagProcessor.WriteTags(ctx, writeTagsRequest)
-	if err != nil {
-		logger.Errorf(ctx, "Failed to write track tags: %v", err)
+	// Skip tag writing and file operations in dry-run mode.
+	if !s.cfg.DryRun {
+		err = s.tagProcessor.WriteTags(ctx, writeTagsRequest)
+		if err != nil {
+			logger.Errorf(ctx, "Failed to write track tags: %v", err)
+			s.recordError(&ErrorContext{
+				Category:       DownloadCategoryTrack,
+				ItemID:         trackIDString,
+				ItemTitle:      track.Title,
+				Phase:          "writing metadata tags",
+				ParentCategory: metadata.category,
+				ParentID:       albumIDString,
+				ParentTitle:    album.Title,
+			}, err)
 
-		return
+			// Clean up .part file on tagging failure.
+			_ = os.Remove(result.TempPath)
+
+			return
+		}
+
+		// Atomically rename .part file to final name.
+		// At this point, the file has complete audio data AND metadata tags.
+		if err = os.Rename(result.TempPath, trackPath); err != nil {
+			logger.Errorf(ctx, "Failed to finalize track file: %v", err)
+			s.recordError(&ErrorContext{
+				Category:       DownloadCategoryTrack,
+				ItemID:         trackIDString,
+				ItemTitle:      track.Title,
+				Phase:          "renaming temporary file",
+				ParentCategory: metadata.category,
+				ParentID:       albumIDString,
+				ParentTitle:    album.Title,
+			}, err)
+
+			// Clean up .part file on rename failure.
+			_ = os.Remove(result.TempPath)
+
+			return
+		}
 	}
 
 	// Handle album cover art finalization.
@@ -317,42 +552,103 @@ func (s *ServiceImpl) fillTrackTagsForTemplating(
 	return result
 }
 
-//nolint:cyclop,funlen,nolintlint // Function orchestrates complex download workflow with multiple sequential steps.
-func (s *ServiceImpl) downloadAndSaveTrack(ctx context.Context, trackURL, trackPath string) (bool, error) {
-	// Determine file creation flags.
-	fileOptions := overwriteFileOptions
+//nolint:cyclop,funlen,gocognit,nolintlint // Function orchestrates complex download workflow with multiple sequential steps.
+func (s *ServiceImpl) downloadAndSaveTrack(
+	ctx context.Context,
+	trackURL string,
+	trackPath string,
+) (*DownloadTrackResult, error) {
+	// Check if final file already exists.
 	if !s.cfg.ReplaceTracks {
-		fileOptions = createNewFileOptions
+		if _, err := os.Stat(trackPath); err == nil {
+			// In regular mode, return immediately.
+			if !s.cfg.DryRun {
+				logger.Infof(ctx, "Track '%s' already exists, skipping download", trackPath)
+
+				return &DownloadTrackResult{
+					IsExist:         true,
+					TempPath:        "",
+					BytesDownloaded: 0,
+				}, nil
+			}
+
+			// In dry-run mode, just log and return (no need to fetch size).
+			logger.Infof(ctx, "[DRY-RUN] Track '%s' already exists, would skip", trackPath)
+
+			return &DownloadTrackResult{
+				IsExist:         true,
+				TempPath:        "",
+				BytesDownloaded: 0,
+			}, nil
+		}
+	}
+
+	// Dry-run mode: simulate download without fetching actual data.
+	if s.cfg.DryRun {
+		logger.Infof(ctx, "[DRY-RUN] Would download track to: %s", trackPath)
+
+		// Fetch metadata to get file size estimate.
+		fetchResult, fetchErr := s.zvukClient.FetchTrack(ctx, trackURL)
+		if fetchErr != nil {
+			return nil, fmt.Errorf("failed to fetch track metadata: %w", fetchErr)
+		}
+
+		// Close immediately without reading.
+		_ = fetchResult.Body.Close()
+
+		return &DownloadTrackResult{
+			IsExist:         false,
+			TempPath:        "",
+			BytesDownloaded: fetchResult.TotalBytes,
+		}, nil
 	}
 
 	// Fetch the track.
-	body, totalBytes, err := s.zvukClient.FetchTrack(ctx, trackURL)
-	if err != nil {
-		return false, fmt.Errorf("failed to fetch track: %w", err)
+	fetchResult, fetchErr := s.zvukClient.FetchTrack(ctx, trackURL)
+	if fetchErr != nil {
+		return nil, fmt.Errorf("failed to fetch track: %w", fetchErr)
 	}
 
-	defer body.Close() //nolint:errcheck // Error on close is not critical here.
+	defer fetchResult.Body.Close() //nolint:errcheck // Error on close is not critical here.
 
-	// Attempt to open file.
-	f, err := os.OpenFile(filepath.Clean(trackPath), fileOptions, constants.DefaultFolderPermissions)
-	if err != nil {
-		if os.IsExist(err) && !s.cfg.ReplaceTracks {
-			logger.Infof(ctx, "Track '%s' already exists, skipping download", trackPath)
+	// Download to temporary .part file first for atomic operation.
+	// Use a local variable to avoid issues with named return values.
+	tempFilePath := trackPath + ".part"
 
-			return true, nil
+	// Always overwrite .part files (they indicate incomplete downloads).
+	f, openErr := os.OpenFile(filepath.Clean(tempFilePath), overwriteFileOptions, constants.DefaultFolderPermissions)
+	if openErr != nil {
+		return nil, fmt.Errorf("failed to create temporary file: %w", openErr)
+	}
+
+	// Track whether download succeeded.
+	// If not, we'll clean up the .part file on function exit.
+	var downloadSucceeded bool
+
+	defer func() {
+		// Ensure file is closed before cleanup.
+		closeErr := f.Close()
+
+		// Clean up .part file if download failed.
+		if !downloadSucceeded {
+			// Small delay to ensure file handle is released (Windows needs this).
+			time.Sleep(10 * time.Millisecond)
+
+			if removeErr := os.Remove(tempFilePath); removeErr != nil && !os.IsNotExist(removeErr) {
+				// Log warning but don't fail - this is best-effort cleanup.
+				logger.Warnf(ctx, "Failed to clean up temporary file '%s': %v (close error: %v)",
+					tempFilePath, removeErr, closeErr)
+			}
 		}
-
-		return false, fmt.Errorf("failed to create file: %w", err)
-	}
-
-	defer f.Close() //nolint:errcheck // Error on close is not critical here.
+	}()
 
 	// Initialize progress tracker.
+	// Progress bars are disabled when downloading concurrently to avoid terminal output conflicts.
 	var writer io.Writer
 
-	if logger.Level() <= zap.InfoLevel {
+	if logger.Level() <= zap.InfoLevel && s.cfg.MaxConcurrentDownloads == 1 {
 		bar := progressbar.DefaultBytes(
-			totalBytes,
+			fetchResult.TotalBytes,
 			"Downloading",
 		)
 
@@ -362,11 +658,20 @@ func (s *ServiceImpl) downloadAndSaveTrack(ctx context.Context, trackURL, trackP
 	}
 
 	// Download logic.
+	var (
+		bytesWritten int64
+		err          error
+	)
+
 	if s.cfg.ParsedDownloadSpeedLimit == 0 {
-		_, err = io.Copy(writer, body)
+		bytesWritten, err = io.Copy(writer, fetchResult.Body)
 	} else {
 		for {
-			_, err = io.CopyN(writer, body, s.cfg.ParsedDownloadSpeedLimit)
+			var n int64
+
+			n, err = io.CopyN(writer, fetchResult.Body, s.cfg.ParsedDownloadSpeedLimit)
+			bytesWritten += n
+
 			if errors.Is(err, io.EOF) {
 				err = nil
 
@@ -383,10 +688,29 @@ func (s *ServiceImpl) downloadAndSaveTrack(ctx context.Context, trackURL, trackP
 	}
 
 	if err != nil {
-		return false, fmt.Errorf("failed to write file: %w", err)
+		return nil, fmt.Errorf("failed to write file: %w", err)
 	}
 
-	return false, nil
+	// Verify that we downloaded the expected number of bytes.
+	if bytesWritten != fetchResult.TotalBytes {
+		return nil, fmt.Errorf(
+			"%w: wrote %d bytes, expected %d bytes",
+			ErrIncompleteDownload,
+			bytesWritten,
+			fetchResult.TotalBytes,
+		)
+	}
+
+	// Mark download as successful to prevent cleanup by defer.
+	// The .part file will be renamed to final name by the caller after tags are written.
+	downloadSucceeded = true
+
+	// Return the temp file path for the caller to rename after writing tags.
+	return &DownloadTrackResult{
+		IsExist:         false,
+		TempPath:        tempFilePath,
+		BytesDownloaded: bytesWritten,
+	}, nil
 }
 
 func (s *ServiceImpl) downloadAndSaveLyrics(
@@ -421,12 +745,31 @@ func (s *ServiceImpl) downloadAndSaveLyrics(
 		audioCollection.tracksPath,
 		utils.SetFileExtension(trackFilename, defaultLyricsExtension, true))
 
+	// Dry-run mode: simulate lyrics download.
+	if s.cfg.DryRun {
+		// Check if lyrics file exists.
+		if _, statErr := os.Stat(lyricsPath); statErr == nil && !s.cfg.ReplaceLyrics {
+			logger.Infof(ctx, "[DRY-RUN] Lyrics '%s' already exists, would skip", lyricsPath)
+			s.incrementLyricsSkipped()
+		} else {
+			logger.Infof(ctx, "[DRY-RUN] Would save lyrics to: %s", lyricsPath)
+			s.incrementLyricsDownloaded()
+		}
+
+		return lyrics
+	}
+
 	isLyricsExist, err := s.writeLyrics(ctx, lyrics.Lyrics, lyricsPath)
 	if err != nil {
 		logger.Errorf(ctx, "Failed to write lyrics: %v", err)
+
+		return nil
 	}
 
-	if !isLyricsExist && err == nil {
+	if isLyricsExist {
+		s.incrementLyricsSkipped()
+	} else {
+		s.incrementLyricsDownloaded()
 		logger.Infof(ctx, "Lyrics saved to file: %s", lyricsPath)
 	}
 

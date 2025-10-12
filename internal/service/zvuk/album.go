@@ -42,11 +42,20 @@ var (
 	ErrAlbumNotFound = errors.New("album not found")
 )
 
-func (s *ServiceImpl) downloadAlbum(ctx context.Context, albumID string) {
+func (s *ServiceImpl) downloadAlbum(ctx context.Context, item *DownloadItem) {
+	albumID := item.ItemID
+
 	// Fetch album data (tracks, metadata, labels).
 	fetchAlbumDataResponse, err := s.fetchAlbumData(ctx, albumID)
 	if err != nil {
 		logger.Errorf(ctx, "Failed to fetch album data for ID '%s': %v", albumID, err)
+		s.recordError(&ErrorContext{
+			Category:  DownloadCategoryAlbum,
+			ItemID:    albumID,
+			ItemTitle: "Album ID: " + albumID,
+			ItemURL:   item.URL,
+			Phase:     "fetching album data",
+		}, err)
 
 		return
 	}
@@ -175,18 +184,13 @@ func (s *ServiceImpl) registerAlbumCollection(
 func (s *ServiceImpl) generateSanitizedFolderPath(ctx context.Context, rawPath string) string {
 	// Split using both separators to handle mixed/foreign path formats.
 	components := strings.FieldsFunc(rawPath, func(r rune) bool {
-		return r == '/' || r == '\\' // Handle both Unix and Windows paths
+		// Handle both Unix and Windows paths.
+		return r == '/' || r == '\\'
 	})
 
-	sanitizedComponents := make([]string, 0, len(components))
-
-	for _, component := range components {
-		// Sanitize each component individually to prevent path traversal attacks.
-		clean := utils.SanitizeFilename(component)
-
-		// Keep empty components to maintain path structure (e.g., "a//b" becomes "a/b").
-		sanitizedComponents = append(sanitizedComponents, clean)
-	}
+	// Sanitize each component individually to prevent path traversal attacks.
+	// Keep empty components to maintain path structure (e.g., "a//b" becomes "a/b").
+	sanitizedComponents := utils.Map(components, utils.SanitizeFilename)
 
 	// Join with OS-specific separators and normalize path.
 	joinedPath := filepath.Join(sanitizedComponents...)
@@ -250,10 +254,17 @@ func (s *ServiceImpl) downloadAlbumCover(
 	albumCoverPath := filepath.Join(albumPath, albumCoverFilename)
 
 	// Download and save the cover art.
-	if err := s.downloadAndSaveFile(ctx, albumCoverURL, albumCoverPath, s.cfg.ReplaceCovers); err != nil {
+	isExist, err := s.downloadAndSaveFile(ctx, albumCoverURL, albumCoverPath, s.cfg.ReplaceCovers)
+	if err != nil {
 		logger.Errorf(ctx, "Failed to download album cover: %v", err)
 
 		return ""
+	}
+
+	if isExist {
+		s.incrementCoverSkipped()
+	} else {
+		s.incrementCoverDownloaded()
 	}
 
 	return albumCoverPath

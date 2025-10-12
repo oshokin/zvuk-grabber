@@ -10,6 +10,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/oshokin/zvuk-grabber/internal/constants"
 )
 
 // TestSafeUint64ToInt64 tests the SafeUint64ToInt64 function.
@@ -151,14 +153,14 @@ func TestSetFileExtension(t *testing.T) {
 		{
 			name:      "replace existing extension",
 			filename:  "testfile.txt",
-			extension: ".mp3",
+			extension: constants.ExtensionMP3,
 			replace:   true,
 			expected:  "testfile.mp3",
 		},
 		{
 			name:      "keep existing extension when not replacing",
 			filename:  "testfile.txt",
-			extension: ".mp3",
+			extension: constants.ExtensionMP3,
 			replace:   false,
 			expected:  "testfile.txt.mp3",
 		},

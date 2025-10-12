@@ -309,10 +309,15 @@ zvuk-grabber [flags] {urls}
 **Available flags:**
 
 - `-c, --config <path>` - Path to configuration file (default: `.zvuk-grabber.yaml`)
-- `-f, --format <1-3>` - Audio format:
+- `-q, --quality <1-3>` - Preferred audio quality:
   - `1` = MP3, 128 Kbps
   - `2` = MP3, 320 Kbps
   - `3` = FLAC, 16-bit/44.1kHz
+- `-m, --min-quality <1-3>` - Minimum acceptable quality (tracks below this will be skipped):
+  - `1` = MP3, 128 Kbps
+  - `2` = MP3, 320 Kbps
+  - `3` = FLAC
+  - `0` = No filtering (default)
 - `-o, --output <path>` - Output directory for downloads
 - `-l, --lyrics` - Download lyrics if available
 - `-s, --speed-limit <speed>` - Download speed limit (e.g., `500KB`, `1MB`, `1.5MB`)
@@ -359,9 +364,9 @@ Key options include:
     auth_token: "a3f8e7b2c5d946f1a0b9e8d7c6f5e4a2"
     ```
 
-### Audio Format
+### Audio Quality
 
-- **`download_format`**: Preferred audio format for downloaded files.\
+- **`quality`**: Preferred audio quality for downloaded files.\
     Available options:
   - `1` = MP3, 128 Kbps (standard quality)
   - `2` = MP3, 320 Kbps (high quality)
@@ -369,8 +374,66 @@ Key options include:
     Example:
 
     ```yaml
-    download_format: 3
+    quality: 3
     ```
+
+- **`min_quality`**: Minimum acceptable quality (tracks below this will be skipped).\
+    Available options:
+  - `0` = No filtering (accept any quality) - default
+  - `1` = Skip tracks only available in MP3 128 Kbps or lower
+  - `2` = Skip tracks only available in MP3 320 Kbps or lower (FLAC only)
+  - `3` = Skip tracks only available in FLAC or lower (impossible - FLAC is max)
+
+    **Example 1** - Download FLAC preferred, but accept MP3 320 minimum:
+
+    ```yaml
+    quality: 3
+    min_quality: 2
+    ```
+
+    **Example 2** - FLAC only, skip everything else:
+
+    ```yaml
+    quality: 3
+    min_quality: 3
+    ```
+
+    **Note**: `min_quality` must be less than or equal to `quality`.
+
+- **`min_duration`**: Minimum acceptable track duration (tracks shorter than this will be skipped).\
+    Use duration strings like `30s`, `1m`, `1m30s`.\
+    Empty string = no filtering (default).
+
+    **Example uses**:
+  - Skip intros/interludes/skits (common in hip-hop albums)
+  - Skip sound effects and ambient noise
+  - Filter out incomplete/sample tracks
+
+    ```yaml
+    min_duration: "30s"  # Skip tracks shorter than 30 seconds
+    ```
+
+- **`max_duration`**: Maximum acceptable track duration (tracks longer than this will be skipped).\
+    Use duration strings like `10m`, `15m`, `1h`.\
+    Empty string = no filtering (default).
+
+    **Example uses**:
+  - Skip DJ mixes and extended live versions
+  - Skip very long classical pieces or ambient tracks
+  - Filter out podcasts/interviews mistakenly tagged as music
+
+    ```yaml
+    max_duration: "10m"  # Skip tracks longer than 10 minutes
+    ```
+
+    **Combined Example** - Only download "normal" songs (30s to 10min):
+
+    ```yaml
+    min_duration: "30s"
+    max_duration: "10m"
+    ```
+
+    **Note**: If both are set, `max_duration` must be greater than `min_duration`.
 
 ### Output Settings
 
@@ -550,6 +613,33 @@ Key options include:
     max_retry_pause: "7s"
     ```
 
+### Concurrent Downloads
+
+- **`max_concurrent_downloads`**: Maximum number of tracks to download simultaneously.\
+    **Default: `1` (sequential downloads - safest and recommended)**\
+    \
+    ⚠️ **WARNING: Using values greater than 1 may:**
+  - Trigger API rate limiting
+  - Lead to temporary or permanent account restrictions from Zvuk
+  - Disable progress bars (to avoid terminal output conflicts)
+    \
+    **Use at your own risk.** By increasing this value, you acknowledge that:
+  - You are responsible for any consequences, including account blocking
+  - This tool's authors are not liable for any service restrictions
+  - Sequential downloads (value=1) are the recommended and tested approach
+    \
+    Example:
+
+    ```yaml
+    max_concurrent_downloads: 1  # Recommended default
+    ```
+
+    If you want faster downloads despite the risks:
+
+    ```yaml
+    max_concurrent_downloads: 3  # Use with caution!
+    ```
+
 ### Logging
 
 - **`log_level`**: Logging level for the application.\
@@ -567,7 +657,15 @@ Key options include:
 
 Having trouble? Follow these steps:
 
-1. **Enable Debug Logging**:\
+1. **Check Your Configuration File**:\
+   Before blaming the code (or me), check if your `.zvuk-grabber.yaml` is up to date.\
+   New releases might add new settings with shiny features. If you're using an ancient config file from the Stone Age, weird things might happen.\
+   \
+   **Quick fix**: Compare your config with the one from the [latest release](https://github.com/oshokin/zvuk-grabber/releases) and add any missing fields.\
+   \
+   **Pro tip**: If something breaks after an update and you haven't touched your config file in months... yeah, that's probably why.
+
+2. **Enable Debug Logging**:\
    Set the `log_level` to `debug` in the `.zvuk-grabber.yaml` file:
 
    ```yaml
@@ -576,14 +674,14 @@ Having trouble? Follow these steps:
 
    Attach the logs when reporting issues.
 
-2. **Check Your Token**:\
+3. **Check Your Token**:\
     Ensure your `auth_token` is valid and properly set in the `.zvuk-grabber.yaml` file.\
     If it's not working, run `zvuk-grabber auth login` to get a fresh token.
 
-3. **Check Your Internet Connection**:\
+4. **Check Your Internet Connection**:\
     A stable connection is essential. If downloads are failing, wait a moment and try again.
 
-4. **Check Zvuk's API Status**:\
+5. **Check Zvuk's API Status**:\
     If Zvuk's API is down, check their website or API status page for updates.
 
 * * *

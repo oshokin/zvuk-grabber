@@ -290,7 +290,7 @@ func TestNewClient(t *testing.T) {
 			name: "valid config",
 			config: &config.Config{
 				AuthToken:           "test_token",
-				DownloadFormat:      2,
+				Quality:             2,
 				ZvukBaseURL:         "https://zvuk.com",
 				RetryAttemptsCount:  3,
 				ParsedMaxRetryPause: 1000000000, // 1 second.
@@ -302,7 +302,7 @@ func TestNewClient(t *testing.T) {
 			name: "invalid base URL",
 			config: &config.Config{
 				AuthToken:           "test_token",
-				DownloadFormat:      2,
+				Quality:             2,
 				ZvukBaseURL:         "://invalid-url",
 				RetryAttemptsCount:  3,
 				ParsedMaxRetryPause: 1000000000,

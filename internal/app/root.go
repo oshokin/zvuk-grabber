@@ -23,5 +23,15 @@ func ExecuteRootCommand(ctx context.Context, cfg *config.Config, urls []string) 
 	tagProcessor := zvuk_service.NewTagProcessor()
 
 	s := zvuk_service.NewService(cfg, zvukClient, urlProcessor, templateManager, tagProcessor)
+
+	// Ensure statistics are ALWAYS printed, even on panic or os.Exit bypass.
+	defer func() {
+		if r := recover(); r != nil {
+			logger.Errorf(ctx, "Panic recovered: %v", r)
+		}
+
+		s.PrintDownloadSummary(ctx)
+	}()
+
 	s.DownloadURLs(ctx, urls)
 }

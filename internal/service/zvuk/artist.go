@@ -24,6 +24,13 @@ func (s *ServiceImpl) fetchArtistAlbums(ctx context.Context, artistItems []*Down
 		albumIDs, err := s.getArtistReleaseIDs(ctx, v.ItemID)
 		if err != nil {
 			logger.Error(ctx, "Failed to fetch artist releases: %v", err)
+			s.recordError(&ErrorContext{
+				Category:  DownloadCategoryArtist,
+				ItemID:    v.ItemID,
+				ItemTitle: "Artist ID: " + v.ItemID,
+				ItemURL:   v.URL,
+				Phase:     "fetching artist releases",
+			}, err)
 
 			continue
 		}

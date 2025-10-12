@@ -53,7 +53,7 @@ var categoriesByPatterns = []struct {
 
 // NewURLProcessor creates and returns a new instance of URLProcessorImpl.
 func NewURLProcessor() URLProcessor {
-	return &URLProcessorImpl{}
+	return new(URLProcessorImpl)
 }
 
 // ExtractDownloadItems processes a list of URLs and categorizes them into tracks, standalone items, and artists.

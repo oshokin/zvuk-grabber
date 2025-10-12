@@ -18,8 +18,8 @@ import (
 
 // ConfigDump represents the config dump structure.
 type ConfigDump struct {
-	// DownloadFormat is the audio quality/format.
-	DownloadFormat uint8 `json:"download_format"`
+	// Quality is the preferred audio quality.
+	Quality uint8 `json:"quality"`
 	// OutputPath is the directory path for downloads.
 	OutputPath string `json:"output_path"`
 	// DownloadLyrics indicates whether lyrics should be downloaded.
@@ -99,13 +99,13 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-// TestE2E_FlagOverrides_Format tests that --format flag overrides config.
+// TestE2E_FlagOverrides_Format tests that --quality flag overrides config.
 func TestE2E_FlagOverrides_Format(t *testing.T) {
 	t.Parallel()
 
 	baseConfig := `
 auth_token: "test_token_123"
-download_format: 1
+quality: 1
 output_path: "/tmp/test-output"
 download_lyrics: false
 download_speed_limit: "500KB"
@@ -122,6 +122,7 @@ retry_attempts_count: 3
 max_download_pause: "5s"
 min_retry_pause: "1s"
 max_retry_pause: "3s"
+max_concurrent_downloads: 1
 `
 
 	tests := []struct {
@@ -130,17 +131,17 @@ max_retry_pause: "3s"
 		expectedFormat uint8
 	}{
 		{
-			name:           "format flag overrides to 2",
-			flags:          []string{"--format", "2"},
+			name:           "quality flag overrides to 2",
+			flags:          []string{"--quality", "2"},
 			expectedFormat: 2,
 		},
 		{
-			name:           "format flag overrides to 3",
-			flags:          []string{"--format", "3"},
+			name:           "quality flag overrides to 3",
+			flags:          []string{"--quality", "3"},
 			expectedFormat: 3,
 		},
 		{
-			name:           "no format flag uses config",
+			name:           "no quality flag uses config",
 			flags:          []string{},
 			expectedFormat: 1,
 		},
@@ -160,9 +161,9 @@ max_retry_pause: "3s"
 			config := runWithConfigDump(t, configPath, tt.flags)
 			require.NotNil(t, config, "Failed to get config dump")
 
-			// Verify format was set correctly.
-			assert.Equal(t, tt.expectedFormat, config.DownloadFormat,
-				"Format should be %d", tt.expectedFormat)
+			// Verify quality was set correctly.
+			assert.Equal(t, tt.expectedFormat, config.Quality,
+				"Quality should be %d", tt.expectedFormat)
 		})
 	}
 }
@@ -173,7 +174,7 @@ func TestE2E_FlagOverrides_AllFlags(t *testing.T) {
 
 	baseConfig := `
 auth_token: "test_token_123"
-download_format: 1
+quality: 1
 output_path: "/config/output"
 download_lyrics: false
 download_speed_limit: "500KB"
@@ -190,6 +191,7 @@ retry_attempts_count: 3
 max_download_pause: "5s"
 min_retry_pause: "1s"
 max_retry_pause: "3s"
+max_concurrent_downloads: 1
 `
 
 	tests := []struct {
@@ -209,8 +211,8 @@ max_retry_pause: "3s"
 			expectedSpeedLim: "500KB",
 		},
 		{
-			name:             "format only",
-			flags:            []string{"--format", "2"},
+			name:             "quality only",
+			flags:            []string{"--quality", "2"},
 			expectedFormat:   2,
 			expectedOutput:   "/config/output",
 			expectedLyrics:   false,
@@ -242,15 +244,15 @@ max_retry_pause: "3s"
 		},
 		{
 			name:             "all flags",
-			flags:            []string{"--format", "3", "--output", "/all/flags", "--lyrics", "--speed-limit", "2MB"},
+			flags:            []string{"--quality", "3", "--output", "/all/flags", "--lyrics", "--speed-limit", "2MB"},
 			expectedFormat:   3,
 			expectedOutput:   "/all/flags",
 			expectedLyrics:   true,
 			expectedSpeedLim: "2MB",
 		},
 		{
-			name:             "format and output",
-			flags:            []string{"--format", "2", "--output", "/combo/output"},
+			name:             "quality and output",
+			flags:            []string{"--quality", "2", "--output", "/combo/output"},
 			expectedFormat:   2,
 			expectedOutput:   "/combo/output",
 			expectedLyrics:   false,
@@ -273,8 +275,8 @@ max_retry_pause: "3s"
 			require.NotNil(t, config, "Failed to get config dump")
 
 			// Verify all expected values.
-			assert.Equal(t, tt.expectedFormat, config.DownloadFormat,
-				"Format should be %d", tt.expectedFormat)
+			assert.Equal(t, tt.expectedFormat, config.Quality,
+				"Quality should be %d", tt.expectedFormat)
 			assert.Equal(t, tt.expectedOutput, config.OutputPath,
 				"Output path should be %s", tt.expectedOutput)
 			assert.Equal(t, tt.expectedLyrics, config.DownloadLyrics,
@@ -291,7 +293,7 @@ func TestE2E_FlagOverrides_InvalidValues(t *testing.T) {
 
 	baseConfig := `
 auth_token: "test_token_123"
-download_format: 1
+quality: 1
 output_path: "/tmp/test-output"
 download_lyrics: false
 download_speed_limit: "500KB"
@@ -308,6 +310,7 @@ retry_attempts_count: 3
 max_download_pause: "5s"
 min_retry_pause: "1s"
 max_retry_pause: "3s"
+max_concurrent_downloads: 1
 `
 
 	tests := []struct {
@@ -316,14 +319,14 @@ max_retry_pause: "3s"
 		expectedErrorMsg string
 	}{
 		{
-			name:             "invalid format - too low",
-			flags:            []string{"--format", "0"},
-			expectedErrorMsg: "invalid format",
+			name:             "invalid quality - too low",
+			flags:            []string{"--quality", "0"},
+			expectedErrorMsg: "invalid quality",
 		},
 		{
-			name:             "invalid format - too high",
-			flags:            []string{"--format", "4"},
-			expectedErrorMsg: "invalid format",
+			name:             "invalid quality - too high",
+			flags:            []string{"--quality", "4"},
+			expectedErrorMsg: "invalid quality",
 		},
 		{
 			name:             "invalid speed limit",

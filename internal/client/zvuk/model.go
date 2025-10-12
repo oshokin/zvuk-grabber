@@ -1,5 +1,7 @@
 package zvuk
 
+import "io"
+
 // GetAlbumsMetadataResponse represents the response structure for fetching metadata about albums.
 type GetAlbumsMetadataResponse struct {
 	// Tracks is a map of track ID to track metadata.
@@ -76,6 +78,22 @@ type Metadata struct {
 type StreamMetadata struct {
 	// Stream is the URL for streaming the audio content.
 	Stream string `json:"stream"`
+}
+
+// FetchTrackResult contains the result of FetchTrack operation.
+type FetchTrackResult struct {
+	// Body is the track audio data stream.
+	Body io.ReadCloser
+	// TotalBytes is the expected total size of the track in bytes.
+	TotalBytes int64
+}
+
+// FetchJSONResult contains the result of fetching JSON data from the API.
+type FetchJSONResult[T any] struct {
+	// Data is the parsed JSON response.
+	Data *T
+	// StatusCode is the HTTP status code.
+	StatusCode int
 }
 
 // Playlist represents metadata for a playlist.

@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"strings"
+	"sync"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -12,8 +13,12 @@ import (
 var (
 	//nolint:gochecknoglobals // Logger is used all over the project, so it's okay.
 	global *zap.SugaredLogger
-	//nolint:gochecknoglobals //  If the logging level is not set, the application will have no logs.
+	//nolint:gochecknoglobals // If the logging level is not set, the application will have no logs.
 	defaultLevel = zap.NewAtomicLevelAt(zap.InfoLevel)
+	//nolint:gochecknoglobals // Test helper to override fatal behavior.
+	fatalHandler func(int)
+	//nolint:gochecknoglobals // Should be able to override fatal handler in tests.
+	fatalHandlerMutex sync.Mutex
 )
 
 func init() { //nolint:gochecknoinits // If the logging level is not set, the application will have no logs.
@@ -94,6 +99,14 @@ func SetLogger(l *zap.SugaredLogger) {
 	global = l
 }
 
+// SetFatalHandler overrides fatal behavior for tests.
+func SetFatalHandler(handler func(int)) {
+	fatalHandlerMutex.Lock()
+	defer fatalHandlerMutex.Unlock()
+
+	fatalHandler = handler
+}
+
 // SetLevel sets the log level for the global logger.
 func SetLevel(level zapcore.Level) {
 	//nolint:errcheck // No need to check the error here.
@@ -169,12 +182,24 @@ func ErrorKV(ctx context.Context, message string, kvs ...any) {
 // Fatal writes a fatal error level message
 // using the logger from the context and then calls os.Exit(1).
 func Fatal(ctx context.Context, args ...any) {
+	if handleFatal(ctx, func(l *zap.SugaredLogger) {
+		l.Error(args...)
+	}) {
+		return
+	}
+
 	FromContext(ctx).Fatal(args...)
 }
 
 // Fatalf writes a formatted fatal error level message
 // using the logger from the context and then calls os.Exit(1).
 func Fatalf(ctx context.Context, format string, args ...any) {
+	if handleFatal(ctx, func(l *zap.SugaredLogger) {
+		l.Errorf(format, args...)
+	}) {
+		return
+	}
+
 	FromContext(ctx).Fatalf(format, args...)
 }
 
@@ -182,7 +207,34 @@ func Fatalf(ctx context.Context, format string, args ...any) {
 // at the fatal error level using the logger from the context.
 // and then calls os.Exit(1).
 func FatalKV(ctx context.Context, message string, kvs ...any) {
+	if handleFatal(ctx, func(l *zap.SugaredLogger) {
+		l.Errorw(message, kvs...)
+	}) {
+		return
+	}
+
 	FromContext(ctx).Fatalw(message, kvs...)
+}
+
+// handleFatal manages fatal error handling by checking if a custom fatal handler
+// is registered and executing it instead of the default fatal behavior.
+// This is primarily used for testing to prevent os.Exit calls during tests.
+// Returns true if a custom handler was executed, false if normal fatal behavior should proceed.
+func handleFatal(ctx context.Context, logFunc func(*zap.SugaredLogger)) bool {
+	fatalHandlerMutex.Lock()
+
+	atomicHandler := fatalHandler
+
+	fatalHandlerMutex.Unlock()
+
+	if atomicHandler == nil {
+		return false
+	}
+
+	logFunc(FromContext(ctx))
+	atomicHandler(1)
+
+	return true
 }
 
 // Panic writes a panic level message

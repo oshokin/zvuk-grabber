@@ -42,7 +42,7 @@ It supports downloading:
 - Playlists
 - Complete catalogs of an artist
 
-The application provides flexible naming templates, format selection, and download speed limits.`,
+The application provides flexible naming templates, quality selection, and download speed limits.`,
 		Args:             cobra.MinimumNArgs(1),
 		PersistentPreRun: initConfig,
 		Run: func(cmd *cobra.Command, urls []string) {
@@ -68,14 +68,24 @@ func Execute() {
 
 	defer stop()
 
+	// We need to wait for the goroutine to finish so defers can run!
+	done := make(chan struct{})
+
 	go func() {
 		defer stop()
+
+		// Signal that ALL defers in this goroutine have finished.
+		defer close(done)
 
 		err := rootCmd.ExecuteContext(ctx)
 		cobra.CheckErr(err)
 	}()
 
+	// Wait for CTRL+C or signal.
 	<-ctx.Done()
+
+	// Wait for goroutine to finish (including ALL defers!).
+	<-done
 }
 
 //nolint:gochecknoinits // Cobra requires the init function to set up flags before the command is executed.
@@ -94,16 +104,23 @@ func init() {
 	rootCmdFlags := rootCmd.Flags()
 
 	rootCmdFlags.IntP(
-		"format",
-		"f",
+		"quality",
+		"q",
 		1,
-		"audio format: 1 = MP3, 128 Kbps, 2 = MP3, 320 Kbps, 3 = FLAC, 16-bit/44.1kHz.")
+		"audio quality: 1 = MP3, 128 Kbps, 2 = MP3, 320 Kbps, 3 = FLAC, 16-bit/44.1kHz.")
+
+	rootCmdFlags.IntP(
+		"min-quality",
+		"m",
+		0,
+		"minimum acceptable quality: 1 = MP3, 128 Kbps, 2 = MP3, 320 Kbps, "+
+			"3 = FLAC. Tracks below this will be skipped (0 = no filtering).")
 
 	rootCmdFlags.StringP(
 		"output",
 		"o",
 		"",
-		"directory to save downloaded files (the path will be created if it doesn’t exist).")
+		"directory to save downloaded files (the path will be created if it doesn't exist).")
 
 	rootCmdFlags.BoolP(
 		"lyrics",
@@ -116,6 +133,12 @@ func init() {
 		"s",
 		"",
 		"set download speed limit, for example: 500 kbps, 1 mbps, 1.5 mbps.")
+
+	rootCmdFlags.BoolP(
+		"dry-run",
+		"n",
+		false,
+		"preview what would be downloaded without actually downloading files.")
 }
 
 func initConfig(cmd *cobra.Command, _ []string) {
@@ -134,18 +157,30 @@ func initConfig(cmd *cobra.Command, _ []string) {
 	logger.SetLevel(appConfig.ParsedLogLevel)
 }
 
+//nolint:gocognit // This function handles all flag overrides, high complexity is expected.
 func bindFlagsToConfig(flags *pflag.FlagSet, cfg *config.Config) error {
 	var err error
 
-	if flag := flags.Lookup("format"); flag != nil && flag.Changed {
-		var formatValue int
+	if flag := flags.Lookup("quality"); flag != nil && flag.Changed {
+		var qualityValue int
 
-		formatValue, err = flags.GetInt("format")
+		qualityValue, err = flags.GetInt("quality")
 		if err != nil {
-			return fmt.Errorf("failed to get format value: %w", err)
+			return fmt.Errorf("failed to get quality value: %w", err)
 		}
 
-		cfg.DownloadFormat = utils.SafeIntToUint8(formatValue)
+		cfg.Quality = utils.SafeIntToUint8(qualityValue)
+	}
+
+	if flag := flags.Lookup("min-quality"); flag != nil && flag.Changed {
+		var minQualityValue int
+
+		minQualityValue, err = flags.GetInt("min-quality")
+		if err != nil {
+			return fmt.Errorf("failed to get min-quality value: %w", err)
+		}
+
+		cfg.MinQuality = utils.SafeIntToUint8(minQualityValue)
 	}
 
 	if flag := flags.Lookup("output"); flag != nil && flag.Changed {
@@ -169,20 +204,27 @@ func bindFlagsToConfig(flags *pflag.FlagSet, cfg *config.Config) error {
 		}
 	}
 
+	if flag := flags.Lookup("dry-run"); flag != nil && flag.Changed {
+		cfg.DryRun, err = flags.GetBool("dry-run")
+		if err != nil {
+			return fmt.Errorf("failed to get dry-run value: %w", err)
+		}
+	}
+
 	return config.ValidateConfig(cfg)
 }
 
 // dumpConfig dumps the configuration as JSON for E2E testing.
 func dumpConfig(cfg *config.Config) {
 	type ConfigDump struct {
-		DownloadFormat     uint8  `json:"download_format"`
+		Quality            uint8  `json:"quality"`
 		OutputPath         string `json:"output_path"`
 		DownloadLyrics     bool   `json:"download_lyrics"`
 		DownloadSpeedLimit string `json:"download_speed_limit"`
 	}
 
 	dump := ConfigDump{
-		DownloadFormat:     cfg.DownloadFormat,
+		Quality:            cfg.Quality,
 		OutputPath:         cfg.OutputPath,
 		DownloadLyrics:     cfg.DownloadLyrics,
 		DownloadSpeedLimit: cfg.DownloadSpeedLimit,

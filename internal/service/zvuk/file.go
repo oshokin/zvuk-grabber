@@ -18,7 +18,27 @@ const (
 	createNewFileOptions = os.O_CREATE | os.O_EXCL | os.O_WRONLY
 )
 
-func (s *ServiceImpl) downloadAndSaveFile(ctx context.Context, url, destinationPath string, overwrite bool) error {
+func (s *ServiceImpl) downloadAndSaveFile(
+	ctx context.Context,
+	url, destinationPath string,
+	overwrite bool,
+) (bool, error) {
+	// Dry-run mode: simulate download without saving files.
+	if s.cfg.DryRun {
+		// Check if file would be skipped.
+		if !overwrite {
+			if _, err := os.Stat(destinationPath); err == nil {
+				logger.Infof(ctx, "[DRY-RUN] File '%s' already exists, would skip", destinationPath)
+
+				return true, nil
+			}
+		}
+
+		logger.Infof(ctx, "[DRY-RUN] Would download file to: %s", destinationPath)
+
+		return false, nil
+	}
+
 	// Choose file options based on whether we're allowed to overwrite the file.
 	fileOptions := overwriteFileOptions
 	if !overwrite {
@@ -32,10 +52,10 @@ func (s *ServiceImpl) downloadAndSaveFile(ctx context.Context, url, destinationP
 		if os.IsExist(err) && !overwrite {
 			logger.Infof(ctx, "File '%s' already exists, skipping download", destinationPath)
 
-			return nil
+			return true, nil
 		}
 
-		return err
+		return false, err
 	}
 
 	defer file.Close()
@@ -43,7 +63,7 @@ func (s *ServiceImpl) downloadAndSaveFile(ctx context.Context, url, destinationP
 	// Download the file content from the URL.
 	reader, err := s.zvukClient.DownloadFromURL(ctx, url)
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	defer reader.Close()
@@ -51,7 +71,7 @@ func (s *ServiceImpl) downloadAndSaveFile(ctx context.Context, url, destinationP
 	// Copy the downloaded content to the file.
 	_, err = io.Copy(file, reader)
 
-	return err
+	return false, err
 }
 
 func (s *ServiceImpl) truncateFolderName(ctx context.Context, pattern, name string) string {

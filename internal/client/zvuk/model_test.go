@@ -265,34 +265,34 @@ func TestEmptyStructures(t *testing.T) {
 	t.Parallel()
 
 	// Test empty GetAlbumsMetadataResponse.
-	response := &GetAlbumsMetadataResponse{}
+	response := new(GetAlbumsMetadataResponse)
 	assert.NotNil(t, response)
 	assert.Nil(t, response.Tracks)
 	assert.Nil(t, response.Releases)
 
 	// Test empty GetLyricsResponse.
-	lyricsResponse := &GetLyricsResponse{}
+	lyricsResponse := new(GetLyricsResponse)
 	assert.NotNil(t, lyricsResponse)
 	assert.Nil(t, lyricsResponse.Result)
 
 	// Test empty GetMetadataResponse.
-	metadataResponse := &GetMetadataResponse{}
+	metadataResponse := new(GetMetadataResponse)
 	assert.NotNil(t, metadataResponse)
 	assert.Nil(t, metadataResponse.Result)
 
 	// Test empty GetPlaylistsMetadataResponse.
-	playlistsResponse := &GetPlaylistsMetadataResponse{}
+	playlistsResponse := new(GetPlaylistsMetadataResponse)
 	assert.NotNil(t, playlistsResponse)
 	assert.Nil(t, playlistsResponse.Tracks)
 	assert.Nil(t, playlistsResponse.Playlists)
 
 	// Test empty GetStreamMetadataResponse.
-	streamResponse := &GetStreamMetadataResponse{}
+	streamResponse := new(GetStreamMetadataResponse)
 	assert.NotNil(t, streamResponse)
 	assert.Nil(t, streamResponse.Result)
 
 	// Test empty GetUserProfileResponse.
-	profileResponse := &GetUserProfileResponse{}
+	profileResponse := new(GetUserProfileResponse)
 	assert.NotNil(t, profileResponse)
 	assert.Nil(t, profileResponse.Result)
 }
