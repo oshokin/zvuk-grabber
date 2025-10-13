@@ -27,7 +27,7 @@ func TestDownloadTracks_MinQualityFilter(t *testing.T) {
 		{
 			name:                "No filtering (min_quality=0) - download MP3 128",
 			minQuality:          0,
-			trackHighestQuality: "mid",
+			trackHighestQuality: TrackQualityMP3MidString,
 			trackHasFLAC:        false,
 			expectedSkipped:     0,
 			expectedDownloaded:  1,
@@ -35,7 +35,7 @@ func TestDownloadTracks_MinQualityFilter(t *testing.T) {
 		{
 			name:                  "Min quality MP3 320 - skip MP3 128",
 			minQuality:            2,
-			trackHighestQuality:   "mid",
+			trackHighestQuality:   TrackQualityMP3MidString,
 			trackHasFLAC:          false,
 			expectedSkipped:       1,
 			expectedDownloaded:    0,
@@ -44,7 +44,7 @@ func TestDownloadTracks_MinQualityFilter(t *testing.T) {
 		{
 			name:                "Min quality MP3 320 - accept MP3 320",
 			minQuality:          2,
-			trackHighestQuality: "high",
+			trackHighestQuality: TrackQualityMP3HighString,
 			trackHasFLAC:        false,
 			expectedSkipped:     0,
 			expectedDownloaded:  1,
@@ -52,7 +52,7 @@ func TestDownloadTracks_MinQualityFilter(t *testing.T) {
 		{
 			name:                "Min quality MP3 320 - accept FLAC",
 			minQuality:          2,
-			trackHighestQuality: "flac",
+			trackHighestQuality: TrackQualityFLACString,
 			trackHasFLAC:        true,
 			expectedSkipped:     0,
 			expectedDownloaded:  1,
@@ -60,7 +60,7 @@ func TestDownloadTracks_MinQualityFilter(t *testing.T) {
 		{
 			name:                  "Min quality FLAC - skip MP3 320",
 			minQuality:            3,
-			trackHighestQuality:   "high",
+			trackHighestQuality:   TrackQualityMP3HighString,
 			trackHasFLAC:          false,
 			expectedSkipped:       1,
 			expectedDownloaded:    0,
@@ -69,7 +69,7 @@ func TestDownloadTracks_MinQualityFilter(t *testing.T) {
 		{
 			name:                "Min quality FLAC - accept FLAC",
 			minQuality:          3,
-			trackHighestQuality: "flac",
+			trackHighestQuality: TrackQualityFLACString,
 			trackHasFLAC:        true,
 			expectedSkipped:     0,
 			expectedDownloaded:  1,
@@ -99,9 +99,9 @@ func TestDownloadTracks_MinQualityFilter(t *testing.T) {
 				streamURL := "/stream?id=" + trackIDString
 
 				switch tc.trackHighestQuality {
-				case "high":
+				case TrackQualityMP3HighString:
 					streamURL = "/streamhq?id=" + trackIDString
-				case "flac":
+				case TrackQualityFLACString:
 					streamURL = "/streamfl?id=" + trackIDString
 				}
 
@@ -220,7 +220,7 @@ func TestDownloadTracks_MinDurationFilter(t *testing.T) {
 			if tc.expectedDownloaded > 0 {
 				trackIDString := "2000"
 				streamURL := "/streamfl?id=" + trackIDString
-				setupMockStreamMetadata(setup.mockClient, trackIDString, "flac", streamURL)
+				setupMockStreamMetadata(setup.mockClient, trackIDString, TrackQualityFLACString, streamURL)
 				setupMockFetchTrack(setup.mockClient, streamURL, []byte("test audio data"))
 			}
 
@@ -341,7 +341,7 @@ func TestDownloadTracks_MaxDurationFilter(t *testing.T) {
 			if tc.expectedDownloaded > 0 {
 				trackIDString := "3000"
 				streamURL := "/streamfl?id=" + trackIDString
-				setupMockStreamMetadata(setup.mockClient, trackIDString, "flac", streamURL)
+				setupMockStreamMetadata(setup.mockClient, trackIDString, TrackQualityFLACString, streamURL)
 				setupMockFetchTrack(setup.mockClient, streamURL, []byte("test audio data"))
 			}
 

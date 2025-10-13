@@ -33,9 +33,6 @@ type ExtractDownloadItemsResponse struct {
 // URLProcessorImpl implements the URLProcessor interface.
 type URLProcessorImpl struct{}
 
-// defaultTextExtension is the default file extension for text files.
-const defaultTextExtension = ".txt"
-
 // categoriesByPatterns maps URL patterns to download categories.
 //
 //nolint:gochecknoglobals,lll // This is a justified global variable: immutable data, performance optimization, and reusability.
@@ -49,6 +46,8 @@ var categoriesByPatterns = []struct {
 	{regexp.MustCompile(`/release/(?<ID>\d+)$`), DownloadCategoryAlbum},
 	{regexp.MustCompile(`/playlist/(?<ID>\d+)$`), DownloadCategoryPlaylist},
 	{regexp.MustCompile(`/artist/(?<ID>\d+)$`), DownloadCategoryArtist},
+	{regexp.MustCompile(`/abook/(?<ID>\d+)$`), DownloadCategoryAudiobook},
+	{regexp.MustCompile(`/podcast/(?<ID>\d+)$`), DownloadCategoryPodcast},
 }
 
 // NewURLProcessor creates and returns a new instance of URLProcessorImpl.
@@ -89,7 +88,7 @@ func (up *URLProcessorImpl) ExtractDownloadItems(
 		switch item.Category {
 		case DownloadCategoryTrack:
 			tracks = append(tracks, item)
-		case DownloadCategoryAlbum, DownloadCategoryPlaylist:
+		case DownloadCategoryAlbum, DownloadCategoryPlaylist, DownloadCategoryAudiobook, DownloadCategoryPodcast:
 			standaloneItems = append(standaloneItems, item)
 		case DownloadCategoryArtist:
 			artists = append(artists, item)
@@ -156,7 +155,7 @@ func (up *URLProcessorImpl) processAndFlattenURLs(urls []string) ([]string, erro
 	// Iterate through each URL.
 	for _, url := range urls {
 		// If the URL is not a text file, add it directly to the processed list.
-		if !strings.HasSuffix(url, defaultTextExtension) {
+		if !strings.HasSuffix(url, extensionTXT) {
 			if _, ok := processedSet[url]; ok {
 				continue
 			}

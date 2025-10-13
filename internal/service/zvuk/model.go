@@ -2,10 +2,29 @@ package zvuk
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"time"
+)
 
-	"github.com/oshokin/zvuk-grabber/internal/constants"
+const (
+	// defaultFolderPermissions sets the default permissions for folders: (rwxr-xr-x).
+	defaultFolderPermissions os.FileMode = 0o755
+
+	// File extensions.
+	extensionMP3  = ".mp3"
+	extensionFLAC = ".flac"
+	extensionBin  = ".bin"
+	extensionJPG  = ".jpg"
+	extensionPNG  = ".png"
+	extensionTXT  = ".txt"
+	extensionLRC  = ".lrc"
+
+	// Default filenames and values.
+	defaultCoverBasename       = "cover"
+	defaultDescriptionBasename = "description"
+	defaultUnknownYear         = "0000"
+	trackNumberPaddingWidth    = 2
 )
 
 // DownloadCategory represents the type of content being downloaded.
@@ -22,6 +41,10 @@ const (
 	DownloadCategoryPlaylist
 	// DownloadCategoryArtist - complete artist's discography.
 	DownloadCategoryArtist
+	// DownloadCategoryAudiobook - audiobook.
+	DownloadCategoryAudiobook
+	// DownloadCategoryPodcast - podcast.
+	DownloadCategoryPodcast
 )
 
 // String returns a human-readable representation of the DownloadCategory.
@@ -37,6 +60,10 @@ func (dc DownloadCategory) String() string {
 		return "playlist"
 	case DownloadCategoryArtist:
 		return "artist"
+	case DownloadCategoryAudiobook:
+		return "audiobook"
+	case DownloadCategoryPodcast:
+		return "podcast"
 	default:
 		return fmt.Sprintf("unknown: %d", dc)
 	}
@@ -213,11 +240,11 @@ func (tq TrackQuality) Extension() string {
 	//nolint:exhaustive // All meaningful cases are explicitly handled; default covers unknown values.
 	switch tq {
 	case TrackQualityMP3High, TrackQualityMP3Mid:
-		return constants.ExtensionMP3
+		return extensionMP3
 	case TrackQualityFLAC:
-		return constants.ExtensionFLAC
+		return extensionFLAC
 	default:
-		return constants.ExtensionBin
+		return extensionBin
 	}
 }
 
@@ -262,6 +289,10 @@ type audioCollection struct {
 	tracksPath string
 	// coverPath is the file path for the collection's cover art.
 	coverPath string
+	// coverTempPath is the temporary UUID-based path for cover (used during concurrent downloads).
+	coverTempPath string
+	// descriptionTempPath is the temporary UUID-based path for description (audiobooks only).
+	descriptionTempPath string
 	// trackIDs is the list of track IDs in the collection.
 	trackIDs []int64
 	// tracksCount is the total number of tracks in the collection.

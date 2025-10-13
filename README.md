@@ -291,7 +291,21 @@ If the browser automation fails or you prefer doing things manually:
     zvuk-grabber https://zvuk.com/artist/3196437
     ```
 
-5. **Using Text Files**:  
+5. **Download Audiobooks**:  
+    To download audiobooks, provide the audiobook URL:
+
+    ```bash
+    zvuk-grabber https://zvuk.com/abook/37364537
+    ```
+
+6. **Download Podcasts**:  
+    To download podcasts, provide the podcast URL:
+
+    ```bash
+    zvuk-grabber https://zvuk.com/podcast/12891594
+    ```
+
+7. **Using Text Files**:  
     You can also provide text files containing URLs (one per line):
 
     ```bash
@@ -540,6 +554,86 @@ Key options include:
 
     ```yaml
     playlist_filename_template: "{{.trackNumberPad}} - {{.trackArtist}} - {{.trackTitle}}"
+    ```
+
+- **`audiobook_folder_template`**: Audiobook folder naming format.\
+    Available placeholders:
+  - `{{.audiobookID}}`: Unique identifier for the audiobook.
+  - `{{.audiobookTitle}}`: Title of the audiobook.
+  - `{{.audiobookAuthors}}`: Author(s) of the audiobook (comma-separated).
+  - `{{.audiobookTrackCount}}`: Total number of chapters.
+  - `{{.audiobookPublisher}}`: Publisher brand name.
+  - `{{.audiobookPublisherName}}`: Publisher internal name.
+  - `{{.audiobookCopyright}}`: Copyright holder.
+  - `{{.audiobookDescription}}`: Audiobook description.
+  - `{{.audiobookPerformers}}`: Narrator/performer names (comma-separated).
+  - `{{.audiobookGenres}}`: Genre(s) (comma-separated).
+  - `{{.audiobookAgeLimit}}`: Age rating (e.g., 12, 16, 18).
+  - `{{.audiobookDuration}}`: Total duration in seconds.
+  - `{{.audiobookPublicationDate}}`: Full publication date (ISO 8601 format).
+  - `{{.publishYear}}`: Year of publication (extracted from publicationDate).
+  - `{{.releaseDate}}`: Publication date in YYYY-MM-DD format.
+  - `{{.releaseYear}}`: Same as publishYear (for consistency with albums).
+  - `{{.type}}`: "audiobook" (used to differentiate audiobooks).
+
+    Example:
+
+    ```yaml
+    audiobook_folder_template: "{{.publishYear}} - {{.audiobookAuthors}} - {{.audiobookTitle}}"
+    ```
+
+- **`audiobook_chapter_filename_template`**: Audiobook chapter file naming format.\
+    Available placeholders (includes all audiobook folder placeholders plus):
+  - `{{.trackTitle}}`: Chapter title.
+  - `{{.trackID}}`: Unique identifier for the chapter.
+  - `{{.trackNumber}}`: Chapter number (without leading zeros).
+  - `{{.trackNumberPad}}`: Chapter number with two-digit padding (e.g., 01, 02).
+  - `{{.trackCount}}`: Total number of chapters.
+  - `{{.collectionTitle}}`: Audiobook title.
+  - `{{.trackArtist}}`: Author(s) of the chapter (usually same as audiobook authors).
+  - `{{.trackGenre}}`: Genre of the chapter/audiobook.
+
+    Example:
+
+    ```yaml
+    audiobook_chapter_filename_template: "{{.trackNumberPad}} - {{.trackTitle}}"
+    ```
+
+- **`podcast_folder_template`**: Podcast folder naming format.\
+    Available placeholders:
+  - `{{.podcastID}}`: Unique identifier for the podcast.
+  - `{{.podcastTitle}}`: Title of the podcast.
+  - `{{.podcastAuthors}}`: Host/author(s) of the podcast (comma-separated).
+  - `{{.podcastTrackCount}}`: Total number of episodes.
+  - `{{.podcastDescription}}`: Podcast description.
+  - `{{.podcastCategory}}`: Podcast category (e.g., "Общество и культура").
+  - `{{.podcastExplicit}}`: "true" if podcast contains explicit content.
+  - `{{.type}}`: "podcast" (used to differentiate podcasts).
+
+    Example:
+
+    ```yaml
+    podcast_folder_template: "{{.podcastAuthors}} - {{.podcastTitle}}"
+    ```
+
+- **`podcast_episode_filename_template`**: Podcast episode file naming format.\
+    Available placeholders (includes all podcast folder placeholders plus):
+  - `{{.episodePublicationDate}}`: Publication date in YYYY-MM-DD format (e.g., "2020-05-04").
+  - `{{.episodeID}}`: Unique identifier for the episode.
+  - `{{.episodeTitle}}`: Episode title.
+  - `{{.episodeNumber}}`: Episode number (without leading zeros).
+  - `{{.episodeNumberPad}}`: Episode number with two-digit padding (e.g., 01, 02).
+  - `{{.episodeDuration}}`: Episode duration in seconds.
+  - `{{.trackTitle}}`: Episode title (alias for episodeTitle).
+  - `{{.trackID}}`: Unique identifier for the episode (alias for episodeID).
+  - `{{.trackNumber}}`: Episode number (alias for episodeNumber).
+  - `{{.trackNumberPad}}`: Episode number padded (alias for episodeNumberPad).
+  - `{{.trackDuration}}`: Episode duration (alias for episodeDuration).
+
+    Example:
+
+    ```yaml
+    podcast_episode_filename_template: "{{.episodePublicationDate}} - {{.trackTitle}}"
     ```
 
 ### Download Behavior

@@ -363,7 +363,7 @@ func TestClientImpl_FetchTrack(t *testing.T) {
 	reader, size, err := mockClient.FetchTrack(ctx, trackURL)
 	require.NoError(t, err)
 	assert.NotNil(t, reader)
-	assert.Equal(t, int64(12), size) // "test content" length
+	assert.Equal(t, int64(12), size) // "test content" length.
 
 	reader.Close()
 }

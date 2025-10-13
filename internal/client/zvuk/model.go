@@ -18,6 +18,22 @@ type GetPlaylistsMetadataResponse struct {
 	Playlists map[string]*Playlist `json:"playlists"`
 }
 
+// GetAudiobooksMetadataResponse represents the response structure for fetching metadata about audiobooks.
+type GetAudiobooksMetadataResponse struct {
+	// Tracks is a map of track ID to track metadata.
+	Tracks map[string]*Track `json:"tracks"`
+	// Audiobooks is a map of audiobook ID to audiobook metadata.
+	Audiobooks map[string]*Audiobook `json:"audiobooks"`
+}
+
+// GetPodcastsMetadataResponse represents the response structure for fetching metadata about podcasts.
+type GetPodcastsMetadataResponse struct {
+	// Tracks is a map of episode ID to episode metadata (represented as Track).
+	Tracks map[string]*Track `json:"tracks"`
+	// Podcasts is a map of podcast ID to podcast metadata.
+	Podcasts map[string]*Podcast `json:"podcasts"`
+}
+
 // GetUserProfileResponse represents the response structure for fetching a user's profile information.
 type GetUserProfileResponse struct {
 	// Result contains the user's profile data.
@@ -34,6 +50,17 @@ type GetMetadataResponse struct {
 type GetStreamMetadataResponse struct {
 	// Result contains the stream metadata including the URL.
 	Result *StreamMetadata `json:"result"`
+}
+
+// ChapterStreamMetadata represents all available stream URLs for a chapter.
+// This is a simple data container - quality selection logic belongs in the service layer.
+type ChapterStreamMetadata struct {
+	// Mid is the mid-quality (MP3 128kbps) stream URL.
+	Mid string
+	// High is the high-quality (MP3 320kbps) stream URL.
+	High string
+	// FLAC is the FLAC quality stream URL.
+	FLAC string
 }
 
 // GetLyricsResponse represents the response structure for fetching lyrics.
@@ -62,7 +89,7 @@ type UserSubscription struct {
 	Expiration int64 `json:"expiration"`
 }
 
-// Metadata represents a collection of metadata for tracks, playlists, releases, and labels.
+// Metadata represents a collection of metadata for tracks, playlists, releases, audiobooks, podcasts, and labels.
 type Metadata struct {
 	// Tracks is a map of track ID to track metadata.
 	Tracks map[string]*Track `json:"tracks"`
@@ -70,6 +97,10 @@ type Metadata struct {
 	Playlists map[string]*Playlist `json:"playlists"`
 	// Releases is a map of release ID to release metadata.
 	Releases map[string]*Release `json:"releases"`
+	// Audiobooks is a map of audiobook ID to audiobook metadata.
+	Audiobooks map[string]*Audiobook `json:"abooks"`
+	// Podcasts is a map of podcast ID to podcast metadata.
+	Podcasts map[string]*Podcast `json:"podcasts"`
 	// Labels is a map of label ID to label metadata.
 	Labels map[string]*Label `json:"labels"`
 }
@@ -106,6 +137,76 @@ type Playlist struct {
 	Title string `json:"title"`
 	// TrackIDs is the list of track IDs in the playlist.
 	TrackIDs []int64 `json:"track_ids"`
+}
+
+// GetAudiobookResult represents the result of fetching audiobook data.
+type GetAudiobookResult struct {
+	// Audiobook is the audiobook metadata.
+	Audiobook *Audiobook
+	// Tracks is a map of chapter IDs to their track metadata.
+	Tracks map[string]*Track
+}
+
+// GetPodcastResult represents the result of fetching podcast data.
+type GetPodcastResult struct {
+	// Podcast is the podcast metadata.
+	Podcast *Podcast
+	// Tracks is a map of episode IDs to their track metadata.
+	Tracks map[string]*Track
+}
+
+// Audiobook represents metadata for an audiobook.
+type Audiobook struct {
+	// ID is the unique audiobook identifier.
+	ID int64 `json:"id"`
+	// BigImageURL is the URL for the audiobook's large cover image.
+	BigImageURL string `json:"image_url_big"`
+	// Title is the audiobook name.
+	Title string `json:"title"`
+	// ArtistNames is the list of author/narrator names for the audiobook.
+	ArtistNames []string `json:"artist_names"`
+	// TrackIDs is the list of track (chapter) IDs in the audiobook.
+	TrackIDs []int64 `json:"track_ids"`
+	// Date is the audiobook release date timestamp.
+	Date int64 `json:"date"`
+	// PublicationDate is the audiobook publication date.
+	PublicationDate string `json:"publication_date"`
+	// Copyright is the copyright holder.
+	Copyright string `json:"copyright"`
+	// Description is the audiobook description.
+	Description string `json:"description"`
+	// AgeLimit is the age rating.
+	AgeLimit int64 `json:"age_limit"`
+	// FullDuration is the total duration in seconds.
+	FullDuration int64 `json:"full_duration"`
+	// PublisherName is the publisher name.
+	PublisherName string `json:"publisher_name"`
+	// PublisherBrand is the publisher brand.
+	PublisherBrand string `json:"publisher_brand"`
+	// PerformerNames is the list of performer/narrator names.
+	PerformerNames []string `json:"performer_names"`
+	// Genres is the list of genre names.
+	Genres []string `json:"genres"`
+}
+
+// Podcast represents metadata for a podcast.
+type Podcast struct {
+	// ID is the unique podcast identifier.
+	ID int64 `json:"id"`
+	// BigImageURL is the URL for the podcast's large cover image.
+	BigImageURL string `json:"image_url_big"`
+	// Title is the podcast name.
+	Title string `json:"title"`
+	// ArtistNames is the list of author/host names for the podcast.
+	ArtistNames []string `json:"artist_names"`
+	// TrackIDs is the list of track (episode) IDs in the podcast.
+	TrackIDs []int64 `json:"track_ids"`
+	// Description is the podcast description.
+	Description string `json:"description"`
+	// Category is the podcast category/genre.
+	Category string `json:"category"`
+	// Explicit indicates if the podcast contains explicit content.
+	Explicit bool `json:"explicit"`
 }
 
 // Release represents metadata for a music release (e.g., album or single).

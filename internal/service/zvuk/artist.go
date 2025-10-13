@@ -18,6 +18,13 @@ func (s *ServiceImpl) fetchArtistAlbums(ctx context.Context, artistItems []*Down
 
 	// Iterate over each artist and fetch their albums.
 	for itemIndex, v := range artistItems {
+		// Check if context was canceled (CTRL+C pressed) - stop immediately.
+		select {
+		case <-ctx.Done():
+			return result
+		default:
+		}
+
 		logger.Infof(ctx, "Fetching releases for artist with ID %s (%d out of %d)", v.ItemID, itemIndex+1, artistsCount)
 
 		// Get the list of album IDs for the current artist.
@@ -73,6 +80,13 @@ func (s *ServiceImpl) getArtistReleaseIDs(ctx context.Context, artistURL string)
 
 	// Fetch albums in batches until no more are returned.
 	for {
+		// Check if context was canceled (CTRL+C pressed) - stop immediately.
+		select {
+		case <-ctx.Done():
+			return allAlbumIDs, ctx.Err()
+		default:
+		}
+
 		albumIDs, err := s.zvukClient.GetArtistReleaseIDs(ctx, artistURL, offset, limit)
 		if err != nil {
 			return nil, err

@@ -82,7 +82,7 @@ func TestDownloadTracks_DryRunMode(t *testing.T) {
 	streamMetadata := &zvuk.StreamMetadata{Stream: "/streamfl?id=" + trackIDString}
 
 	mockClient.EXPECT().
-		GetStreamMetadata(gomock.Any(), trackIDString, "flac").
+		GetStreamMetadata(gomock.Any(), trackIDString, TrackQualityFLACString).
 		Return(streamMetadata, nil)
 
 	// Create fake audio data.
@@ -230,7 +230,7 @@ func TestDownloadTracks_DryRunSkipsExistingFiles(t *testing.T) {
 	streamMetadata := &zvuk.StreamMetadata{Stream: "/streamfl?id=" + trackIDString}
 
 	mockClient.EXPECT().
-		GetStreamMetadata(gomock.Any(), trackIDString, "flac").
+		GetStreamMetadata(gomock.Any(), trackIDString, TrackQualityFLACString).
 		Return(streamMetadata, nil)
 
 	fakeAudioData := []byte("test audio data")
@@ -265,7 +265,7 @@ func TestDownloadTracks_DryRunSkipsExistingFiles(t *testing.T) {
 
 	// Now run dry-run mode with the file already existing.
 	mockClient.EXPECT().
-		GetStreamMetadata(gomock.Any(), trackIDString, "flac").
+		GetStreamMetadata(gomock.Any(), trackIDString, TrackQualityFLACString).
 		Return(streamMetadata, nil)
 
 	impl, ok := service.(*ServiceImpl)

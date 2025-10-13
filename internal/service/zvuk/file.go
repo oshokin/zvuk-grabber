@@ -58,11 +58,10 @@ func (s *ServiceImpl) downloadAndSaveFile(
 		return false, err
 	}
 
-	defer file.Close()
-
 	// Download the file content from the URL.
 	reader, err := s.zvukClient.DownloadFromURL(ctx, url)
 	if err != nil {
+		_ = file.Close()
 		return false, err
 	}
 
@@ -70,8 +69,26 @@ func (s *ServiceImpl) downloadAndSaveFile(
 
 	// Copy the downloaded content to the file.
 	_, err = io.Copy(file, reader)
+	if err != nil {
+		_ = file.Close()
+		return false, err
+	}
 
-	return false, err
+	// Force flush all buffered data to disk.
+	if syncErr := file.Sync(); syncErr != nil {
+		_ = file.Close()
+		return false, syncErr
+	}
+
+	// This ensures the file is fully written and closed before any other goroutine
+	// tries to read it (e.g., for embedding covers).
+	// Relying on defer is too late because it executes after the function returns,
+	// creating a race condition where readers get partial/corrupted data.
+	if closeErr := file.Close(); closeErr != nil {
+		return false, closeErr
+	}
+
+	return false, nil
 }
 
 func (s *ServiceImpl) truncateFolderName(ctx context.Context, pattern, name string) string {

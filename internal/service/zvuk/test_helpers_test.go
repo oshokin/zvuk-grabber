@@ -103,7 +103,7 @@ func newTestMetadata(trackIDs []int64, albumID int64) *testMetadataBuilder {
 			Title:          fmt.Sprintf("Track %d", i+1),
 			ReleaseID:      albumID,
 			Position:       int64(i + 1),
-			HighestQuality: "flac",
+			HighestQuality: TrackQualityFLACString,
 			HasFLAC:        true,
 		}
 	}

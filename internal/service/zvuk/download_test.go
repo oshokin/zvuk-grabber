@@ -92,7 +92,7 @@ func TestDownloadTracks_Sequential(t *testing.T) {
 		streamMetadata := &zvuk.StreamMetadata{Stream: streamURL}
 
 		mockClient.EXPECT().
-			GetStreamMetadata(gomock.Any(), trackIDString, "flac").
+			GetStreamMetadata(gomock.Any(), trackIDString, TrackQualityFLACString).
 			DoAndReturn(func(_ context.Context, _ string, _ string) (*zvuk.StreamMetadata, error) {
 				executionMutex.Lock()
 
@@ -220,7 +220,7 @@ func TestDownloadTracks_Concurrent(t *testing.T) {
 		streamMetadata := &zvuk.StreamMetadata{Stream: streamURL}
 
 		mockClient.EXPECT().
-			GetStreamMetadata(gomock.Any(), trackIDString, "flac").
+			GetStreamMetadata(gomock.Any(), trackIDString, TrackQualityFLACString).
 			DoAndReturn(func(_ context.Context, _ string, _ string) (*zvuk.StreamMetadata, error) {
 				// Increment active count.
 				current := atomic.AddInt32(&activeConcurrentCount, 1)
@@ -387,7 +387,7 @@ func TestDownloadTracks_ConcurrentLimitRespected(t *testing.T) {
 		streamMetadata := &zvuk.StreamMetadata{Stream: streamURL}
 
 		mockClient.EXPECT().
-			GetStreamMetadata(gomock.Any(), trackIDString, "flac").
+			GetStreamMetadata(gomock.Any(), trackIDString, TrackQualityFLACString).
 			DoAndReturn(func(_ context.Context, _ string, _ string) (*zvuk.StreamMetadata, error) {
 				current := atomic.AddInt32(&activeConcurrentCount, 1)
 
@@ -509,7 +509,7 @@ func TestDownloadTracks_ConcurrentWithFewerTracks(t *testing.T) {
 		streamMetadata := &zvuk.StreamMetadata{Stream: streamURL}
 
 		mockClient.EXPECT().
-			GetStreamMetadata(gomock.Any(), trackIDString, "flac").
+			GetStreamMetadata(gomock.Any(), trackIDString, TrackQualityFLACString).
 			DoAndReturn(func(_ context.Context, _ string, _ string) (*zvuk.StreamMetadata, error) {
 				atomic.AddInt32(&downloadCount, 1)
 

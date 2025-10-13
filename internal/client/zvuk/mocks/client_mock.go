@@ -117,6 +117,21 @@ func (mr *MockClientMockRecorder) GetArtistReleaseIDs(ctx, artistID, offset, lim
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetArtistReleaseIDs", reflect.TypeOf((*MockClient)(nil).GetArtistReleaseIDs), ctx, artistID, offset, limit)
 }
 
+// GetAudiobooksMetadata mocks base method.
+func (m *MockClient) GetAudiobooksMetadata(ctx context.Context, audiobookIDs []string) (*zvuk.GetAudiobooksMetadataResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAudiobooksMetadata", ctx, audiobookIDs)
+	ret0, _ := ret[0].(*zvuk.GetAudiobooksMetadataResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAudiobooksMetadata indicates an expected call of GetAudiobooksMetadata.
+func (mr *MockClientMockRecorder) GetAudiobooksMetadata(ctx, audiobookIDs any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAudiobooksMetadata", reflect.TypeOf((*MockClient)(nil).GetAudiobooksMetadata), ctx, audiobookIDs)
+}
+
 // GetBaseURL mocks base method.
 func (m *MockClient) GetBaseURL() string {
 	m.ctrl.T.Helper()
@@ -129,6 +144,21 @@ func (m *MockClient) GetBaseURL() string {
 func (mr *MockClientMockRecorder) GetBaseURL() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBaseURL", reflect.TypeOf((*MockClient)(nil).GetBaseURL))
+}
+
+// GetChapterStreamMetadata mocks base method.
+func (m *MockClient) GetChapterStreamMetadata(ctx context.Context, chapterIDs []string) (map[string]*zvuk.ChapterStreamMetadata, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChapterStreamMetadata", ctx, chapterIDs)
+	ret0, _ := ret[0].(map[string]*zvuk.ChapterStreamMetadata)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChapterStreamMetadata indicates an expected call of GetChapterStreamMetadata.
+func (mr *MockClientMockRecorder) GetChapterStreamMetadata(ctx, chapterIDs any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChapterStreamMetadata", reflect.TypeOf((*MockClient)(nil).GetChapterStreamMetadata), ctx, chapterIDs)
 }
 
 // GetLabelsMetadata mocks base method.
@@ -159,6 +189,21 @@ func (m *MockClient) GetPlaylistsMetadata(ctx context.Context, playlistIDs []str
 func (mr *MockClientMockRecorder) GetPlaylistsMetadata(ctx, playlistIDs any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPlaylistsMetadata", reflect.TypeOf((*MockClient)(nil).GetPlaylistsMetadata), ctx, playlistIDs)
+}
+
+// GetPodcastsMetadata mocks base method.
+func (m *MockClient) GetPodcastsMetadata(ctx context.Context, podcastIDs []string) (*zvuk.GetPodcastsMetadataResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetPodcastsMetadata", ctx, podcastIDs)
+	ret0, _ := ret[0].(*zvuk.GetPodcastsMetadataResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetPodcastsMetadata indicates an expected call of GetPodcastsMetadata.
+func (mr *MockClientMockRecorder) GetPodcastsMetadata(ctx, podcastIDs any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPodcastsMetadata", reflect.TypeOf((*MockClient)(nil).GetPodcastsMetadata), ctx, podcastIDs)
 }
 
 // GetStreamMetadata mocks base method.

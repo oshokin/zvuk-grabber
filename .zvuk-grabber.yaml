@@ -7,6 +7,10 @@ output_path: "zvuk downloads"
 track_filename_template: "{{.trackNumberPad}} - {{.trackTitle}}"
 album_folder_template: "{{.releaseYear}} - {{.albumArtist}} - {{.albumTitle}}"
 playlist_filename_template: "{{.trackNumberPad}} - {{.trackArtist}} - {{.trackTitle}}"
+audiobook_folder_template: "{{.publishYear}} - {{.audiobookAuthors}} - {{.audiobookTitle}}"
+audiobook_chapter_filename_template: "{{.trackNumberPad}} - {{.trackTitle}}"
+podcast_folder_template: "{{.podcastAuthors}} - {{.podcastTitle}}"
+podcast_episode_filename_template: "{{.episodePublicationDate}} - {{.trackTitle}}"
 download_lyrics: true
 replace_tracks: false
 replace_covers: false

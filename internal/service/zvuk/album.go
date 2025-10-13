@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/oshokin/zvuk-grabber/internal/client/zvuk"
-	"github.com/oshokin/zvuk-grabber/internal/constants"
 	"github.com/oshokin/zvuk-grabber/internal/logger"
 	"github.com/oshokin/zvuk-grabber/internal/utils"
 )
@@ -29,12 +28,11 @@ type fetchAlbumDataResponse struct {
 	labels map[string]*zvuk.Label
 }
 
-const (
-	// defaultAlbumCoverExtension is the default file extension for album cover images.
-	defaultAlbumCoverExtension = ".jpg"
-	// defaultAlbumCoverBasename is the default base filename for album cover images.
-	defaultAlbumCoverBasename = "cover"
-)
+// parsedCoverURL contains the parsed cover URL and extension.
+type parsedCoverURL struct {
+	url       string
+	extension string
+}
 
 // Static error definitions for better error handling.
 var (
@@ -146,11 +144,16 @@ func (s *ServiceImpl) registerAlbumCollection(
 	// Create the album folder path by joining with the base output path.
 	albumPath := filepath.Join(s.cfg.OutputPath, albumFolderName)
 
-	err := os.MkdirAll(albumPath, constants.DefaultFolderPermissions)
-	if err != nil {
-		logger.Errorf(ctx, "Failed to create album folder '%s': %v", albumPath, err)
+	// Create folder unless in dry-run mode.
+	if !s.cfg.DryRun {
+		err := os.MkdirAll(albumPath, defaultFolderPermissions)
+		if err != nil {
+			logger.Errorf(ctx, "Failed to create album folder '%s': %v", albumPath, err)
 
-		return nil
+			return nil
+		}
+	} else {
+		logger.Infof(ctx, "[DRY-RUN] Would create album folder: %s", albumPath)
 	}
 
 	// Download the album cover art.
@@ -161,11 +164,16 @@ func (s *ServiceImpl) registerAlbumCollection(
 	s.audioCollectionsMutex.Lock()
 	defer s.audioCollectionsMutex.Unlock()
 
-	// Create and register the audio collection.
+	// Check if another goroutine registered this collection while we were doing I/O.
 	audioCollectionKey := ShortDownloadItem{
 		Category: DownloadCategoryAlbum,
 		ItemID:   albumID,
 	}
+	if existing, ok := s.audioCollections[audioCollectionKey]; ok && existing != nil {
+		return existing
+	}
+
+	// Create and register the audio collection.
 	audioCollection := &audioCollection{
 		category:    DownloadCategoryAlbum,
 		title:       albumTags["albumTitle"],
@@ -244,13 +252,16 @@ func (s *ServiceImpl) downloadAlbumCover(
 	}
 
 	// Parse the cover URL and determine its extension.
-	albumCoverURL, albumCoverExtension := s.parseAlbumCoverURL(trimmedSourceURL)
+	parsedCover := s.parseAlbumCoverURL(trimmedSourceURL)
+	albumCoverURL := parsedCover.url
+	albumCoverExtension := parsedCover.extension
+
 	if albumCoverExtension == "" {
-		albumCoverExtension = defaultAlbumCoverExtension
+		albumCoverExtension = extensionJPG
 	}
 
 	// Generate the cover filename and path.
-	albumCoverFilename := utils.SetFileExtension(defaultAlbumCoverBasename, albumCoverExtension, false)
+	albumCoverFilename := utils.SetFileExtension(defaultCoverBasename, albumCoverExtension, false)
 	albumCoverPath := filepath.Join(albumPath, albumCoverFilename)
 
 	// Download and save the cover art.
@@ -270,12 +281,15 @@ func (s *ServiceImpl) downloadAlbumCover(
 	return albumCoverPath
 }
 
-func (s *ServiceImpl) parseAlbumCoverURL(sourceURL string) (string, string) {
+func (s *ServiceImpl) parseAlbumCoverURL(sourceURL string) *parsedCoverURL {
 	// Parse the URL to extract query parameters.
 	parsedURL, err := url.Parse(sourceURL)
 	if err != nil {
 		// Fallback: remove the size parameter and return the URL as-is.
-		return strings.Replace(sourceURL, "&size={size}", "", 1), ""
+		return &parsedCoverURL{
+			url:       strings.Replace(sourceURL, "&size={size}", "", 1),
+			extension: "",
+		}
 	}
 
 	// Extract the file extension from the query parameters.
@@ -284,5 +298,8 @@ func (s *ServiceImpl) parseAlbumCoverURL(sourceURL string) (string, string) {
 	query.Del("size")
 	parsedURL.RawQuery = query.Encode()
 
-	return parsedURL.String(), ext
+	return &parsedCoverURL{
+		url:       parsedURL.String(),
+		extension: ext,
+	}
 }

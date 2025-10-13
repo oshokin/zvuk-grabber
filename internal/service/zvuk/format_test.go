@@ -39,14 +39,14 @@ func TestDownloadTracks_AllFormatsWithCoverEmbedding(t *testing.T) {
 			name:              "MP3 High format",
 			quality:           TrackQualityMP3High,
 			expectedExtension: constants.ExtensionMP3,
-			highestQuality:    "high",
+			highestQuality:    TrackQualityMP3HighString,
 			streamURL:         "/streamhq?id=1001",
 		},
 		{
 			name:              "MP3 Mid format",
 			quality:           TrackQualityMP3Mid,
 			expectedExtension: constants.ExtensionMP3,
-			highestQuality:    "mid",
+			highestQuality:    TrackQualityMP3MidString,
 			streamURL:         "/stream?id=1001",
 		},
 		{

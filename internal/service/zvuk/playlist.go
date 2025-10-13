@@ -10,16 +10,15 @@ import (
 	"strings"
 
 	"github.com/oshokin/zvuk-grabber/internal/client/zvuk"
-	"github.com/oshokin/zvuk-grabber/internal/constants"
 	"github.com/oshokin/zvuk-grabber/internal/logger"
 	"github.com/oshokin/zvuk-grabber/internal/utils"
 )
 
 const (
 	// defaultPlaylistCoverExtension is the default file extension for playlist cover images.
-	defaultPlaylistCoverExtension = ".png"
+	defaultPlaylistCoverExtension = extensionPNG
 	// defaultPlaylistCoverFilename is the default filename for playlist cover images.
-	defaultPlaylistCoverFilename = "cover" + defaultPlaylistCoverExtension
+	defaultPlaylistCoverFilename = defaultCoverBasename + defaultPlaylistCoverExtension
 )
 
 func (s *ServiceImpl) downloadPlaylist(ctx context.Context, item *DownloadItem) {
@@ -102,12 +101,16 @@ func (s *ServiceImpl) addPlaylistToAudioContainer(
 	playlistFolderName := s.truncateFolderName(ctx, "Playlist", utils.SanitizeFilename(playlist.Title))
 	playlistPath := filepath.Join(s.cfg.OutputPath, playlistFolderName)
 
-	// Create the playlist folder.
-	err := os.MkdirAll(playlistPath, constants.DefaultFolderPermissions)
-	if err != nil {
-		logger.Errorf(ctx, "Failed to create playlist folder '%s': %v", playlistPath, err)
+	// Create folder unless in dry-run mode.
+	if !s.cfg.DryRun {
+		err := os.MkdirAll(playlistPath, defaultFolderPermissions)
+		if err != nil {
+			logger.Errorf(ctx, "Failed to create playlist folder '%s': %v", playlistPath, err)
 
-		return nil
+			return nil
+		}
+	} else {
+		logger.Infof(ctx, "[DRY-RUN] Would create playlist folder: %s", playlistPath)
 	}
 
 	// Download the playlist cover art.

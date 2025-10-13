@@ -82,11 +82,16 @@ func (tp *TagProcessorImpl) WriteTags(ctx context.Context, req *WriteTagsRequest
 	if req.CoverPath != "" && req.IsCoverEmbeddedToTrackTags {
 		imageData, err := os.ReadFile(filepath.Clean(req.CoverPath))
 		if err != nil {
+			logger.Errorf(ctx, "Failed to read cover file '%s': %v", req.CoverPath, err)
 			return err
 		}
 
 		// Determine the MIME type of the cover art based on its file extension.
 		imageMIMEType := mime.TypeByExtension(filepath.Ext(req.CoverPath))
+
+		logger.Debugf(ctx, "Cover image loaded: %d bytes, MIME: %s, path: %s",
+			len(imageData), imageMIMEType, req.CoverPath)
+
 		image = &imageMetadata{
 			data:     imageData,
 			mimeType: imageMIMEType,
@@ -189,6 +194,8 @@ func (tp *TagProcessorImpl) addFLACTags(tag *flacvorbis.MetaDataBlockVorbisComme
 		"TRACK_ID":    req.TrackTags["trackID"],
 		"TRACKNUMBER": req.TrackTags["trackNumber"],
 		"YEAR":        req.TrackTags["releaseYear"],
+		"DESCRIPTION": req.TrackTags["audiobookDescription"],
+		"PERFORMER":   req.TrackTags["audiobookPerformers"],
 	}
 
 	if req.TrackLyrics != nil && strings.TrimSpace(req.TrackLyrics.Lyrics) != "" {
@@ -243,6 +250,8 @@ func (tp *TagProcessorImpl) writeMP3Tags(ctx context.Context, req *WriteTagsRequ
 
 	// Embed the cover art into the MP3 file if provided.
 	if image != nil {
+		logger.Debugf(ctx, "Embedding cover to MP3: %d bytes, MIME: %s", len(image.data), image.mimeType)
+
 		//nolint:exhaustruct // Description field intentionally empty for cover images.
 		tag.AddAttachedPicture(id3v2.PictureFrame{
 			Encoding:    id3v2.EncodingUTF8,
@@ -250,6 +259,8 @@ func (tp *TagProcessorImpl) writeMP3Tags(ctx context.Context, req *WriteTagsRequ
 			PictureType: id3v2.PTFrontCover,
 			Picture:     image.data,
 		})
+
+		logger.Debugf(ctx, "Cover embedded successfully to MP3")
 	}
 
 	// Save the updated MP3 file.
@@ -284,6 +295,24 @@ func (tp *TagProcessorImpl) addMP3Tags(ctx context.Context, tag *id3v2.Tag, req 
 	// Add additional metadata tags.
 	tag.AddTextFrame(tag.CommonID("Band/Orchestra/Accompaniment"), tag.DefaultEncoding(), req.TrackTags["albumArtist"])
 	tag.AddTextFrame(tag.CommonID("Publisher"), tag.DefaultEncoding(), req.TrackTags["recordLabel"])
+
+	// Add audiobook-specific metadata.
+	if req.TrackTags["audiobookPerformers"] != "" {
+		tag.AddTextFrame(
+			tag.CommonID("Conductor/Performer refinement"),
+			tag.DefaultEncoding(),
+			req.TrackTags["audiobookPerformers"],
+		)
+	}
+
+	if req.TrackTags["audiobookDescription"] != "" {
+		tag.AddCommentFrame(id3v2.CommentFrame{
+			Encoding:    id3v2.EncodingUTF8,
+			Language:    "eng",
+			Description: "Description",
+			Text:        req.TrackTags["audiobookDescription"],
+		})
+	}
 
 	// Add lyrics if available.
 	if req.TrackLyrics == nil {

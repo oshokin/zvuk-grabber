@@ -66,16 +66,44 @@ func (m *mockTemplateManager) GetTrackFilename(
 	// Use trackID to make filenames unique and avoid race conditions
 	// in concurrent download tests where multiple tracks might be downloaded simultaneously.
 	if trackID, ok := tags["trackID"]; ok && trackID != "" {
-		return "test_track_" + trackID + ".mp3"
+		return "test_track_" + trackID + extensionMP3
 	}
 
 	// Fallback for tests that don't provide trackID.
-	return "test_track.mp3"
+	return "test_track" + extensionMP3
 }
 
 // GetAlbumFolderName returns a placeholder album folder name for the mock universe.
 func (m *mockTemplateManager) GetAlbumFolderName(_ context.Context, _ map[string]string) string {
 	return "test_album"
+}
+
+// GetAudiobookFolderName returns a placeholder audiobook folder name for the mock universe.
+func (m *mockTemplateManager) GetAudiobookFolderName(_ context.Context, tags map[string]string) string {
+	return tags["audiobookAuthors"] + " - " + tags["audiobookTitle"]
+}
+
+// GetAudiobookChapterFilename returns a deterministic chapter filename for tests.
+func (m *mockTemplateManager) GetAudiobookChapterFilename(
+	_ context.Context,
+	tags map[string]string,
+	_ int64,
+) string {
+	return tags["trackNumberPad"] + " - " + tags["trackTitle"]
+}
+
+// GetPodcastFolderName returns a placeholder podcast folder name for the mock universe.
+func (m *mockTemplateManager) GetPodcastFolderName(_ context.Context, tags map[string]string) string {
+	return tags["podcastAuthors"] + " - " + tags["podcastTitle"]
+}
+
+// GetPodcastEpisodeFilename returns a deterministic episode filename for tests.
+func (m *mockTemplateManager) GetPodcastEpisodeFilename(
+	_ context.Context,
+	tags map[string]string,
+	_ int64,
+) string {
+	return tags["trackNumberPad"] + " - " + tags["trackTitle"]
 }
 
 // mockTagProcessor is a mock implementation of the TagProcessor interface.

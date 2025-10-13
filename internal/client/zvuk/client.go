@@ -4,10 +4,9 @@ package zvuk
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
@@ -34,6 +33,10 @@ type Client interface {
 	GetAlbumURL(releaseID string) (string, error)
 	// GetArtistReleaseIDs retrieves release IDs for a specific artist.
 	GetArtistReleaseIDs(ctx context.Context, artistID string, offset int, limit int) ([]string, error)
+	// GetAudiobooksMetadata retrieves metadata for the specified audiobook IDs.
+	GetAudiobooksMetadata(ctx context.Context, audiobookIDs []string) (*GetAudiobooksMetadataResponse, error)
+	// GetPodcastsMetadata retrieves metadata for the specified podcast IDs.
+	GetPodcastsMetadata(ctx context.Context, podcastIDs []string) (*GetPodcastsMetadataResponse, error)
 	// GetBaseURL returns the base URL of the Zvuk API.
 	GetBaseURL() string
 	// GetLabelsMetadata retrieves metadata for the specified label IDs.
@@ -42,6 +45,8 @@ type Client interface {
 	GetPlaylistsMetadata(ctx context.Context, playlistIDs []string) (*GetPlaylistsMetadataResponse, error)
 	// GetStreamMetadata retrieves streaming metadata for a specific track and quality.
 	GetStreamMetadata(ctx context.Context, trackID, quality string) (*StreamMetadata, error)
+	// GetChapterStreamMetadata retrieves streaming metadata for audiobook chapters via GraphQL.
+	GetChapterStreamMetadata(ctx context.Context, chapterIDs []string) (map[string]*ChapterStreamMetadata, error)
 	// GetTrackLyrics retrieves lyrics for a specific track.
 	GetTrackLyrics(ctx context.Context, trackID string) (*Lyrics, error)
 	// GetTracksMetadata retrieves metadata for the specified track IDs.
@@ -68,57 +73,11 @@ type ClientImpl struct {
 	tracksCache *lru.Cache[string, *Track]
 	// playlistsCache caches playlist metadata to reduce duplicate API calls for the same playlists.
 	playlistsCache *lru.Cache[string, *Playlist]
+	// audiobooksCache caches audiobook metadata to reduce duplicate API calls for the same audiobooks.
+	audiobooksCache *lru.Cache[string, *Audiobook]
+	// podcastsCache caches podcast metadata to reduce duplicate API calls for the same podcasts.
+	podcastsCache *lru.Cache[string, *Podcast]
 }
-
-const (
-	// zvukAPIGraphQLURI is the URI path for GraphQL API endpoint.
-	zvukAPIGraphQLURI = "api/v1/graphql"
-	// zvukAPILabelURI is the URI path for label metadata endpoint.
-	zvukAPILabelURI = "api/tiny/labels"
-	// zvukAPILyricsURI is the URI path for lyrics endpoint.
-	zvukAPILyricsURI = "api/tiny/lyrics"
-	// zvukAPIPlaylistURI is the URI path for playlist metadata endpoint.
-	zvukAPIPlaylistURI = "api/tiny/playlists"
-	// zvukAPIReleaseMetadataURI is the URI path for release metadata endpoint.
-	zvukAPIReleaseMetadataURI = "api/tiny/releases"
-	// zvukAPIReleaseURIPath is the URI path component for releases.
-	zvukAPIReleaseURIPath = "releases"
-	// zvukAPIStreamMetadataURI is the URI path for stream metadata endpoint.
-	zvukAPIStreamMetadataURI = "api/tiny/track/stream"
-	// zvukAPITrackURI is the URI path for track metadata endpoint.
-	zvukAPITrackURI = "api/tiny/tracks"
-	// zvukAPIUserProfileURI is the URI path for user profile endpoint.
-	zvukAPIUserProfileURI = "api/v2/tiny/profile"
-)
-
-const (
-	// labelsCacheSize defines the maximum number of label entries to cache.
-	// Approximately 500 unique labels exist globally across all music.
-	labelsCacheSize = 500
-	// albumsCacheSize defines the maximum number of album entries to cache.
-	// Sized to hold recent albums accessed during typical usage.
-	albumsCacheSize = 5000
-	// tracksCacheSize defines the maximum number of track entries to cache.
-	// Sized to hold recently accessed tracks.
-	tracksCacheSize = 10000
-	// playlistsCacheSize defines the maximum number of playlist entries to cache.
-	// Playlists don't change frequently, so we cache them.
-	playlistsCacheSize = 2000
-)
-
-// Static error definitions for better error handling.
-var (
-	// ErrUnexpectedHTTPStatus indicates an unexpected HTTP status code was received.
-	ErrUnexpectedHTTPStatus = errors.New("unexpected HTTP status")
-	// ErrArtistNotFound indicates that the requested artist was not found.
-	ErrArtistNotFound = errors.New("artist not found")
-	// ErrUnexpectedArtistResponseFormat indicates an unexpected artist API response format.
-	ErrUnexpectedArtistResponseFormat = errors.New("unexpected artist response format")
-	// ErrUnexpectedReleasesResponseFormat indicates an unexpected releases API response format.
-	ErrUnexpectedReleasesResponseFormat = errors.New("unexpected releases response format")
-	// ErrFailedToFetchStreamMetadata indicates failure to fetch stream metadata after all retry attempts.
-	ErrFailedToFetchStreamMetadata = errors.New("failed to fetch stream metadata after retries")
-)
 
 // NewClient creates and returns a new instance of ClientImpl.
 // It initializes the HTTP and GraphQL clients with the provided configuration.
@@ -176,16 +135,28 @@ func NewClient(cfg *config.Config) (Client, error) {
 		return nil, fmt.Errorf("failed to create playlists cache: %w", err)
 	}
 
+	audiobooksCache, err := lru.New[string, *Audiobook](audiobooksCacheSize)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create audiobooks cache: %w", err)
+	}
+
+	podcastsCache, err := lru.New[string, *Podcast](podcastsCacheSize)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create podcasts cache: %w", err)
+	}
+
 	// Create and return the ClientImpl instance.
 	client := &ClientImpl{
-		cfg:            cfg,
-		baseURL:        baseURL.String(),
-		httpClient:     httpClient,
-		graphQLClient:  graphqlClient,
-		labelsCache:    labelsCache,
-		albumsCache:    albumsCache,
-		tracksCache:    tracksCache,
-		playlistsCache: playlistsCache,
+		cfg:             cfg,
+		baseURL:         baseURL.String(),
+		httpClient:      httpClient,
+		graphQLClient:   graphqlClient,
+		labelsCache:     labelsCache,
+		albumsCache:     albumsCache,
+		tracksCache:     tracksCache,
+		playlistsCache:  playlistsCache,
+		audiobooksCache: audiobooksCache,
+		podcastsCache:   podcastsCache,
 	}
 
 	return client, nil
@@ -257,65 +228,6 @@ func (c *ClientImpl) GetAlbumsMetadata(
 // GetAlbumURL constructs the URL for a specific album.
 func (c *ClientImpl) GetAlbumURL(releaseID string) (string, error) {
 	return url.JoinPath(c.baseURL, zvukAPIReleaseURIPath, releaseID)
-}
-
-// GetArtistReleaseIDs retrieves release IDs for a specific artist.
-func (c *ClientImpl) GetArtistReleaseIDs(ctx context.Context, artistID string, offset, limit int) ([]string, error) {
-	graphqlRequest := graphql.NewRequest(`
-		query getArtistReleases($id: ID!, $limit: Int!, $offset: Int!) { 
-			getArtists(ids: [$id]) { 
-				__typename 
-				releases(limit: $limit, offset: $offset) { 
-					__typename 
-					...ReleaseGqlFragment 
-				} 
-			} 
-		} 
-		fragment ReleaseGqlFragment on Release { 
-			id 
-		}
-	`)
-
-	graphqlRequest.Header.Add("X-Auth-Token", c.cfg.AuthToken)
-	graphqlRequest.Var("id", artistID)
-	graphqlRequest.Var("offset", offset)
-	graphqlRequest.Var("limit", limit)
-
-	var graphQLResponse map[string]any
-	if err := c.graphQLClient.Run(ctx, graphqlRequest, &graphQLResponse); err != nil {
-		return nil, err
-	}
-
-	// Navigate the response map manually.
-	data, ok := graphQLResponse["getArtists"].([]any)
-	if !ok || len(data) == 0 {
-		return nil, ErrArtistNotFound
-	}
-
-	artist, ok := data[0].(map[string]any)
-	if !ok {
-		return nil, ErrUnexpectedArtistResponseFormat
-	}
-
-	releases, ok := artist["releases"].([]any)
-	if !ok {
-		return nil, ErrUnexpectedReleasesResponseFormat
-	}
-
-	releaseIDs := make([]string, 0, len(releases))
-
-	for _, r := range releases {
-		release, hasExpectedFormat := r.(map[string]any)
-		if !hasExpectedFormat {
-			continue
-		}
-
-		if id, exists := release["id"].(string); exists && id != "" {
-			releaseIDs = append(releaseIDs, id)
-		}
-	}
-
-	return releaseIDs, nil
 }
 
 // GetBaseURL returns the base URL of the Zvuk API.
@@ -408,13 +320,117 @@ func (c *ClientImpl) GetPlaylistsMetadata(
 	}
 
 	// Add tracks from the API response.
-	for id, track := range result.Tracks {
-		tracks[id] = track
-	}
+	maps.Copy(tracks, result.Tracks)
 
 	return &GetPlaylistsMetadataResponse{
 		Tracks:    tracks,
 		Playlists: playlists,
+	}, nil
+}
+
+// GetAudiobooksMetadata retrieves metadata for the specified audiobook IDs.
+// Uses an LRU cache to avoid redundant API calls for the same audiobooks.
+func (c *ClientImpl) GetAudiobooksMetadata(
+	ctx context.Context,
+	audiobookIDs []string,
+) (*GetAudiobooksMetadataResponse, error) {
+	audiobooks := make(map[string]*Audiobook)
+	tracks := make(map[string]*Track)
+	uncachedIDs := make([]string, 0, len(audiobookIDs))
+
+	// Check cache first for each audiobook ID.
+	for _, id := range audiobookIDs {
+		if cached, ok := c.audiobooksCache.Get(id); ok {
+			audiobooks[id] = cached
+			logger.Debugf(ctx, "Audiobook cache hit for ID: %s", id)
+		} else {
+			uncachedIDs = append(uncachedIDs, id)
+		}
+	}
+
+	// If all audiobooks were cached, return immediately.
+	// Note: Tracks are not cached from audiobook response to ensure fresh track data.
+	if len(uncachedIDs) == 0 {
+		return &GetAudiobooksMetadataResponse{
+			Tracks:     tracks,
+			Audiobooks: audiobooks,
+		}, nil
+	}
+
+	logger.Debugf(ctx, "Fetching %d uncached audiobooks from GraphQL API", len(uncachedIDs))
+
+	// Fetch each audiobook via GraphQL.
+	for _, audiobookID := range uncachedIDs {
+		audiobookResult, err := c.getAudiobookViaGraphQL(ctx, audiobookID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch audiobook %s: %w", audiobookID, err)
+		}
+
+		// Store in cache.
+		if c.audiobooksCache != nil {
+			c.audiobooksCache.Add(audiobookID, audiobookResult.Audiobook)
+		}
+
+		audiobooks[audiobookID] = audiobookResult.Audiobook
+		maps.Copy(tracks, audiobookResult.Tracks)
+	}
+
+	return &GetAudiobooksMetadataResponse{
+		Tracks:     tracks,
+		Audiobooks: audiobooks,
+	}, nil
+}
+
+// GetPodcastsMetadata retrieves metadata for the specified podcast IDs.
+// Uses an LRU cache to avoid redundant API calls for the same podcasts.
+func (c *ClientImpl) GetPodcastsMetadata(
+	ctx context.Context,
+	podcastIDs []string,
+) (*GetPodcastsMetadataResponse, error) {
+	podcasts := make(map[string]*Podcast)
+	tracks := make(map[string]*Track)
+	uncachedIDs := make([]string, 0, len(podcastIDs))
+
+	// Check cache first for each podcast ID.
+	for _, id := range podcastIDs {
+		if cached, ok := c.podcastsCache.Get(id); ok {
+			podcasts[id] = cached
+			logger.Debugf(ctx, "Podcast cache hit for ID: %s", id)
+		} else {
+			uncachedIDs = append(uncachedIDs, id)
+		}
+	}
+
+	// If all podcasts were cached, return immediately.
+	// Note: Tracks are not cached from podcast response to ensure fresh track data.
+	if len(uncachedIDs) == 0 {
+		return &GetPodcastsMetadataResponse{
+			Tracks:   tracks,
+			Podcasts: podcasts,
+		}, nil
+	}
+
+	logger.Debugf(ctx, "Fetching %d uncached podcasts from GraphQL API", len(uncachedIDs))
+
+	// Fetch each podcast via GraphQL.
+	for _, podcastID := range uncachedIDs {
+		podcastResult, err := c.getPodcastViaGraphQL(ctx, podcastID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch podcast %s: %w", podcastID, err)
+		}
+
+		// Store in cache.
+		if c.podcastsCache != nil {
+			c.podcastsCache.Add(podcastID, podcastResult.Podcast)
+		}
+
+		podcasts[podcastID] = podcastResult.Podcast
+		maps.Copy(tracks, podcastResult.Tracks)
+	}
+
+	return &GetPodcastsMetadataResponse{
+		Tracks:   tracks,
+		Podcasts: podcasts,
 	}, nil
 }
 
@@ -602,60 +618,5 @@ func (c *ClientImpl) getAlbumsMetadataFromCache(
 	return &GetAlbumsMetadataResponse{
 		Tracks:   nil,
 		Releases: releases,
-	}, nil
-}
-
-//nolint:revive // Has no sense, it's cause Go doesn't allow struct methods to be generic.
-func fetchJSON[T any](c *ClientImpl, ctx context.Context, uri string) (*FetchJSONResult[T], error) {
-	return fetchJSONWithQuery[T](c, ctx, uri, nil)
-}
-
-//
-//nolint:revive // Has no sense, it's cause Go doesn't allow struct methods to be generic.
-func fetchJSONWithQuery[T any](
-	c *ClientImpl,
-	ctx context.Context,
-	uri string,
-	query url.Values,
-) (*FetchJSONResult[T], error) {
-	route, err := url.JoinPath(c.baseURL, uri)
-	if err != nil {
-		return nil, err
-	}
-
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, route, http.NoBody)
-	if err != nil {
-		return nil, err
-	}
-
-	if query != nil {
-		request.URL.RawQuery = query.Encode()
-	}
-
-	response, err := c.httpClient.Do(request)
-	if err != nil {
-		return nil, err
-	}
-
-	defer response.Body.Close()
-
-	if response.StatusCode != http.StatusOK {
-		return &FetchJSONResult[T]{
-			Data:       nil,
-			StatusCode: response.StatusCode,
-		}, fmt.Errorf("%w: %d", ErrUnexpectedHTTPStatus, response.StatusCode)
-	}
-
-	var result T
-	if err = json.NewDecoder(response.Body).Decode(&result); err != nil {
-		return &FetchJSONResult[T]{
-			Data:       nil,
-			StatusCode: response.StatusCode,
-		}, err
-	}
-
-	return &FetchJSONResult[T]{
-		Data:       &result,
-		StatusCode: response.StatusCode,
 	}, nil
 }

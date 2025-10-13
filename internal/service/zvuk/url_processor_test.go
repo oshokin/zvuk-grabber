@@ -47,6 +47,16 @@ func TestURLPatterns(t *testing.T) {
 			expected: DownloadCategoryArtist,
 		},
 		{
+			name:     "audiobook URL",
+			url:      "https://zvuk.com/abook/32124448",
+			expected: DownloadCategoryAudiobook,
+		},
+		{
+			name:     "podcast URL",
+			url:      "https://zvuk.com/podcast/12891594",
+			expected: DownloadCategoryPodcast,
+		},
+		{
 			name:     "URL with trailing slash",
 			url:      "https://zvuk.com/track/123/",
 			expected: DownloadCategoryUnknown, // Doesn't match due to trailing slash
@@ -73,7 +83,7 @@ func TestURLPatterns(t *testing.T) {
 			case DownloadCategoryTrack:
 				assert.Len(t, result.Tracks, 1)
 				assert.Equal(t, tt.expected, result.Tracks[0].Category)
-			case DownloadCategoryAlbum, DownloadCategoryPlaylist:
+			case DownloadCategoryAlbum, DownloadCategoryPlaylist, DownloadCategoryAudiobook, DownloadCategoryPodcast:
 				assert.Len(t, result.StandaloneItems, 1)
 				assert.Equal(t, tt.expected, result.StandaloneItems[0].Category)
 			case DownloadCategoryArtist:

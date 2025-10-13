@@ -204,7 +204,7 @@ func Fatalf(ctx context.Context, format string, args ...any) {
 }
 
 // FatalKV writes a message and key-value pairs
-// at the fatal error level using the logger from the context.
+// at the fatal error level using the logger from the context
 // and then calls os.Exit(1).
 func FatalKV(ctx context.Context, message string, kvs ...any) {
 	if handleFatal(ctx, func(l *zap.SugaredLogger) {
@@ -250,7 +250,7 @@ func Panicf(ctx context.Context, format string, args ...any) {
 }
 
 // PanicKV writes a message and key-value pairs
-// at the panic level using the logger from the context.
+// at the panic level using the logger from the context
 // and then calls panic().
 func PanicKV(ctx context.Context, message string, kvs ...any) {
 	FromContext(ctx).Panicw(message, kvs...)

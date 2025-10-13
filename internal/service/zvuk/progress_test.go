@@ -67,7 +67,7 @@ func TestDownloadTracks_ProgressBarWithSequential(t *testing.T) {
 	streamMetadata := &zvuk.StreamMetadata{Stream: "/stream/501"}
 
 	mockClient.EXPECT().
-		GetStreamMetadata(gomock.Any(), "501", "flac").
+		GetStreamMetadata(gomock.Any(), "501", TrackQualityFLACString).
 		Return(streamMetadata, nil)
 
 	// Create a larger fake stream to simulate real download.
@@ -171,7 +171,7 @@ func TestDownloadTracks_NoProgressBarWithConcurrent(t *testing.T) {
 		streamMetadata := &zvuk.StreamMetadata{Stream: streamURL}
 
 		mockClient.EXPECT().
-			GetStreamMetadata(gomock.Any(), trackIDString, "flac").
+			GetStreamMetadata(gomock.Any(), trackIDString, TrackQualityFLACString).
 			DoAndReturn(func(_ context.Context, _ string, _ string) (*zvuk.StreamMetadata, error) {
 				// Simulate some processing time to ensure concurrent execution.
 				time.Sleep(10 * time.Millisecond)

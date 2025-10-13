@@ -40,6 +40,14 @@ type Config struct {
 	AlbumFolderTemplate string `mapstructure:"album_folder_template"`
 	// PlaylistFilenameTemplate is the template for naming playlist track files.
 	PlaylistFilenameTemplate string `mapstructure:"playlist_filename_template"`
+	// AudiobookFolderTemplate is the template for naming audiobook folders.
+	AudiobookFolderTemplate string `mapstructure:"audiobook_folder_template"`
+	// AudiobookChapterFilenameTemplate is the template for naming audiobook chapter files.
+	AudiobookChapterFilenameTemplate string `mapstructure:"audiobook_chapter_filename_template"`
+	// PodcastFolderTemplate is the template for naming podcast folders.
+	PodcastFolderTemplate string `mapstructure:"podcast_folder_template"`
+	// PodcastEpisodeFilenameTemplate is the template for naming podcast episode files.
+	PodcastEpisodeFilenameTemplate string `mapstructure:"podcast_episode_filename_template"`
 	// DownloadLyrics indicates whether to download lyrics for tracks.
 	DownloadLyrics bool `mapstructure:"download_lyrics"`
 	// ReplaceTracks indicates whether to replace existing track files.
@@ -101,6 +109,18 @@ const (
 
 	// DefaultPlaylistFilenameTemplate is the default template for naming downloaded track files from playlists.
 	DefaultPlaylistFilenameTemplate = "{{.trackNumberPad}} - {{.trackArtist}} - {{.trackTitle}}"
+
+	// DefaultAudiobookFolderTemplate is the default template for naming audiobook folders.
+	DefaultAudiobookFolderTemplate = "{{.publishYear}} - {{.audiobookAuthors}} - {{.audiobookTitle}}"
+
+	// DefaultAudiobookChapterFilenameTemplate is the default template for naming audiobook chapter files.
+	DefaultAudiobookChapterFilenameTemplate = "{{.trackNumberPad}} - {{.trackTitle}}"
+
+	// DefaultPodcastFolderTemplate is the default template for naming podcast folders.
+	DefaultPodcastFolderTemplate = "{{.podcastAuthors}} - {{.podcastTitle}}"
+
+	// DefaultPodcastEpisodeFilenameTemplate is the default template for naming podcast episode files.
+	DefaultPodcastEpisodeFilenameTemplate = "{{.episodePublicationDate}} - {{.trackTitle}}"
 
 	// DefaultMaxLogLength is the default maximum size (in bytes) for log files.
 	DefaultMaxLogLength = 1 * 1024 * 1024 // 1 MB

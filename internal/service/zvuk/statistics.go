@@ -2,7 +2,6 @@ package zvuk
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sync/atomic"
 	"time"
@@ -94,50 +93,6 @@ func (s *ServiceImpl) incrementCoverDownloaded() {
 // incrementCoverSkipped atomically increments the skipped covers counter.
 func (s *ServiceImpl) incrementCoverSkipped() {
 	atomic.AddInt64(&s.stats.CoversSkipped, 1)
-}
-
-// ErrorContext contains contextual information for error recording.
-type ErrorContext struct {
-	// ParentCategory is the type of parent collection (album/playlist) for tracks.
-	ParentCategory DownloadCategory
-	// ParentID is the ID of the parent collection.
-	ParentID string
-	// ParentTitle is the title of the parent collection.
-	ParentTitle string
-	// Category is the type of item that failed.
-	Category DownloadCategory
-	// ItemID is the unique identifier of the item that failed.
-	ItemID string
-	// ItemTitle is the human-readable title of the item.
-	ItemTitle string
-	// ItemURL is the URL of the failed item (for albums/playlists/artists).
-	ItemURL string
-	// Phase indicates when the error occurred.
-	Phase string
-}
-
-// recordError records an error that occurred during download.
-// Context cancellation errors are ignored as they are expected during graceful shutdown.
-func (s *ServiceImpl) recordError(errCtx *ErrorContext, err error) {
-	// Don't record context cancellation as an error - it's expected when user presses CTRL+C.
-	if errors.Is(err, context.Canceled) {
-		return
-	}
-
-	s.statsMutex.Lock()
-	defer s.statsMutex.Unlock()
-
-	s.stats.Errors = append(s.stats.Errors, DownloadError{
-		Category:       errCtx.Category,
-		ItemID:         errCtx.ItemID,
-		ItemTitle:      errCtx.ItemTitle,
-		ItemURL:        errCtx.ItemURL,
-		ErrorMessage:   err.Error(),
-		Phase:          errCtx.Phase,
-		ParentCategory: errCtx.ParentCategory,
-		ParentID:       errCtx.ParentID,
-		ParentTitle:    errCtx.ParentTitle,
-	})
 }
 
 // groupErrors separates track errors from collection errors for better display organization.

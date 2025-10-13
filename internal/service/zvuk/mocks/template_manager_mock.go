@@ -54,6 +54,62 @@ func (mr *MockTemplateManagerMockRecorder) GetAlbumFolderName(ctx, tags any) *go
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAlbumFolderName", reflect.TypeOf((*MockTemplateManager)(nil).GetAlbumFolderName), ctx, tags)
 }
 
+// GetAudiobookChapterFilename mocks base method.
+func (m *MockTemplateManager) GetAudiobookChapterFilename(ctx context.Context, chapterTags map[string]string, totalChapters int64) string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAudiobookChapterFilename", ctx, chapterTags, totalChapters)
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+// GetAudiobookChapterFilename indicates an expected call of GetAudiobookChapterFilename.
+func (mr *MockTemplateManagerMockRecorder) GetAudiobookChapterFilename(ctx, chapterTags, totalChapters any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAudiobookChapterFilename", reflect.TypeOf((*MockTemplateManager)(nil).GetAudiobookChapterFilename), ctx, chapterTags, totalChapters)
+}
+
+// GetAudiobookFolderName mocks base method.
+func (m *MockTemplateManager) GetAudiobookFolderName(ctx context.Context, tags map[string]string) string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAudiobookFolderName", ctx, tags)
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+// GetAudiobookFolderName indicates an expected call of GetAudiobookFolderName.
+func (mr *MockTemplateManagerMockRecorder) GetAudiobookFolderName(ctx, tags any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAudiobookFolderName", reflect.TypeOf((*MockTemplateManager)(nil).GetAudiobookFolderName), ctx, tags)
+}
+
+// GetPodcastEpisodeFilename mocks base method.
+func (m *MockTemplateManager) GetPodcastEpisodeFilename(ctx context.Context, episodeTags map[string]string, totalEpisodes int64) string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetPodcastEpisodeFilename", ctx, episodeTags, totalEpisodes)
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+// GetPodcastEpisodeFilename indicates an expected call of GetPodcastEpisodeFilename.
+func (mr *MockTemplateManagerMockRecorder) GetPodcastEpisodeFilename(ctx, episodeTags, totalEpisodes any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPodcastEpisodeFilename", reflect.TypeOf((*MockTemplateManager)(nil).GetPodcastEpisodeFilename), ctx, episodeTags, totalEpisodes)
+}
+
+// GetPodcastFolderName mocks base method.
+func (m *MockTemplateManager) GetPodcastFolderName(ctx context.Context, tags map[string]string) string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetPodcastFolderName", ctx, tags)
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+// GetPodcastFolderName indicates an expected call of GetPodcastFolderName.
+func (mr *MockTemplateManagerMockRecorder) GetPodcastFolderName(ctx, tags any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPodcastFolderName", reflect.TypeOf((*MockTemplateManager)(nil).GetPodcastFolderName), ctx, tags)
+}
+
 // GetTrackFilename mocks base method.
 func (m *MockTemplateManager) GetTrackFilename(ctx context.Context, isPlaylist bool, trackTags map[string]string, tracksCount int64) string {
 	m.ctrl.T.Helper()

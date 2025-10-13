@@ -71,7 +71,7 @@ func TestDownloadTracks_PartFileHandling(t *testing.T) {
 	streamMetadata := &zvuk.StreamMetadata{Stream: "/stream/701"}
 
 	mockClient.EXPECT().
-		GetStreamMetadata(gomock.Any(), "701", "flac").
+		GetStreamMetadata(gomock.Any(), "701", TrackQualityFLACString).
 		Return(streamMetadata, nil)
 
 	// Create fake audio data.
@@ -172,7 +172,7 @@ func TestDownloadTracks_PartFileCleanupOnFailure(t *testing.T) {
 	streamMetadata := &zvuk.StreamMetadata{Stream: "/stream/801"}
 
 	mockClient.EXPECT().
-		GetStreamMetadata(gomock.Any(), "801", "flac").
+		GetStreamMetadata(gomock.Any(), "801", TrackQualityFLACString).
 		Return(streamMetadata, nil)
 
 	// Mock returns partial data (50% of expected size).

@@ -11,7 +11,6 @@ import (
 
 	"github.com/oshokin/zvuk-grabber/internal/client/zvuk"
 	"github.com/oshokin/zvuk-grabber/internal/config"
-	"github.com/oshokin/zvuk-grabber/internal/constants"
 	"github.com/oshokin/zvuk-grabber/internal/logger"
 	"github.com/oshokin/zvuk-grabber/internal/utils"
 )
@@ -75,11 +74,15 @@ func (s *ServiceImpl) DownloadURLs(ctx context.Context, urls []string) {
 	s.stats.IsDryRun = s.cfg.DryRun
 	s.statsMutex.Unlock()
 
-	// Ensure the output directory exists.
-	err := os.MkdirAll(s.cfg.OutputPath, constants.DefaultFolderPermissions)
-	if err != nil {
-		logger.Errorf(ctx, "Failed to create output path: %v", err)
-		return
+	// Ensure the output directory exists (skip in dry-run mode).
+	if !s.cfg.DryRun {
+		err := os.MkdirAll(s.cfg.OutputPath, defaultFolderPermissions)
+		if err != nil {
+			logger.Errorf(ctx, "Failed to create output path: %v", err)
+			return
+		}
+	} else {
+		logger.Infof(ctx, "[DRY-RUN] Would create output directory: %s", s.cfg.OutputPath)
 	}
 
 	// Verify the user's subscription status before proceeding.
@@ -131,14 +134,21 @@ func (s *ServiceImpl) fetchAndDeduplicateStandaloneItems(
 	return standaloneItems
 }
 
-// downloadStandaloneItems handles the download of albums and playlists.
+// downloadStandaloneItems handles the download of albums, playlists, audiobooks, and podcasts.
 func (s *ServiceImpl) downloadStandaloneItems(ctx context.Context, items []*DownloadItem) {
-	logger.Info(ctx, "Downloading albums and playlists")
+	logger.Info(ctx, "Downloading albums, playlists, audiobooks, and podcasts")
 
 	itemsCount := len(items)
 
 	// Iterate through each item and download based on its category.
 	for index, item := range items {
+		// Check if context was canceled (CTRL+C pressed) - stop immediately.
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+
 		//nolint:exhaustive // All meaningful cases are explicitly handled; default covers unknown values.
 		switch item.Category {
 		case DownloadCategoryAlbum:
@@ -147,6 +157,12 @@ func (s *ServiceImpl) downloadStandaloneItems(ctx context.Context, items []*Down
 		case DownloadCategoryPlaylist:
 			logger.Infof(ctx, "Downloading item: %v (%d / %d)", item, index+1, itemsCount)
 			s.downloadPlaylist(ctx, item)
+		case DownloadCategoryAudiobook:
+			logger.Infof(ctx, "Downloading item: %v (%d / %d)", item, index+1, itemsCount)
+			s.downloadAudiobook(ctx, item)
+		case DownloadCategoryPodcast:
+			logger.Infof(ctx, "Downloading item: %v (%d / %d)", item, index+1, itemsCount)
+			s.downloadPodcast(ctx, item)
 		default:
 			logger.Errorf(ctx, "Unknown URL category: %d", item.Category)
 		}

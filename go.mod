@@ -9,6 +9,7 @@ require (
 	github.com/go-flac/go-flac v1.0.0
 	github.com/go-rod/rod v0.116.2
 	github.com/go-rod/stealth v0.4.9
+	github.com/google/uuid v1.6.0
 	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/machinebox/graphql v0.2.2
 	github.com/oshokin/id3v2/v2 v2.1.4
