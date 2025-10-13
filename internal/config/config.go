@@ -54,6 +54,8 @@ type Config struct {
 	ReplaceTracks bool `mapstructure:"replace_tracks"`
 	// ReplaceCovers indicates whether to replace existing cover art files.
 	ReplaceCovers bool `mapstructure:"replace_covers"`
+	// ReplaceDescriptions indicates whether to replace existing description files.
+	ReplaceDescriptions bool `mapstructure:"replace_descriptions"`
 	// ReplaceLyrics indicates whether to replace existing lyrics files.
 	ReplaceLyrics bool `mapstructure:"replace_lyrics"`
 	// LogLevel specifies the logging verbosity level.

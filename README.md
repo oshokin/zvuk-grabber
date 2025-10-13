@@ -659,6 +659,13 @@ Key options include:
     replace_covers: false
     ```
 
+- **`replace_descriptions`**: Whether to overwrite existing description files (for audiobooks and podcasts).\
+    Example:
+
+    ```yaml
+    replace_descriptions: false
+    ```
+
 - **`replace_lyrics`**: Whether to overwrite existing lyric files.\
     Example:
 

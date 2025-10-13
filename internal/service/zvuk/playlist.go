@@ -21,6 +21,7 @@ const (
 	defaultPlaylistCoverFilename = defaultCoverBasename + defaultPlaylistCoverExtension
 )
 
+// downloadPlaylist downloads a playlist and its tracks.
 func (s *ServiceImpl) downloadPlaylist(ctx context.Context, item *DownloadItem) {
 	playlistID := item.ItemID
 
@@ -82,6 +83,7 @@ func (s *ServiceImpl) downloadPlaylist(ctx context.Context, item *DownloadItem) 
 	s.downloadTracks(ctx, metadata)
 }
 
+// addPlaylistToAudioContainer adds a playlist to the audio container.
 func (s *ServiceImpl) addPlaylistToAudioContainer(
 	ctx context.Context,
 	playlistID string,
@@ -143,6 +145,7 @@ func (s *ServiceImpl) addPlaylistToAudioContainer(
 	return audioCollection
 }
 
+// downloadPlaylistCover downloads the cover art for a playlist.
 func (s *ServiceImpl) downloadPlaylistCover(ctx context.Context, bigImageURL, playlistPath string) string {
 	// Trim and validate the cover art URL.
 	bigImageURL = strings.TrimSpace(bigImageURL)
@@ -185,6 +188,7 @@ func (s *ServiceImpl) downloadPlaylistCover(ctx context.Context, bigImageURL, pl
 	return playlistCoverPath
 }
 
+// fillPlaylistTags fills the playlist tags.
 func (s *ServiceImpl) fillPlaylistTags(playlist *zvuk.Playlist) map[string]string {
 	return map[string]string{
 		"type":               "playlist",

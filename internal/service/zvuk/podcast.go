@@ -3,6 +3,7 @@ package zvuk
 import (
 	"context"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -10,14 +11,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
-
 	"github.com/oshokin/zvuk-grabber/internal/client/zvuk"
-	"github.com/oshokin/zvuk-grabber/internal/constants"
 	"github.com/oshokin/zvuk-grabber/internal/logger"
 	"github.com/oshokin/zvuk-grabber/internal/utils"
 )
 
+// downloadPodcast downloads a podcast and its episodes.
 func (s *ServiceImpl) downloadPodcast(ctx context.Context, item *DownloadItem) {
 	podcastID := item.ItemID
 
@@ -78,6 +77,7 @@ func (s *ServiceImpl) downloadPodcast(ctx context.Context, item *DownloadItem) {
 	s.downloadTracks(ctx, metadata)
 }
 
+// addPodcastToAudioContainer adds a podcast to the audio container.
 func (s *ServiceImpl) addPodcastToAudioContainer(
 	ctx context.Context,
 	podcastID string,
@@ -165,79 +165,14 @@ func (s *ServiceImpl) addPodcastToAudioContainer(
 	return audioCollection
 }
 
+// downloadPodcastCover downloads the podcast cover.
 func (s *ServiceImpl) downloadPodcastCover(ctx context.Context, bigImageURL, podcastPath string) (string, string) {
-	// Trim and validate the cover art URL.
-	bigImageURL = strings.TrimSpace(bigImageURL)
-	if bigImageURL == "" {
-		return "", ""
-	}
-
-	// Parse and process the cover URL (handle {size} placeholder and extract extension).
-	parsedCover := s.parseAlbumCoverURL(bigImageURL)
-	podcastCoverURL := parsedCover.url
-	podcastCoverExtension := parsedCover.extension
-
-	// Use default extension if none was extracted.
-	// Podcast covers are typically JPEG.
-	if podcastCoverExtension == "" {
-		podcastCoverExtension = extensionJPG
-	}
-
-	// Generate UUID-based temp filename to avoid concurrent download conflicts.
-	tempCoverFilename := defaultCoverBasename + "_" + uuid.New().String() + podcastCoverExtension
-	tempCoverPath := filepath.Join(podcastPath, tempCoverFilename)
-
-	// Download the cover art to the podcast folder.
-	skipped, err := s.downloadAndSaveFile(ctx, podcastCoverURL, tempCoverPath, s.cfg.ReplaceCovers)
-	if err != nil {
-		logger.Errorf(ctx, "Failed to download podcast cover: %v", err)
-
-		return "", ""
-	}
-
-	// If the file was skipped (already exists), still return its path.
-	if skipped {
-		logger.Infof(ctx, "Podcast cover already exists, skipping download")
-	} else {
-		logger.Infof(ctx, "Successfully downloaded podcast cover")
-	}
-
-	// Return both the temp path (for later renaming) and the final path (same as temp for now).
-	return tempCoverPath, tempCoverPath
+	return s.downloadCover(ctx, bigImageURL, podcastPath, "Podcast")
 }
 
+// savePodcastDescription saves the podcast description.
 func (s *ServiceImpl) savePodcastDescription(ctx context.Context, description, podcastPath string) string {
-	// Generate UUID-based temp filename to avoid concurrent download conflicts.
-	tempDescFilename := defaultDescriptionBasename + "_" + uuid.New().String() + extensionTXT
-	tempDescPath := filepath.Join(podcastPath, tempDescFilename)
-
-	// Dry-run mode: simulate description save.
-	if s.cfg.DryRun {
-		if _, err := os.Stat(tempDescPath); err == nil && !s.cfg.ReplaceCovers {
-			logger.Infof(ctx, "[DRY-RUN] Description file already exists, would skip")
-		} else {
-			logger.Infof(ctx, "[DRY-RUN] Would save podcast description to: %s", tempDescFilename)
-		}
-
-		return tempDescPath
-	}
-
-	// Check if description file already exists (check temp path).
-	if _, err := os.Stat(tempDescPath); err == nil && !s.cfg.ReplaceCovers {
-		logger.Debugf(ctx, "Description file already exists, skipping")
-		return tempDescPath
-	}
-
-	// Write description in UTF-8 encoding.
-	err := os.WriteFile(tempDescPath, []byte(description), constants.DefaultFilePermissions)
-	if err != nil {
-		logger.Errorf(ctx, "Failed to save podcast description: %v", err)
-		return ""
-	}
-
-	logger.Infof(ctx, "Saved podcast description to %s", tempDescFilename)
-
-	return tempDescPath
+	return s.saveDescription(ctx, description, podcastPath, "Podcast")
 }
 
 // finalizePodcastDescription renames the description file for single-episode podcasts.
@@ -247,58 +182,10 @@ func (s *ServiceImpl) finalizePodcastDescription(
 	audioCollection *audioCollection,
 	episodeFilename string,
 ) {
-	// Only process on the last episode.
-	if episodeIndex != audioCollection.tracksCount {
-		return
-	}
-
-	// Check if we have a temp description path.
-	if audioCollection.descriptionTempPath == "" {
-		return
-	}
-
-	// Skip in dry-run mode (description was never actually created).
-	if s.cfg.DryRun {
-		return
-	}
-
-	// Check if temp description file exists.
-	if _, err := os.Stat(audioCollection.descriptionTempPath); err != nil {
-		// Description doesn't exist - that's fine, not all podcasts have descriptions.
-		return
-	}
-
-	var newDescriptionFilename string
-
-	// For single-episode podcasts without a dedicated folder, rename to match the episode filename.
-	if !s.cfg.CreateFolderForSingles && audioCollection.tracksCount == 1 {
-		newDescriptionFilename = utils.SetFileExtension(episodeFilename, extensionTXT, true)
-	} else {
-		// For multi-episode or podcasts with folders, use standard name.
-		newDescriptionFilename = defaultDescriptionBasename + extensionTXT
-	}
-
-	newDescriptionPath := filepath.Join(audioCollection.tracksPath, newDescriptionFilename)
-
-	// Check if already renamed (same file).
-	originalStat, err := os.Stat(audioCollection.descriptionTempPath)
-	if err != nil {
-		return
-	}
-
-	existingStat, err := os.Stat(newDescriptionPath)
-	if err == nil && os.SameFile(originalStat, existingStat) {
-		// Already renamed, nothing to do.
-		return
-	}
-
-	// Rename the description file from temp UUID name to final name.
-	if renameErr := os.Rename(audioCollection.descriptionTempPath, newDescriptionPath); renameErr != nil {
-		logger.Errorf(ctx, "Failed to rename description from '%s' to '%s': %v",
-			audioCollection.descriptionTempPath, newDescriptionPath, renameErr)
-	}
+	s.finalizeDescription(ctx, episodeIndex, audioCollection, episodeFilename)
 }
 
+// fillPodcastTags fills the podcast tags.
 func (s *ServiceImpl) fillPodcastTags(podcast *zvuk.Podcast) map[string]string {
 	// Determine genre: use podcast category if available, otherwise default to "Podcast".
 	genreTag := "Podcast"
@@ -336,9 +223,7 @@ func (s *ServiceImpl) fillEpisodeTags(
 ) map[string]string {
 	// Start with podcast tags as base.
 	tags := make(map[string]string)
-	for k, v := range podcastTags {
-		tags[k] = v
-	}
+	maps.Copy(tags, podcastTags)
 
 	// Parse publication date from track.Credits (where we stored it during parsing).
 	publicationDate := s.parseEpisodePublicationDate(track.Credits)

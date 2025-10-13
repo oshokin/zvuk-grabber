@@ -14,6 +14,7 @@ podcast_episode_filename_template: "{{.episodePublicationDate}} - {{.trackTitle}
 download_lyrics: true
 replace_tracks: false
 replace_covers: false
+replace_descriptions: false
 replace_lyrics: false
 log_level: "info"
 download_speed_limit:

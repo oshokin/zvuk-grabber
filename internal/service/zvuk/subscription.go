@@ -7,6 +7,7 @@ import (
 	"github.com/oshokin/zvuk-grabber/internal/logger"
 )
 
+// checkUserSubscription checks the user's subscription status.
 func (s *ServiceImpl) checkUserSubscription(ctx context.Context) {
 	userProfile, err := s.zvukClient.GetUserProfile(ctx)
 	if err != nil {

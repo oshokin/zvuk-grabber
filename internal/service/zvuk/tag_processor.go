@@ -267,6 +267,7 @@ func (tp *TagProcessorImpl) writeMP3Tags(ctx context.Context, req *WriteTagsRequ
 	return tag.Save()
 }
 
+// addMP3Tags adds metadata tags to an MP3 file.
 func (tp *TagProcessorImpl) addMP3Tags(ctx context.Context, tag *id3v2.Tag, req *WriteTagsRequest) {
 	// Set default encoding for the tags.
 	tag.SetDefaultEncoding(id3v2.EncodingUTF8)

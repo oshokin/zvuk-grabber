@@ -64,6 +64,7 @@ type downloadTrackRequest struct {
 // defaultLyricsExtension is the default file extension for lyrics files.
 const defaultLyricsExtension = extensionLRC
 
+// fetchAlbumsDataFromTracks fetches album and label data for a list of tracks.
 func (s *ServiceImpl) fetchAlbumsDataFromTracks(
 	ctx context.Context,
 	tracks map[string]*zvuk.Track,
@@ -115,6 +116,7 @@ func (s *ServiceImpl) fetchAlbumsDataFromTracks(
 	}, nil
 }
 
+// downloadTracks downloads a list of tracks, either sequentially or concurrently.
 func (s *ServiceImpl) downloadTracks(ctx context.Context, metadata *downloadTracksMetadata) {
 	maxConcurrent := s.cfg.MaxConcurrentDownloads
 
@@ -207,6 +209,7 @@ waitForCompletion:
 	waitGroup.Wait()
 }
 
+// downloadTrack downloads a single track.
 func (s *ServiceImpl) downloadTrack(
 	ctx context.Context,
 	req *downloadTrackRequest,
@@ -655,6 +658,7 @@ func (s *ServiceImpl) writeTrackMetadata(
 	}
 }
 
+// getOrRegisterAudioCollection gets or registers an audio collection.
 func (s *ServiceImpl) getOrRegisterAudioCollection(
 	ctx context.Context,
 	album *zvuk.Release,
@@ -680,6 +684,7 @@ func (s *ServiceImpl) getOrRegisterAudioCollection(
 	return collection
 }
 
+// fillTrackTagsForTemplating fills track tags for templating.
 func (s *ServiceImpl) fillTrackTagsForTemplating(
 	trackNumber int64,
 	track *zvuk.Track,
@@ -723,6 +728,8 @@ func (s *ServiceImpl) fillTrackTagsForTemplating(
 	return result
 }
 
+// downloadAndSaveTrack downloads and saves a track to a file.
+//
 //nolint:cyclop,funlen,gocognit,nolintlint // Function orchestrates complex download workflow with multiple sequential steps.
 func (s *ServiceImpl) downloadAndSaveTrack(
 	ctx context.Context,
@@ -884,6 +891,7 @@ func (s *ServiceImpl) downloadAndSaveTrack(
 	}, nil
 }
 
+// downloadAndSaveLyrics downloads and saves lyrics for a track.
 func (s *ServiceImpl) downloadAndSaveLyrics(
 	ctx context.Context,
 	track *zvuk.Track,
@@ -947,6 +955,7 @@ func (s *ServiceImpl) downloadAndSaveLyrics(
 	return lyrics
 }
 
+// writeLyrics writes lyrics to a file.
 func (s *ServiceImpl) writeLyrics(ctx context.Context, lyrics, destinationPath string) (bool, error) {
 	fileOptions := overwriteFileOptions
 	if !s.cfg.ReplaceLyrics {
@@ -971,6 +980,8 @@ func (s *ServiceImpl) writeLyrics(ctx context.Context, lyrics, destinationPath s
 	return false, err
 }
 
+// finalizeAlbumCoverArt finalizes the album cover art.
+//
 //nolint:cyclop,funlen,nolintlint // Function doesn't seem to be complex.
 func (s *ServiceImpl) finalizeAlbumCoverArt(
 	ctx context.Context,
@@ -1028,6 +1039,17 @@ func (s *ServiceImpl) finalizeAlbumCoverArt(
 	existingCoverStat, err := os.Stat(newCoverPath)
 	if err == nil && os.SameFile(originalCoverStat, existingCoverStat) {
 		// No need to rename if the file is already correctly named.
+		return
+	}
+
+	// Check ReplaceCovers flag if destination exists.
+	if !s.cfg.ReplaceCovers && err == nil {
+		logger.Infof(ctx, "Cover already exists at final path, skipping rename")
+		// Clean up temp file.
+		if removeErr := os.Remove(sourceCoverPath); removeErr != nil {
+			logger.Warnf(ctx, "Failed to remove temp cover '%s': %v", sourceCoverPath, removeErr)
+		}
+
 		return
 	}
 

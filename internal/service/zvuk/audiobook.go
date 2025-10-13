@@ -9,14 +9,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
-
 	"github.com/oshokin/zvuk-grabber/internal/client/zvuk"
-	"github.com/oshokin/zvuk-grabber/internal/constants"
 	"github.com/oshokin/zvuk-grabber/internal/logger"
 	"github.com/oshokin/zvuk-grabber/internal/utils"
 )
 
+// downloadAudiobook downloads an audiobook and its chapters.
 func (s *ServiceImpl) downloadAudiobook(ctx context.Context, item *DownloadItem) {
 	audiobookID := item.ItemID
 
@@ -77,6 +75,7 @@ func (s *ServiceImpl) downloadAudiobook(ctx context.Context, item *DownloadItem)
 	s.downloadTracks(ctx, metadata)
 }
 
+// addAudiobookToAudioContainer adds an audiobook to the audio container.
 func (s *ServiceImpl) addAudiobookToAudioContainer(
 	ctx context.Context,
 	audiobookID string,
@@ -169,79 +168,14 @@ func (s *ServiceImpl) addAudiobookToAudioContainer(
 	return audioCollection
 }
 
+// downloadAudiobookCover downloads the audiobook cover.
 func (s *ServiceImpl) downloadAudiobookCover(ctx context.Context, bigImageURL, audiobookPath string) (string, string) {
-	// Trim and validate the cover art URL.
-	bigImageURL = strings.TrimSpace(bigImageURL)
-	if bigImageURL == "" {
-		return "", ""
-	}
-
-	// Parse and process the cover URL (handle {size} placeholder and extract extension).
-	parsedCover := s.parseAlbumCoverURL(bigImageURL)
-	audiobookCoverURL := parsedCover.url
-	audiobookCoverExtension := parsedCover.extension
-
-	// Use default extension if none was extracted.
-	// Audiobook covers are typically JPEG.
-	if audiobookCoverExtension == "" {
-		audiobookCoverExtension = extensionJPG
-	}
-
-	// Generate UUID-based temp filename to avoid concurrent download conflicts.
-	tempCoverFilename := defaultCoverBasename + "_" + uuid.New().String() + audiobookCoverExtension
-	tempCoverPath := filepath.Join(audiobookPath, tempCoverFilename)
-
-	// Download the cover art to the audiobook folder.
-	skipped, err := s.downloadAndSaveFile(ctx, audiobookCoverURL, tempCoverPath, s.cfg.ReplaceCovers)
-	if err != nil {
-		logger.Errorf(ctx, "Failed to download audiobook cover: %v", err)
-
-		return "", ""
-	}
-
-	// If the file was skipped (already exists), still return its path.
-	if skipped {
-		logger.Infof(ctx, "Audiobook cover already exists, skipping download")
-	} else {
-		logger.Infof(ctx, "Successfully downloaded audiobook cover")
-	}
-
-	// Return both the temp path (for later renaming) and the final path (same as temp for now).
-	return tempCoverPath, tempCoverPath
+	return s.downloadCover(ctx, bigImageURL, audiobookPath, "Audiobook")
 }
 
+// saveAudiobookDescription saves the audiobook description.
 func (s *ServiceImpl) saveAudiobookDescription(ctx context.Context, description, audiobookPath string) string {
-	// Generate UUID-based temp filename to avoid concurrent download conflicts.
-	tempDescFilename := defaultDescriptionBasename + "_" + uuid.New().String() + extensionTXT
-	tempDescPath := filepath.Join(audiobookPath, tempDescFilename)
-
-	// Dry-run mode: simulate description save.
-	if s.cfg.DryRun {
-		if _, err := os.Stat(tempDescPath); err == nil && !s.cfg.ReplaceCovers {
-			logger.Infof(ctx, "[DRY-RUN] Description file already exists, would skip")
-		} else {
-			logger.Infof(ctx, "[DRY-RUN] Would save audiobook description to: %s", tempDescFilename)
-		}
-
-		return tempDescPath
-	}
-
-	// Check if description file already exists (check temp path).
-	if _, err := os.Stat(tempDescPath); err == nil && !s.cfg.ReplaceCovers {
-		logger.Debugf(ctx, "Description file already exists, skipping")
-		return tempDescPath
-	}
-
-	// Write description in UTF-8 encoding.
-	err := os.WriteFile(tempDescPath, []byte(description), constants.DefaultFilePermissions)
-	if err != nil {
-		logger.Errorf(ctx, "Failed to save audiobook description: %v", err)
-		return ""
-	}
-
-	logger.Infof(ctx, "Saved audiobook description to %s", tempDescFilename)
-
-	return tempDescPath
+	return s.saveDescription(ctx, description, audiobookPath, "Audiobook")
 }
 
 // finalizeAudiobookDescription renames the description file for single-chapter audiobooks.
@@ -251,58 +185,10 @@ func (s *ServiceImpl) finalizeAudiobookDescription(
 	audioCollection *audioCollection,
 	chapterFilename string,
 ) {
-	// Only process on the last chapter.
-	if chapterIndex != audioCollection.tracksCount {
-		return
-	}
-
-	// Check if we have a temp description path.
-	if audioCollection.descriptionTempPath == "" {
-		return
-	}
-
-	// Skip in dry-run mode (description was never actually created).
-	if s.cfg.DryRun {
-		return
-	}
-
-	// Check if temp description file exists.
-	if _, err := os.Stat(audioCollection.descriptionTempPath); err != nil {
-		// Description doesn't exist - that's fine, not all audiobooks have descriptions.
-		return
-	}
-
-	var newDescriptionFilename string
-
-	// For single-chapter audiobooks without a dedicated folder, rename to match the chapter filename.
-	if !s.cfg.CreateFolderForSingles && audioCollection.tracksCount == 1 {
-		newDescriptionFilename = utils.SetFileExtension(chapterFilename, extensionTXT, true)
-	} else {
-		// For multi-chapter or audiobooks with folders, use standard name.
-		newDescriptionFilename = defaultDescriptionBasename + extensionTXT
-	}
-
-	newDescriptionPath := filepath.Join(audioCollection.tracksPath, newDescriptionFilename)
-
-	// Check if already renamed (same file).
-	originalStat, err := os.Stat(audioCollection.descriptionTempPath)
-	if err != nil {
-		return
-	}
-
-	existingStat, err := os.Stat(newDescriptionPath)
-	if err == nil && os.SameFile(originalStat, existingStat) {
-		// Already renamed, nothing to do.
-		return
-	}
-
-	// Rename the description file from temp UUID name to final name.
-	if renameErr := os.Rename(audioCollection.descriptionTempPath, newDescriptionPath); renameErr != nil {
-		logger.Errorf(ctx, "Failed to rename description from '%s' to '%s': %v",
-			audioCollection.descriptionTempPath, newDescriptionPath, renameErr)
-	}
+	s.finalizeDescription(ctx, chapterIndex, audioCollection, chapterFilename)
 }
 
+// parseAudiobookPublicationYear parses the publication year from an ISO 8601 date string.
 func (s *ServiceImpl) parseAudiobookPublicationYear(publicationDate string) string {
 	// Parse ISO 8601 date format: "2023-12-05T09:59:51.549544+00:00"
 	if publicationDate == "" {
@@ -322,6 +208,7 @@ func (s *ServiceImpl) parseAudiobookPublicationYear(publicationDate string) stri
 	return strconv.Itoa(parsedDate.Year())
 }
 
+// parseAudiobookPublicationDate parses the publication date from an ISO 8601 date string to "YYYY-MM-DD" format.
 func (s *ServiceImpl) parseAudiobookPublicationDate(publicationDate string) string {
 	// Parse ISO 8601 date format: "2023-12-05T09:59:51.549544+00:00" to "2023-12-05"
 	if publicationDate == "" {
@@ -341,6 +228,7 @@ func (s *ServiceImpl) parseAudiobookPublicationDate(publicationDate string) stri
 	return parsedDate.Format("2006-01-02")
 }
 
+// fillAudiobookTags fills the audiobook tags.
 func (s *ServiceImpl) fillAudiobookTags(audiobook *zvuk.Audiobook) map[string]string {
 	// Parse publication date and extract year.
 	publishYear := s.parseAudiobookPublicationYear(audiobook.PublicationDate)

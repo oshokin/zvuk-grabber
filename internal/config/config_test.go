@@ -27,6 +27,7 @@ func TestConfigStruct(t *testing.T) {
 		DownloadLyrics:           true,
 		ReplaceTracks:            false,
 		ReplaceCovers:            false,
+		ReplaceDescriptions:      false,
 		ReplaceLyrics:            false,
 		LogLevel:                 "info",
 		DownloadSpeedLimit:       "1MB",
@@ -48,6 +49,7 @@ func TestConfigStruct(t *testing.T) {
 	assert.True(t, cfg.DownloadLyrics)
 	assert.False(t, cfg.ReplaceTracks)
 	assert.False(t, cfg.ReplaceCovers)
+	assert.False(t, cfg.ReplaceDescriptions)
 	assert.False(t, cfg.ReplaceLyrics)
 	assert.Equal(t, "info", cfg.LogLevel)
 	assert.Equal(t, "1MB", cfg.DownloadSpeedLimit)

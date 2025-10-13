@@ -10,6 +10,7 @@ import (
 // weightedAverageNumberOfAlbumsPerArtist is an estimated average number of albums per artist.
 const weightedAverageNumberOfAlbumsPerArtist = 46
 
+// fetchArtistAlbums fetches all albums for a given list of artists.
 func (s *ServiceImpl) fetchArtistAlbums(ctx context.Context, artistItems []*DownloadItem) []*DownloadItem {
 	var (
 		artistsCount = len(artistItems)
@@ -71,6 +72,7 @@ func (s *ServiceImpl) fetchArtistAlbums(ctx context.Context, artistItems []*Down
 	return result
 }
 
+// getArtistReleaseIDs fetches all release IDs for a given artist.
 func (s *ServiceImpl) getArtistReleaseIDs(ctx context.Context, artistURL string) ([]string, error) {
 	var (
 		limit       = 50

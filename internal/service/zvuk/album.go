@@ -40,6 +40,7 @@ var (
 	ErrAlbumNotFound = errors.New("album not found")
 )
 
+// downloadAlbum downloads an album and its tracks.
 func (s *ServiceImpl) downloadAlbum(ctx context.Context, item *DownloadItem) {
 	albumID := item.ItemID
 
@@ -82,6 +83,7 @@ func (s *ServiceImpl) downloadAlbum(ctx context.Context, item *DownloadItem) {
 	s.downloadTracks(ctx, metadata)
 }
 
+// fetchAlbumData fetches album data including tracks, metadata, and labels.
 func (s *ServiceImpl) fetchAlbumData(ctx context.Context, albumID string) (*fetchAlbumDataResponse, error) {
 	// Fetch album metadata from the API.
 	getAlbumsMetadataResponse, err := s.zvukClient.GetAlbumsMetadata(ctx, []string{albumID}, true)
@@ -112,6 +114,7 @@ func (s *ServiceImpl) fetchAlbumData(ctx context.Context, albumID string) (*fetc
 	}, nil
 }
 
+// registerAlbumCollection registers an album collection, creates folders, and downloads cover art.
 func (s *ServiceImpl) registerAlbumCollection(
 	ctx context.Context,
 	album *zvuk.Release,
@@ -189,6 +192,7 @@ func (s *ServiceImpl) registerAlbumCollection(
 	return audioCollection
 }
 
+// generateSanitizedFolderPath generates a sanitized folder path from a raw path string.
 func (s *ServiceImpl) generateSanitizedFolderPath(ctx context.Context, rawPath string) string {
 	// Split using both separators to handle mixed/foreign path formats.
 	components := strings.FieldsFunc(rawPath, func(r rune) bool {
@@ -207,6 +211,7 @@ func (s *ServiceImpl) generateSanitizedFolderPath(ctx context.Context, rawPath s
 	return s.truncateFolderName(ctx, "Album", joinedPath)
 }
 
+// parseAlbumDate parses an album date from a raw integer to a time.Time object and a year string.
 func (s *ServiceImpl) parseAlbumDate(rawDate int64) (time.Time, string) {
 	dateString := strconv.FormatInt(rawDate, 10)
 
@@ -220,6 +225,7 @@ func (s *ServiceImpl) parseAlbumDate(rawDate int64) (time.Time, string) {
 	return parsedDate, strconv.Itoa(parsedDate.Year())
 }
 
+// fillAlbumTagsForTemplating fills album tags for templating purposes.
 func (s *ServiceImpl) fillAlbumTagsForTemplating(release *zvuk.Release) map[string]string {
 	albumDate, albumYear := s.parseAlbumDate(release.Date)
 
@@ -235,6 +241,7 @@ func (s *ServiceImpl) fillAlbumTagsForTemplating(release *zvuk.Release) map[stri
 	}
 }
 
+// downloadAlbumCover downloads the cover art for an album.
 func (s *ServiceImpl) downloadAlbumCover(
 	ctx context.Context,
 	album *zvuk.Release,
@@ -281,6 +288,7 @@ func (s *ServiceImpl) downloadAlbumCover(
 	return albumCoverPath
 }
 
+// parseAlbumCoverURL parses a cover URL to extract the URL and extension.
 func (s *ServiceImpl) parseAlbumCoverURL(sourceURL string) *parsedCoverURL {
 	// Parse the URL to extract query parameters.
 	parsedURL, err := url.Parse(sourceURL)

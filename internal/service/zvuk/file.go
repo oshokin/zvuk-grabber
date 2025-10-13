@@ -18,6 +18,7 @@ const (
 	createNewFileOptions = os.O_CREATE | os.O_EXCL | os.O_WRONLY
 )
 
+// downloadAndSaveFile downloads a file from a URL and saves it to a destination path.
 func (s *ServiceImpl) downloadAndSaveFile(
 	ctx context.Context,
 	url, destinationPath string,
@@ -91,6 +92,7 @@ func (s *ServiceImpl) downloadAndSaveFile(
 	return false, nil
 }
 
+// truncateFolderName truncates a folder name to the maximum allowed length.
 func (s *ServiceImpl) truncateFolderName(ctx context.Context, pattern, name string) string {
 	// Check if the folder name exceeds the maximum allowed length.
 	if s.cfg.MaxFolderNameLength > 0 && int64(len([]rune(name))) > s.cfg.MaxFolderNameLength {

@@ -142,6 +142,8 @@ func (up *URLProcessorImpl) parseDownloadItem(url string) *DownloadItem {
 	}
 }
 
+// processAndFlattenURLs processes and flattens a list of URLs,
+// handling text files containing multiple URLs.
 func (up *URLProcessorImpl) processAndFlattenURLs(urls []string) ([]string, error) {
 	var (
 		// Track processed URLs.
