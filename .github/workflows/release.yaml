@@ -35,7 +35,7 @@ jobs:
     steps:
       # Check out repository with full Git history for version analysis.
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 

@@ -38,7 +38,7 @@ jobs:
     steps:
       # Checkout the repository code with full git history.
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           # Fetch all commits and branches for complete history.
           fetch-depth: 0
@@ -61,7 +61,7 @@ jobs:
     steps:
       # Checkout the repository code.
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
       # Install the Go version specified in the matrix.
       - name: Install Go ${{ matrix.go-version }}
         uses: actions/setup-go@v6
@@ -91,7 +91,7 @@ jobs:
     steps:
       # Checkout the repository code.
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
       # Install Go for the build test.
       - name: Install Go
         uses: actions/setup-go@v6
