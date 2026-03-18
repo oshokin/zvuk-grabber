@@ -10,6 +10,7 @@ import (
 
 	"github.com/oshokin/zvuk-grabber/internal/config"
 	"github.com/oshokin/zvuk-grabber/internal/logger"
+	"github.com/oshokin/zvuk-grabber/internal/utils"
 )
 
 // TemplateManager defines the interface for managing templates used to generate filenames and folder names.
@@ -187,9 +188,14 @@ func (s *TemplateManagerImpl) GetAlbumFolderName(ctx context.Context, tags map[s
 		buffer      bytes.Buffer
 	)
 
+	var sanitizedTags = make(map[string]string, len(tags))
+	for key, val := range tags {
+		sanitizedTags[key] = utils.SanitizeFilename(val)
+	}
+
 	// Execute the template with the album tags.
 	if textBuilder != nil {
-		err := textBuilder.Execute(&buffer, tags)
+		err := textBuilder.Execute(&buffer, sanitizedTags)
 		if err != nil {
 			logger.Errorf(
 				ctx,
@@ -201,12 +207,12 @@ func (s *TemplateManagerImpl) GetAlbumFolderName(ctx context.Context, tags map[s
 			buffer.Reset()
 
 			textBuilder = s.defaultAlbumFolderTemplate
-			_ = textBuilder.Execute(&buffer, tags) //nolint:errcheck // Default template is always valid.
+			_ = textBuilder.Execute(&buffer, sanitizedTags) //nolint:errcheck // Default template is always valid.
 		}
 	} else {
 		// Use default template if custom template is nil.
 		textBuilder = s.defaultAlbumFolderTemplate
-		_ = textBuilder.Execute(&buffer, tags) //nolint:errcheck // Default template is always valid.
+		_ = textBuilder.Execute(&buffer, sanitizedTags) //nolint:errcheck // Default template is always valid.
 	}
 
 	// Unescape HTML entities in the generated folder name.

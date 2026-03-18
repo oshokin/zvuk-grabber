@@ -166,7 +166,7 @@ func TestTemplateManagerImpl_GetAlbumFolderName(t *testing.T) {
 				"albumArtist": "Artist/With\\Special:Chars",
 				"albumTitle":  "Album|With*Special?Chars",
 			},
-			expected: "2023 - Artist/With\\Special:Chars - Album|With*Special?Chars",
+			expected: "2023 - Artist_With_Special_Chars - Album_With_Special_Chars",
 		},
 	}
 
