@@ -83,13 +83,12 @@ func TestDownloadTracks_ProgressBarWithSequential(t *testing.T) {
 		Return(fetchTrackResult, nil)
 
 	metadata := &downloadTracksMetadata{
-		category:        DownloadCategoryAlbum,
-		trackIDs:        trackIDs,
-		tracksMetadata:  tracksMetadata,
-		albumsMetadata:  albumsMetadata,
-		albumsTags:      albumsTags,
-		labelsMetadata:  labelsMetadata,
-		audioCollection: nil,
+		category:       DownloadCategoryAlbum,
+		trackIDs:       trackIDs,
+		tracksMetadata: tracksMetadata,
+		albumsMetadata: albumsMetadata,
+		albumsTags:     albumsTags,
+		labelsMetadata: labelsMetadata,
 	}
 
 	// Execute download.
@@ -194,13 +193,12 @@ func TestDownloadTracks_NoProgressBarWithConcurrent(t *testing.T) {
 	}
 
 	metadata := &downloadTracksMetadata{
-		category:        DownloadCategoryAlbum,
-		trackIDs:        trackIDs,
-		tracksMetadata:  tracksMetadata,
-		albumsMetadata:  albumsMetadata,
-		albumsTags:      albumsTags,
-		labelsMetadata:  labelsMetadata,
-		audioCollection: nil,
+		category:       DownloadCategoryAlbum,
+		trackIDs:       trackIDs,
+		tracksMetadata: tracksMetadata,
+		albumsMetadata: albumsMetadata,
+		albumsTags:     albumsTags,
+		labelsMetadata: labelsMetadata,
 	}
 
 	// Execute download with concurrent downloads.

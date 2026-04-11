@@ -117,7 +117,9 @@ func TestRandomPause(t *testing.T) {
 
 	// Test that RandomPause doesn't panic and returns within reasonable time.
 	start := time.Now()
+
 	RandomPause(100*time.Millisecond, 150*time.Millisecond)
+
 	duration := time.Since(start)
 
 	// Should pause for at least 100ms but not more than 200ms (allowing some overhead).

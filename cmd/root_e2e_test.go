@@ -346,10 +346,8 @@ max_concurrent_downloads: 1
 			require.NoError(t, err)
 
 			// Prepare arguments.
-			args := []string{
-				"--config", configPath,
-				"https://test-url.com/track/123",
-			}
+			args := make([]string, 0, 3+len(tt.flags))
+			args = append(args, "--config", configPath, "https://test-url.com/track/123")
 			args = append(args, tt.flags...)
 
 			// Ensure test binary exists.
@@ -383,10 +381,8 @@ func runWithConfigDump(t *testing.T, configPath string, flags []string) *ConfigD
 		t.Fatalf("Failed to build test binary: %v", err)
 	}
 
-	args := []string{
-		"--config", configPath,
-		"https://test-url.com/track/123",
-	}
+	args := make([]string, 0, 3+len(flags))
+	args = append(args, "--config", configPath, "https://test-url.com/track/123")
 	args = append(args, flags...)
 
 	cmd := execTestBinary(args...)

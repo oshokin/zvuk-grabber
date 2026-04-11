@@ -7,7 +7,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/oshokin/zvuk-grabber/internal/client/zvuk"
 	"github.com/oshokin/zvuk-grabber/internal/config"
 )
 
@@ -274,7 +273,7 @@ func TestDownloadStatistics_ErrorTracking(t *testing.T) {
 	assert.True(t, ok, "Service should be of type *ServiceImpl")
 
 	// Simulate various errors during download.
-	impl.recordError(&ErrorContext{
+	impl.recordError(&DownloadError{
 		Category:       DownloadCategoryTrack,
 		ItemID:         "12345",
 		ItemTitle:      "Test Track 1",
@@ -282,23 +281,26 @@ func TestDownloadStatistics_ErrorTracking(t *testing.T) {
 		ParentCategory: DownloadCategoryAlbum,
 		ParentID:       "99999",
 		ParentTitle:    "Parent Album",
-	}, assert.AnError)
+		Error:          assert.AnError,
+	})
 
-	impl.recordError(&ErrorContext{
+	impl.recordError(&DownloadError{
 		Category:  DownloadCategoryAlbum,
 		ItemID:    "67890",
 		ItemTitle: "Test Album",
 		ItemURL:   "https://zvuk.com/release/67890",
 		Phase:     "fetching album data",
-	}, assert.AnError)
+		Error:     assert.AnError,
+	})
 
-	impl.recordError(&ErrorContext{
+	impl.recordError(&DownloadError{
 		Category:  DownloadCategoryPlaylist,
 		ItemID:    "11111",
 		ItemTitle: "My Playlist",
 		ItemURL:   "https://zvuk.com/playlist/11111",
 		Phase:     "fetching playlist metadata",
-	}, assert.AnError)
+		Error:     assert.AnError,
+	})
 
 	impl.incrementTrackFailed()
 	impl.incrementTrackDownloaded(1000)
@@ -311,29 +313,6 @@ func TestDownloadStatistics_ErrorTracking(t *testing.T) {
 	assert.Equal(t, DownloadCategoryTrack, impl.stats.Errors[0].Category)
 
 	// Print summary with errors (should not panic).
-	ctx := context.Background()
-	impl.PrintDownloadSummary(ctx)
-}
-
-// Example of what the stats might look like for a real download.
-func ExampleServiceImpl_PrintDownloadSummary() {
-	service := NewService(
-		new(config.Config),
-		new(zvuk.ClientImpl),
-		nil,
-		nil,
-		nil,
-	)
-
-	impl, ok := service.(*ServiceImpl)
-	if !ok {
-		panic("failed to cast to ServiceImpl")
-	}
-
-	// Simulate a typical download session.
-	impl.incrementTrackDownloaded(36860019)
-	impl.incrementCoverDownloaded()
-
 	ctx := context.Background()
 	impl.PrintDownloadSummary(ctx)
 }

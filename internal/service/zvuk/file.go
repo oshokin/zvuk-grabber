@@ -93,12 +93,17 @@ func (s *ServiceImpl) downloadAndSaveFile(
 }
 
 // truncateFolderName truncates a folder name to the maximum allowed length.
-func (s *ServiceImpl) truncateFolderName(ctx context.Context, pattern, name string) string {
+func (s *ServiceImpl) truncateFolderName(ctx context.Context, category DownloadCategory, name string) string {
 	// Check if the folder name exceeds the maximum allowed length.
 	if s.cfg.MaxFolderNameLength > 0 && int64(len([]rune(name))) > s.cfg.MaxFolderNameLength {
 		// Truncate the name to the maximum length.
 		truncated := string([]rune(name)[:s.cfg.MaxFolderNameLength])
-		logger.Infof(ctx, "%s folder name was truncated to %d characters", pattern, s.cfg.MaxFolderNameLength)
+		logger.Infof(
+			ctx,
+			"%s folder name was truncated to %d characters",
+			category.ToTitleCase(),
+			s.cfg.MaxFolderNameLength,
+		)
 
 		return truncated
 	}

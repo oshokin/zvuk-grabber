@@ -162,14 +162,23 @@ func (b *testMetadataBuilder) withAlbumTitle(title string) *testMetadataBuilder 
 
 // build creates the final downloadTracksMetadata structure.
 func (b *testMetadataBuilder) build() *downloadTracksMetadata {
+	// Create a basic audioCollection for testing
+	audioCollection := &audioCollection{
+		category:    DownloadCategoryAlbum,
+		title:       "Test Album",
+		tracksCount: int64(len(b.trackIDs)),
+		tags:        make(map[string]string),
+		trackIDs:    b.trackIDs,
+	}
+
 	return &downloadTracksMetadata{
+		audioCollection: audioCollection,
 		category:        DownloadCategoryAlbum,
 		trackIDs:        b.trackIDs,
 		tracksMetadata:  b.tracksMetadata,
 		albumsMetadata:  b.albumsMetadata,
 		albumsTags:      b.albumsTags,
 		labelsMetadata:  b.labelsMetadata,
-		audioCollection: nil,
 	}
 }
 

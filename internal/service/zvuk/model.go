@@ -8,6 +8,22 @@ import (
 )
 
 const (
+	// Titles and lowercase representations of the download categories.
+	downloadCategoryUnknownTitle   = "Unknown"
+	downloadCategoryTrackTitle     = "Track"
+	downloadCategoryAlbumTitle     = "Album"
+	downloadCategoryPlaylistTitle  = "Playlist"
+	downloadCategoryArtistTitle    = "Artist"
+	downloadCategoryAudiobookTitle = "Audiobook"
+	downloadCategoryPodcastTitle   = "Podcast"
+	downloadCategoryUnknownLower   = "unknown"
+	downloadCategoryTrackLower     = "track"
+	downloadCategoryAlbumLower     = "album"
+	downloadCategoryPlaylistLower  = "playlist"
+	downloadCategoryArtistLower    = "artist"
+	downloadCategoryAudiobookLower = "audiobook"
+	downloadCategoryPodcastLower   = "podcast"
+
 	// defaultFolderPermissions sets the default permissions for folders: (rwxr-xr-x).
 	defaultFolderPermissions os.FileMode = 0o755
 
@@ -21,8 +37,8 @@ const (
 	extensionLRC  = ".lrc"
 
 	// Default filenames and values.
-	defaultCoverBasename       = "cover"
-	defaultDescriptionBasename = "description"
+	defaultCoverFilename       = "cover"
+	defaultDescriptionFilename = "description"
 	defaultUnknownYear         = "0000"
 	trackNumberPaddingWidth    = 2
 )
@@ -51,21 +67,72 @@ const (
 func (dc DownloadCategory) String() string {
 	switch dc {
 	case DownloadCategoryUnknown:
-		return "unknown"
+		return downloadCategoryUnknownLower
 	case DownloadCategoryTrack:
-		return "track"
+		return downloadCategoryTrackLower
 	case DownloadCategoryAlbum:
-		return "album"
+		return downloadCategoryAlbumLower
 	case DownloadCategoryPlaylist:
-		return "playlist"
+		return downloadCategoryPlaylistLower
 	case DownloadCategoryArtist:
-		return "artist"
+		return downloadCategoryArtistLower
 	case DownloadCategoryAudiobook:
-		return "audiobook"
+		return downloadCategoryAudiobookLower
 	case DownloadCategoryPodcast:
-		return "podcast"
+		return downloadCategoryPodcastLower
 	default:
-		return fmt.Sprintf("unknown: %d", dc)
+		return fmt.Sprintf("%s: %d", downloadCategoryUnknownLower, dc)
+	}
+}
+
+// ToLowerCase returns the lowercase representation of the DownloadCategory.
+func (dc DownloadCategory) ToLowerCase() string {
+	return dc.String()
+}
+
+// ToTitleCase returns the title case representation of the DownloadCategory.
+func (dc DownloadCategory) ToTitleCase() string {
+	switch dc {
+	case DownloadCategoryUnknown:
+		return downloadCategoryUnknownTitle
+	case DownloadCategoryTrack:
+		return downloadCategoryTrackTitle
+	case DownloadCategoryAlbum:
+		return downloadCategoryAlbumTitle
+	case DownloadCategoryPlaylist:
+		return downloadCategoryPlaylistTitle
+	case DownloadCategoryArtist:
+		return downloadCategoryArtistTitle
+	case DownloadCategoryAudiobook:
+		return downloadCategoryAudiobookTitle
+	case DownloadCategoryPodcast:
+		return downloadCategoryPodcastTitle
+	default:
+		return fmt.Sprintf("%s: %d", downloadCategoryUnknownTitle, dc)
+	}
+}
+
+// ToSubcategory returns the subcategory representation of the DownloadCategory.
+func (dc DownloadCategory) ToSubcategory() string {
+	switch dc {
+	case DownloadCategoryArtist:
+		return "album"
+	case DownloadCategoryAudiobook:
+		return "chapter"
+	case DownloadCategoryPodcast:
+		return "episode"
+	default:
+		return "track"
+	}
+}
+
+// IsSupported returns true if the category is supported for downloading.
+func (dc DownloadCategory) IsSupported() bool {
+	switch dc {
+	case DownloadCategoryAlbum, DownloadCategoryPlaylist, DownloadCategoryAudiobook, DownloadCategoryPodcast:
+		return true
+	default:
+		return false
 	}
 }
 
@@ -146,13 +213,17 @@ type DownloadStatistics struct {
 	CoversDownloaded int64
 	// CoversSkipped is the number of cover art files skipped (already exist).
 	CoversSkipped int64
+	// DescriptionsSaved is the number of description files downloaded.
+	DescriptionsSaved int64
+	// DescriptionsSkipped is the number of description files skipped (already exist).
+	DescriptionsSkipped int64
 	// Errors is a list of all errors encountered during the download process.
-	Errors []DownloadError
+	Errors []*DownloadError
 }
 
 // DownloadError represents a single error that occurred during download.
 type DownloadError struct {
-	// Category is the type of item that failed (track, album, playlist, artist).
+	// Category is the type of item that failed (track, album, playlist, etc.).
 	Category DownloadCategory
 	// ItemID is the unique identifier of the item that failed.
 	ItemID string
@@ -160,16 +231,16 @@ type DownloadError struct {
 	ItemTitle string
 	// ItemURL is the URL of the failed item (for albums/playlists/artists).
 	ItemURL string
-	// ErrorMessage is the error message.
-	ErrorMessage string
-	// Phase indicates when the error occurred (e.g., "fetching metadata", "downloading track").
-	Phase string
 	// ParentCategory is the type of parent collection (album/playlist) for tracks.
 	ParentCategory DownloadCategory
 	// ParentID is the ID of the parent collection.
 	ParentID string
 	// ParentTitle is the title of the parent collection.
 	ParentTitle string
+	// Phase indicates when the error occurred (e.g., "fetching metadata", "downloading track").
+	Phase string
+	// Error is the error.
+	Error error
 }
 
 // DownloadTrackResult contains the result of downloadAndSaveTrack operation.
@@ -281,18 +352,22 @@ func ParseQuality(s string) TrackQuality {
 type audioCollection struct {
 	// category indicates the type of collection (album, playlist, etc.).
 	category DownloadCategory
+	// id is the collection ID.
+	id string
 	// title is the collection name.
 	title string
 	// tags contains metadata key-value pairs for the collection.
 	tags map[string]string
 	// tracksPath is the directory path where tracks will be saved.
 	tracksPath string
+	// embeddableCoverPath is the path for cover that will be embedded to the track tags.
+	embeddableCoverPath string
 	// coverPath is the file path for the collection's cover art.
 	coverPath string
-	// coverTempPath is the temporary UUID-based path for cover (used during concurrent downloads).
-	coverTempPath string
-	// descriptionTempPath is the temporary UUID-based path for description (audiobooks only).
-	descriptionTempPath string
+	// embeddableDescriptionPath is the path for description that will be embedded to the track tags.
+	embeddableDescriptionPath string
+	// descriptionPath is the file path for the collection's description.
+	descriptionPath string
 	// trackIDs is the list of track IDs in the collection.
 	trackIDs []int64
 	// tracksCount is the total number of tracks in the collection.

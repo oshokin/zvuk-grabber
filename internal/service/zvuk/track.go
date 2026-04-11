@@ -33,7 +33,10 @@ type fetchAlbumsDataFromTracksResponse struct {
 
 // downloadTracksMetadata contains all metadata needed for downloading tracks.
 type downloadTracksMetadata struct {
-	// category indicates the type of download (album, playlist, audiobook, etc.).
+	// audioCollection contains the collection structure for the download.
+	// It's nil when downloading tracks individually, so duplication of category and trackIDs is necessary.
+	audioCollection *audioCollection
+	// category indicates the type of download (album, playlist, audiobook, podcast, track, etc.).
 	category DownloadCategory
 	// trackIDs is the list of track IDs to download.
 	trackIDs []int64
@@ -43,22 +46,32 @@ type downloadTracksMetadata struct {
 	albumsMetadata map[string]*zvuk.Release
 	// albumsTags contains tag metadata for albums.
 	albumsTags map[string]map[string]string
+	// chapterStreamsMetadata contains stream metadata for audiobook chapters.
+	chapterStreamsMetadata map[string]*zvuk.StreamQualities
 	// labelsMetadata contains music label metadata mapped by label ID.
 	labelsMetadata map[string]*zvuk.Label
-	// audioCollection contains the collection structure for the download.
-	audioCollection *audioCollection
-	// chapterStreams contains stream metadata for audiobook chapters (only used for audiobooks).
-	chapterStreams map[string]*zvuk.ChapterStreamMetadata
 }
 
-// downloadTrackRequest contains parameters for downloading a single track.
-type downloadTrackRequest struct {
-	// trackIndex is the position of the track in the download queue.
-	trackIndex int64
-	// trackID is the unique identifier of the track.
-	trackID int64
-	// metadata contains all metadata needed for downloading.
-	metadata *downloadTracksMetadata
+// downloadTrackTask is a task for downloading a single track.
+type downloadTrackTask struct {
+	trackIndex    int64
+	trackID       int64
+	trackIDString string
+	track         *zvuk.Track
+	trackPosition int64
+	trackFilename string
+	trackPath     string
+	quality       TrackQuality
+	streamURL     string
+	albumTags     map[string]string
+	album         *zvuk.Release
+	parentID      string
+	parentTitle   string
+	// audioCollection is the resolved collection context for this track.
+	// For albums/playlists/audiobooks/podcasts it's shared across all tracks via metadata.
+	// For standalone track downloads it is derived from the track's album.
+	audioCollection *audioCollection
+	metadata        *downloadTracksMetadata
 }
 
 // defaultLyricsExtension is the default file extension for lyrics files.
@@ -90,7 +103,7 @@ func (s *ServiceImpl) fetchAlbumsDataFromTracks(
 	// Generate tags for each album.
 	releasesTags := make(map[string]map[string]string, len(albumsMetadataResponse.Releases))
 	for _, album := range albumsMetadataResponse.Releases {
-		releasesTags[strconv.FormatInt(album.ID, 10)] = s.fillAlbumTagsForTemplating(album)
+		releasesTags[strconv.FormatInt(album.ID, 10)] = s.albumHandler.FillTags(album)
 	}
 
 	// Collect label IDs from the albums.
@@ -131,39 +144,18 @@ func (s *ServiceImpl) downloadTracks(ctx context.Context, metadata *downloadTrac
 	s.downloadTracksConcurrently(ctx, metadata, maxConcurrent)
 }
 
-// executeTrackDownload creates a download request and executes the track download.
-// This is the common logic shared between sequential and concurrent downloads.
-func (s *ServiceImpl) executeTrackDownload(
-	ctx context.Context,
-	trackIndex int,
-	trackID int64,
-	metadata *downloadTracksMetadata,
-) {
-	request := &downloadTrackRequest{
-		// Track numbers start at 1 for user-facing numbering.
-		trackIndex: int64(trackIndex) + 1,
-		trackID:    trackID,
-		metadata:   metadata,
-	}
-
-	s.downloadTrack(ctx, request)
-
-	// Add a random pause between downloads to avoid rate limiting.
-	utils.RandomPause(0, s.cfg.ParsedMaxDownloadPause)
-}
-
 // downloadTracksSequentially downloads tracks one by one (original behavior).
 func (s *ServiceImpl) downloadTracksSequentially(ctx context.Context, metadata *downloadTracksMetadata) {
 	for i, trackID := range metadata.trackIDs {
-		// Check if context was canceled (CTRL+C pressed) - stop immediately.
-		select {
-		case <-ctx.Done():
-			return
-		default:
+		// Stop between tracks on CTRL+C, but still finalize shared assets.
+		if ctx.Err() != nil {
+			break
 		}
 
-		s.executeTrackDownload(ctx, i, trackID, metadata)
+		s.downloadSingleTrack(ctx, i, trackID, metadata)
 	}
+
+	s.finalizeCollectionAssets(ctx, metadata)
 }
 
 // downloadTracksConcurrently downloads tracks using a worker pool for concurrent execution.
@@ -178,11 +170,12 @@ func (s *ServiceImpl) downloadTracksConcurrently(
 	var waitGroup sync.WaitGroup
 
 	// Process each track in a separate goroutine.
+queueTracks:
 	for index, trackID := range metadata.trackIDs {
 		// Check if context was canceled (CTRL+C pressed) - stop queueing new downloads.
 		select {
 		case <-ctx.Done():
-			goto waitForCompletion
+			break queueTracks
 		default:
 		}
 
@@ -199,178 +192,173 @@ func (s *ServiceImpl) downloadTracksConcurrently(
 				<-semaphore
 			}()
 
-			// Execute the track download with common logic.
-			s.executeTrackDownload(ctx, trackIndex, currentTrackID, metadata)
+			s.downloadSingleTrack(ctx, trackIndex, currentTrackID, metadata)
 		}(index, trackID)
 	}
 
-waitForCompletion:
 	// Wait for all in-flight downloads to complete.
 	waitGroup.Wait()
+
+	s.finalizeCollectionAssets(ctx, metadata)
+}
+
+func (s *ServiceImpl) finalizeCollectionAssets(ctx context.Context, metadata *downloadTracksMetadata) {
+	if metadata == nil || metadata.audioCollection == nil {
+		return
+	}
+
+	s.finalizeCover(ctx, metadata.audioCollection.tracksCount, metadata.audioCollection)
+	s.finalizeDescription(ctx, metadata.audioCollection, metadata.audioCollection.tracksCount)
+}
+
+func (s *ServiceImpl) downloadSingleTrack(
+	ctx context.Context,
+	trackIndex int,
+	trackID int64,
+	metadata *downloadTracksMetadata,
+) {
+	// Create new download track task.
+	task, err := s.newDownloadTrackTask(ctx, trackIndex, trackID, metadata)
+	if err != nil {
+		return
+	}
+
+	// Download track.
+	s.downloadTrack(ctx, task)
+
+	// Random pause.
+	utils.RandomPause(0, s.cfg.ParsedMaxDownloadPause)
+}
+
+func (s *ServiceImpl) newDownloadTrackTask(
+	ctx context.Context,
+	trackIndex int,
+	trackID int64,
+	metadata *downloadTracksMetadata,
+) (*downloadTrackTask, error) {
+	// Create new download track task.
+	t := &downloadTrackTask{
+		trackIndex:      int64(trackIndex) + 1,
+		trackID:         trackID,
+		trackIDString:   strconv.FormatInt(trackID, 10),
+		audioCollection: metadata.audioCollection,
+		metadata:        metadata,
+	}
+
+	// Fetch track metadata.
+	track, ok := t.metadata.tracksMetadata[t.trackIDString]
+	if !ok || track == nil {
+		err := fmt.Errorf("track with ID '%s': %w", t.trackIDString, ErrTrackNotFound)
+		logger.Errorf(ctx, "Track with ID '%s' is not found", t.trackIDString)
+		s.recordError(&DownloadError{
+			Category:  DownloadCategoryTrack,
+			ItemID:    t.trackIDString,
+			ItemTitle: "Unknown Track",
+			Phase:     "fetching metadata",
+			Error:     err,
+		})
+
+		return nil, err
+	}
+
+	t.track = track
+
+	switch t.metadata.category {
+	case DownloadCategoryAudiobook, DownloadCategoryPodcast:
+		// I did it for easy logging, since tracks metadata doesn't have audio collection.
+		if t.audioCollection == nil {
+			return nil, ErrAlbumContextFailed
+		}
+
+		t.parentID = t.audioCollection.id
+		t.parentTitle = t.audioCollection.title
+	default:
+		if !s.prepareRegularTrackTask(ctx, t) {
+			return nil, ErrAlbumContextFailed
+		}
+	}
+
+	return t, nil
 }
 
 // downloadTrack downloads a single track.
 func (s *ServiceImpl) downloadTrack(
 	ctx context.Context,
-	req *downloadTrackRequest,
+	task *downloadTrackTask,
 ) {
-	// Prepare download context.
-	dc, err := s.prepareDownloadContext(ctx, req)
-	if err != nil {
-		return // Errors already handled in prepareDownloadContext.
-	}
-
-	// Validate track constraints BEFORE fetching stream (duration, etc.).
-	// This avoids unnecessary API calls for tracks that will be skipped anyway.
-	if !s.validateTrackConstraints(ctx, dc) {
+	// Validate track constraints before fetching stream (duration, etc.).
+	// This avoids unnecessary API calls for tracks that will be skipped.
+	if !s.validateTrackConstraints(ctx, task) {
 		return // Validation failed, track skipped.
 	}
 
 	// Resolve quality and stream URL.
-	if !s.resolveQualityAndStream(ctx, dc, req.metadata) {
+	if !s.resolveQualityAndStream(ctx, task) {
 		return // Errors already handled.
 	}
 
 	// Generate file paths and tags.
-	s.prepareTrackFiles(ctx, dc)
+	s.prepareTrackFiles(ctx, task)
 
 	// Download and finalize.
-	s.downloadAndFinalizeTrack(ctx, dc)
+	s.downloadAndFinalizeTrack(ctx, task)
 }
 
-// prepareDownloadContext initializes the download context with track and collection metadata.
-func (s *ServiceImpl) prepareDownloadContext(
+// prepareRegularTrackTask prepares track context for regular tracks/albums/playlists.
+func (s *ServiceImpl) prepareRegularTrackTask(
 	ctx context.Context,
-	req *downloadTrackRequest,
-) (*TrackDownloadContext, error) {
-	metadata := req.metadata
-	trackIDString := strconv.FormatInt(req.trackID, 10)
-
-	// Retrieve track metadata.
-	track, ok := metadata.tracksMetadata[trackIDString]
-	if !ok || track == nil {
-		err := fmt.Errorf("track with ID '%s': %w", trackIDString, ErrTrackNotFound)
-		logger.Errorf(ctx, "Track with ID '%s' is not found", trackIDString)
-		s.recordError(&ErrorContext{
-			Category:  DownloadCategoryTrack,
-			ItemID:    trackIDString,
-			ItemTitle: "Unknown Track",
-			Phase:     "fetching metadata",
-		}, err)
-
-		return nil, err
-	}
-
-	// Create base context.
-	dc := NewTrackDownloadContext(trackIDString, track, req.trackIndex, metadata)
-
-	// Fetch collection metadata based on category.
-	switch {
-	case dc.IsAudiobook:
-		if !s.prepareAudiobookContext(ctx, dc, metadata) {
-			return nil, ErrAudiobookContextFailed
-		}
-	case dc.IsPodcast:
-		if !s.preparePodcastContext(ctx, dc, metadata) {
-			return nil, ErrPodcastContextFailed
-		}
-	case !s.prepareAlbumContext(ctx, dc, metadata):
-		return nil, ErrAlbumContextFailed
-	}
-
-	return dc, nil
-}
-
-// prepareAudiobookContext prepares context for audiobook chapters.
-func (s *ServiceImpl) prepareAudiobookContext(
-	ctx context.Context,
-	dc *TrackDownloadContext,
-	metadata *downloadTracksMetadata,
+	t *downloadTrackTask,
 ) bool {
-	dc.AudioCollection = metadata.audioCollection
-	if dc.AudioCollection == nil {
-		logger.Errorf(ctx, "Audio collection wasn't found for audiobook chapter with ID '%s'", dc.TrackID)
-		return false
-	}
-
-	dc.ParentTitle = dc.AudioCollection.title
-	dc.ParentID = strconv.FormatInt(dc.AudioCollection.trackIDs[0], 10)
-
-	return true
-}
-
-// preparePodcastContext prepares context for podcast episodes.
-func (s *ServiceImpl) preparePodcastContext(
-	ctx context.Context,
-	dc *TrackDownloadContext,
-	metadata *downloadTracksMetadata,
-) bool {
-	dc.AudioCollection = metadata.audioCollection
-	if dc.AudioCollection == nil {
-		logger.Errorf(ctx, "Audio collection wasn't found for podcast episode with ID '%s'", dc.TrackID)
-		return false
-	}
-
-	dc.ParentTitle = dc.AudioCollection.title
-	dc.ParentID = strconv.FormatInt(dc.AudioCollection.trackIDs[0], 10)
-
-	return true
-}
-
-// prepareAlbumContext prepares context for regular tracks/albums.
-func (s *ServiceImpl) prepareAlbumContext(
-	ctx context.Context,
-	dc *TrackDownloadContext,
-	metadata *downloadTracksMetadata,
-) bool {
-	albumIDString := strconv.FormatInt(dc.Track.ReleaseID, 10)
+	albumIDString := strconv.FormatInt(t.track.ReleaseID, 10)
 
 	// Retrieve album metadata.
-	album, ok := metadata.albumsMetadata[albumIDString]
+	album, ok := t.metadata.albumsMetadata[albumIDString]
 	if !ok || album == nil {
 		err := fmt.Errorf("album with ID '%s': %w", albumIDString, ErrTrackAlbumNotFound)
 		logger.Errorf(ctx, "Album with ID '%s' is not found", albumIDString)
-		s.recordError(&ErrorContext{
+		s.recordError(&DownloadError{
 			Category:  DownloadCategoryTrack,
-			ItemID:    dc.TrackID,
-			ItemTitle: dc.Track.Title,
+			ItemID:    strconv.FormatInt(t.trackID, 10),
+			ItemTitle: t.track.Title,
 			Phase:     "fetching album metadata",
-		}, err)
+			Error:     err,
+		})
 
 		return false
 	}
 
 	// Retrieve album tags.
-	albumTags, ok := metadata.albumsTags[albumIDString]
+	albumTags, ok := t.metadata.albumsTags[albumIDString]
 	if !ok || albumTags == nil {
 		logger.Errorf(ctx, "Tags for album with ID '%s' are not found", albumIDString)
 		return false
 	}
 
 	// Get or create audio collection.
-	audioCollection := metadata.audioCollection
+	audioCollection := t.metadata.audioCollection
 	if audioCollection == nil {
-		audioCollection = s.getOrRegisterAudioCollection(ctx, album, albumTags)
+		audioCollection = s.getOrRegisterAudioCollection(ctx, album, albumTags, t.metadata.tracksMetadata)
 	}
 
 	if audioCollection == nil {
-		logger.Errorf(ctx, "Audio collection wasn't found for track with ID '%s'", dc.TrackID)
+		logger.Errorf(ctx, "Audio collection not found for track with ID '%s'", t.trackID)
 		return false
 	}
 
+	t.audioCollection = audioCollection
+
 	// Verify label exists.
 	labelIDString := strconv.FormatInt(album.LabelID, 10)
-	if _, labelExists := metadata.labelsMetadata[labelIDString]; !labelExists {
+	if _, labelExists := t.metadata.labelsMetadata[labelIDString]; !labelExists {
 		logger.Errorf(ctx, "Label with ID '%s' is not found", labelIDString)
 		return false
 	}
 
-	// Populate context.
-	dc.Album = album
-	dc.AlbumTags = albumTags
-	dc.AudioCollection = audioCollection
-	dc.ParentTitle = album.Title
-	dc.ParentID = albumIDString
+	// Populate task fields.
+	t.parentID = albumIDString
+	t.parentTitle = album.Title
+	t.album = album
+	t.albumTags = albumTags
 
 	return true
 }
@@ -378,21 +366,19 @@ func (s *ServiceImpl) prepareAlbumContext(
 // resolveQualityAndStream resolves the quality and stream URL for the track.
 func (s *ServiceImpl) resolveQualityAndStream(
 	ctx context.Context,
-	dc *TrackDownloadContext,
-	metadata *downloadTracksMetadata,
+	t *downloadTrackTask,
 ) bool {
-	errorHandler := NewErrorHandler(s)
-
-	qualityResult, err := s.resolveTrackQuality(ctx, dc.TrackID, dc.Track, metadata)
+	qualityResult, err := s.resolveTrackQuality(ctx, t.trackIDString, t.track, t.metadata)
 	if err != nil {
-		errorHandler.HandleError(ctx, err, &ErrorContext{
+		s.handleError(ctx, &DownloadError{
 			Category:       DownloadCategoryTrack,
-			ItemID:         dc.TrackID,
-			ItemTitle:      dc.Track.Title,
+			ItemID:         t.trackIDString,
+			ItemTitle:      t.track.Title,
+			ParentCategory: t.metadata.category,
+			ParentID:       t.parentID,
+			ParentTitle:    t.parentTitle,
 			Phase:          "resolving quality",
-			ParentCategory: dc.ParentCategory,
-			ParentID:       dc.ParentID,
-			ParentTitle:    dc.ParentTitle,
+			Error:          err,
 		}, true)
 
 		return false
@@ -400,21 +386,22 @@ func (s *ServiceImpl) resolveQualityAndStream(
 
 	// Check if track should be skipped due to quality constraints.
 	if qualityResult.ShouldSkip {
-		errorHandler.HandleSkip(ctx, SkipReasonQuality, qualityResult.SkipReason, &ErrorContext{
+		s.handleTrackSkipped(SkipReasonQuality, &DownloadError{
 			Category:       DownloadCategoryTrack,
-			ItemID:         dc.TrackID,
-			ItemTitle:      dc.Track.Title,
+			ItemID:         t.trackIDString,
+			ItemTitle:      t.track.Title,
+			ParentCategory: t.metadata.category,
+			ParentID:       t.parentID,
+			ParentTitle:    t.parentTitle,
 			Phase:          "quality check",
-			ParentCategory: dc.ParentCategory,
-			ParentID:       dc.ParentID,
-			ParentTitle:    dc.ParentTitle,
+			Error:          qualityResult.SkipReason,
 		})
 
 		return false
 	}
 
-	dc.Quality = qualityResult.Quality
-	dc.StreamURL = qualityResult.StreamURL
+	t.quality = qualityResult.Quality
+	t.streamURL = qualityResult.StreamURL
 
 	return true
 }
@@ -422,21 +409,20 @@ func (s *ServiceImpl) resolveQualityAndStream(
 // validateTrackConstraints validates duration and other constraints.
 func (s *ServiceImpl) validateTrackConstraints(
 	ctx context.Context,
-	dc *TrackDownloadContext,
+	task *downloadTrackTask,
 ) bool {
-	validator := NewTrackValidator(s.cfg)
-	result := validator.Validate(ctx, dc.Track)
+	result := s.validator.Validate(ctx, task.track)
 
 	if !result.IsValid {
-		errorHandler := NewErrorHandler(s)
-		errorHandler.HandleSkip(ctx, result.SkipReason, result.Error, &ErrorContext{
+		s.handleTrackSkipped(result.SkipReason, &DownloadError{
 			Category:       DownloadCategoryTrack,
-			ItemID:         dc.TrackID,
-			ItemTitle:      dc.Track.Title,
+			ItemID:         task.trackIDString,
+			ItemTitle:      task.track.Title,
+			ParentCategory: task.metadata.category,
+			ParentID:       task.parentID,
+			ParentTitle:    task.parentTitle,
 			Phase:          "duration check",
-			ParentCategory: dc.ParentCategory,
-			ParentID:       dc.ParentID,
-			ParentTitle:    dc.ParentTitle,
+			Error:          result.Error,
 		})
 
 		return false
@@ -448,68 +434,117 @@ func (s *ServiceImpl) validateTrackConstraints(
 // prepareTrackFiles generates file paths and tags for the track.
 func (s *ServiceImpl) prepareTrackFiles(
 	ctx context.Context,
-	dc *TrackDownloadContext,
+	task *downloadTrackTask,
 ) {
 	// Calculate track position.
-	dc.TrackPosition = dc.TrackIndex
-	if !dc.IsAudiobook && !dc.IsPodcast && !dc.IsPlaylist {
-		dc.TrackPosition = dc.Track.Position
-	}
+	task.trackPosition = resolveTrackPosition(task)
 
-	// Generate track tags.
-	var trackTags map[string]string
-	if dc.IsPodcast {
-		// For podcasts, use episode-specific tags with publication date.
-		trackTags = s.fillEpisodeTags(dc.Track, dc.AudioCollection.tags, dc.TrackPosition)
-	} else {
-		trackTags = s.fillTrackTagsForTemplating(
-			dc.TrackPosition,
-			dc.Track,
-			dc.AudioCollection,
-			dc.AlbumTags,
-			dc.IsAudiobook,
-		)
-	}
+	trackTags := buildTrackTags(&trackTagContext{
+		trackNumber:     task.trackPosition,
+		track:           task.track,
+		audioCollection: task.audioCollection,
+		albumTags:       task.albumTags,
+		category:        task.metadata.category,
+	})
 
 	// Generate filename.
-	switch {
-	case dc.IsAudiobook:
-		dc.TrackFilename = s.templateManager.GetAudiobookChapterFilename(ctx, trackTags, dc.AudioCollection.tracksCount)
-	case dc.IsPodcast:
-		dc.TrackFilename = s.templateManager.GetPodcastEpisodeFilename(ctx, trackTags, dc.AudioCollection.tracksCount)
-	default:
-		dc.TrackFilename = s.templateManager.GetTrackFilename(
+	switch task.metadata.category {
+	case DownloadCategoryAudiobook:
+		task.trackFilename = s.templateManager.GetAudiobookChapterFilename(
 			ctx,
-			dc.IsPlaylist,
 			trackTags,
-			dc.AudioCollection.tracksCount,
+			task.audioCollection.tracksCount,
+		)
+	case DownloadCategoryPodcast:
+		task.trackFilename = s.templateManager.GetPodcastEpisodeFilename(
+			ctx,
+			trackTags,
+			task.audioCollection.tracksCount,
+		)
+	default:
+		task.trackFilename = s.templateManager.GetTrackFilename(
+			ctx,
+			task.metadata.category == DownloadCategoryPlaylist,
+			trackTags,
+			task.audioCollection.tracksCount,
 		)
 	}
 
-	dc.TrackFilename = utils.SetFileExtension(utils.SanitizeFilename(dc.TrackFilename), dc.Quality.Extension(), false)
-	dc.TrackPath = filepath.Join(dc.AudioCollection.tracksPath, dc.TrackFilename)
+	task.trackFilename = utils.SetFileExtension(
+		utils.SanitizeFilename(task.trackFilename),
+		task.quality.Extension(),
+		false,
+	)
+
+	// tracksPath is normally populated when a collection is registered.
+	// Some unit tests construct metadata manually without setting it, so fall back
+	// to the configured output path to keep the downloader robust.
+	basePath := ""
+	if task.audioCollection != nil {
+		basePath = task.audioCollection.tracksPath
+	}
+
+	if basePath == "" {
+		basePath = s.cfg.OutputPath
+	}
+
+	if basePath == "" {
+		basePath = "." // last-resort fallback to avoid writing to an empty path
+	}
+
+	task.trackPath = filepath.Join(basePath, task.trackFilename)
+}
+
+func resolveTrackPosition(task *downloadTrackTask) int64 {
+	if task == nil {
+		return 0
+	}
+
+	if task.track == nil || task.metadata == nil {
+		return task.trackIndex
+	}
+
+	switch task.metadata.category {
+	case DownloadCategoryAlbum, DownloadCategoryTrack:
+		if task.track.Position > 0 {
+			return task.track.Position
+		}
+	}
+
+	return task.trackIndex
 }
 
 // downloadAndFinalizeTrack downloads the track and writes metadata.
 func (s *ServiceImpl) downloadAndFinalizeTrack(
 	ctx context.Context,
-	dc *TrackDownloadContext,
+	task *downloadTrackTask,
 ) {
-	s.logTrackDownloadStart(ctx, dc)
+	unlockPath := s.lockPath(task.trackPath)
+	defer unlockPath()
 
-	errorHandler := NewErrorHandler(s)
+	logger.Infof(
+		ctx,
+		"Downloading %s %d of %d: %s (ID: %s, Quality: %s)",
+		task.metadata.category.ToSubcategory(),
+		task.trackIndex,
+		task.audioCollection.tracksCount,
+		task.track.Title,
+		task.trackIDString,
+		task.quality.String(),
+	)
 
 	// Download track.
-	result, err := s.downloadAndSaveTrack(ctx, dc.StreamURL, dc.TrackPath)
+	result, err := s.downloadAndSaveTrack(ctx, task.streamURL, task.trackPath)
 	if err != nil {
-		errorHandler.HandleError(ctx, err, &ErrorContext{
+		s.handleError(ctx, &DownloadError{
 			Category:       DownloadCategoryTrack,
-			ItemID:         dc.TrackID,
-			ItemTitle:      dc.Track.Title,
+			ItemID:         task.trackIDString,
+			ItemTitle:      task.track.Title,
+			ParentCategory: task.metadata.category,
+			ParentID:       task.parentID,
+			ParentTitle:    task.parentTitle,
 			Phase:          "downloading file",
-			ParentCategory: dc.ParentCategory,
-			ParentID:       dc.ParentID,
-			ParentTitle:    dc.ParentTitle,
+			Error:          err,
 		}, true)
 
 		return
@@ -523,100 +558,60 @@ func (s *ServiceImpl) downloadAndFinalizeTrack(
 	s.incrementTrackDownloaded(result.BytesDownloaded)
 
 	// Write metadata and finalize assets.
-	s.writeAndFinalizeTrackAssets(ctx, dc, result.TempPath)
-}
-
-// logTrackDownloadStart logs the appropriate message based on content type.
-func (s *ServiceImpl) logTrackDownloadStart(ctx context.Context, dc *TrackDownloadContext) {
-	switch {
-	case dc.IsAudiobook:
-		logger.Infof(
-			ctx,
-			"Downloading chapter %d of %d: %s (ID: %s, Quality: %s)",
-			dc.TrackIndex,
-			dc.AudioCollection.tracksCount,
-			dc.Track.Title,
-			dc.TrackID,
-			dc.Quality)
-	case dc.IsPodcast:
-		logger.Infof(
-			ctx,
-			"Downloading episode %d of %d: %s (ID: %s, Quality: %s)",
-			dc.TrackIndex,
-			dc.AudioCollection.tracksCount,
-			dc.Track.Title,
-			dc.TrackID,
-			dc.Quality)
-	default:
-		logger.Infof(
-			ctx,
-			"Downloading track %d of %d: %s (%s)",
-			dc.TrackIndex,
-			dc.AudioCollection.tracksCount,
-			dc.Track.Title,
-			dc.Quality)
-	}
+	s.writeAndFinalizeTrackAssets(ctx, task, result.TempPath)
 }
 
 // writeAndFinalizeTrackAssets writes track metadata and finalizes covers/descriptions.
 func (s *ServiceImpl) writeAndFinalizeTrackAssets(
 	ctx context.Context,
-	dc *TrackDownloadContext,
+	t *downloadTrackTask,
 	tempPath string,
 ) {
-	// Download lyrics and write metadata.
-	var trackLyrics *zvuk.Lyrics
+	trackTags := buildTrackTags(&trackTagContext{
+		trackNumber:     t.trackPosition,
+		track:           t.track,
+		audioCollection: t.audioCollection,
+		albumTags:       t.albumTags,
+		category:        t.metadata.category,
+	})
 
-	if !dc.IsAudiobook && !dc.IsPodcast {
-		trackTags := s.fillTrackTagsForTemplating(
-			dc.TrackPosition,
-			dc.Track,
-			dc.AudioCollection,
-			dc.AlbumTags,
-			dc.IsAudiobook,
-		)
-		trackLyrics = s.downloadAndSaveLyrics(ctx, dc.Track, dc.TrackFilename, dc.AudioCollection)
-		s.writeTrackMetadata(ctx, dc, trackTags, trackLyrics, tempPath)
-	} else {
-		// For audiobooks and podcasts, write metadata without lyrics.
-		trackTags := s.fillTrackTagsForTemplating(
-			dc.TrackPosition,
-			dc.Track,
-			dc.AudioCollection,
-			dc.AlbumTags,
-			dc.IsAudiobook,
-		)
-		s.writeTrackMetadata(ctx, dc, trackTags, nil, tempPath)
-	}
+	trackLyrics := s.downloadAndSaveLyrics(ctx, t.track, t.trackFilename, t.audioCollection)
 
-	// Finalize cover art.
-	s.finalizeAlbumCoverArt(ctx, dc.TrackIndex, dc.AudioCollection, dc.TrackFilename)
-
-	// Finalize descriptions.
-	if dc.IsAudiobook {
-		s.finalizeAudiobookDescription(ctx, dc.TrackIndex, dc.AudioCollection, dc.TrackFilename)
-	} else if dc.IsPodcast {
-		s.finalizePodcastDescription(ctx, dc.TrackIndex, dc.AudioCollection, dc.TrackFilename)
-	}
+	s.writeTrackMetadata(ctx, t, trackTags, trackLyrics, tempPath)
 }
 
 // writeTrackMetadata writes metadata tags and finalizes the file.
 func (s *ServiceImpl) writeTrackMetadata(
 	ctx context.Context,
-	dc *TrackDownloadContext,
+	t *downloadTrackTask,
 	trackTags map[string]string,
 	trackLyrics *zvuk.Lyrics,
 	tempPath string,
 ) {
-	errorHandler := NewErrorHandler(s)
+	var coverPath string
+	if t.audioCollection != nil {
+		for _, candidate := range []string{
+			strings.TrimSpace(t.audioCollection.embeddableCoverPath),
+			strings.TrimSpace(t.audioCollection.coverPath),
+		} {
+			if candidate == "" {
+				continue
+			}
+
+			if _, err := os.Stat(candidate); err == nil {
+				coverPath = candidate
+				break
+			}
+		}
+	}
 
 	writeTagsRequest := &WriteTagsRequest{
 		TrackPath:                  tempPath,
-		CoverPath:                  dc.AudioCollection.coverPath,
-		Quality:                    dc.Quality,
+		CoverPath:                  coverPath,
+		Quality:                    t.quality,
 		TrackTags:                  trackTags,
 		TrackLyrics:                trackLyrics,
-		IsCoverEmbeddedToTrackTags: dc.IsAudiobook || dc.IsPodcast || !dc.IsPlaylist,
+		IsCoverEmbeddedToTrackTags: t.metadata.category != DownloadCategoryPlaylist,
 	}
 
 	// Skip in dry-run mode.
@@ -627,14 +622,15 @@ func (s *ServiceImpl) writeTrackMetadata(
 	// Write tags.
 	err := s.tagProcessor.WriteTags(ctx, writeTagsRequest)
 	if err != nil {
-		errorHandler.HandleError(ctx, err, &ErrorContext{
+		s.handleError(ctx, &DownloadError{
 			Category:       DownloadCategoryTrack,
-			ItemID:         dc.TrackID,
-			ItemTitle:      dc.Track.Title,
+			ItemID:         t.trackIDString,
+			ItemTitle:      t.track.Title,
+			ParentCategory: t.metadata.category,
+			ParentID:       t.parentID,
+			ParentTitle:    t.parentTitle,
 			Phase:          "writing metadata tags",
-			ParentCategory: dc.ParentCategory,
-			ParentID:       dc.ParentID,
-			ParentTitle:    dc.ParentTitle,
+			Error:          err,
 		}, false)
 
 		_ = os.Remove(tempPath)
@@ -643,15 +639,25 @@ func (s *ServiceImpl) writeTrackMetadata(
 	}
 
 	// Rename to final path.
-	if err = os.Rename(tempPath, dc.TrackPath); err != nil {
-		errorHandler.HandleError(ctx, err, &ErrorContext{
+	if err = utils.RenameFile(tempPath, t.trackPath, s.cfg.ReplaceTracks); err != nil {
+		if errors.Is(err, os.ErrExist) && !s.cfg.ReplaceTracks {
+			logger.Infof(ctx, "Track '%s' already exists, skipping download", t.trackPath)
+			s.incrementTrackSkipped(SkipReasonExists)
+
+			_ = os.Remove(tempPath)
+
+			return
+		}
+
+		s.handleError(ctx, &DownloadError{
 			Category:       DownloadCategoryTrack,
-			ItemID:         dc.TrackID,
-			ItemTitle:      dc.Track.Title,
+			ItemID:         t.trackIDString,
+			ItemTitle:      t.track.Title,
+			ParentCategory: t.metadata.category,
+			ParentID:       t.parentID,
+			ParentTitle:    t.parentTitle,
 			Phase:          "renaming temporary file",
-			ParentCategory: dc.ParentCategory,
-			ParentID:       dc.ParentID,
-			ParentTitle:    dc.ParentTitle,
+			Error:          err,
 		}, false)
 
 		_ = os.Remove(tempPath)
@@ -663,7 +669,10 @@ func (s *ServiceImpl) getOrRegisterAudioCollection(
 	ctx context.Context,
 	album *zvuk.Release,
 	albumTags map[string]string,
+	tracksMetadata map[string]*zvuk.Track,
 ) *audioCollection {
+	_ = albumTags // tags are derived inside the album handler; kept for backward-compatible signature
+
 	downloadItem := ShortDownloadItem{
 		Category: DownloadCategoryAlbum,
 		ItemID:   strconv.FormatInt(album.ID, 10),
@@ -679,53 +688,11 @@ func (s *ServiceImpl) getOrRegisterAudioCollection(
 	}
 
 	// Register new collection (registerAlbumCollection handles its own locking).
-	collection = s.registerAlbumCollection(ctx, album, albumTags, false)
+	albumID := strconv.FormatInt(album.ID, 10)
+	albumItems := map[string]*zvuk.Release{albumID: album}
+	collection = registerAlbumCollection(ctx, s, albumID, albumItems, tracksMetadata, false)
 
 	return collection
-}
-
-// fillTrackTagsForTemplating fills track tags for templating.
-func (s *ServiceImpl) fillTrackTagsForTemplating(
-	trackNumber int64,
-	track *zvuk.Track,
-	audioCollection *audioCollection,
-	albumTags map[string]string,
-	isAudiobook bool,
-) map[string]string {
-	// For audiobooks, use audioCollection.tags which already has all audiobook-specific fields.
-	if isAudiobook {
-		result := maps.Clone(audioCollection.tags)
-
-		// Add track-specific fields.
-		result["collectionTitle"] = audioCollection.title
-		result["trackArtist"] = strings.Join(track.ArtistNames, ", ")
-		result["trackID"] = strconv.FormatInt(track.ID, 10)
-		result["trackNumber"] = strconv.FormatInt(trackNumber, 10)
-		result["trackNumberPad"] = fmt.Sprintf("%0*d", trackNumberPaddingWidth, trackNumber)
-		result["trackTitle"] = track.Title
-		result["trackCount"] = strconv.FormatInt(audioCollection.tracksCount, 10)
-
-		return result
-	}
-
-	// For regular tracks/albums/playlists: use albumTags.
-	result := make(map[string]string, len(albumTags)+len(audioCollection.tags))
-	maps.Copy(result, albumTags)
-
-	// Apply collection tags (if it's a playlist, these will override album-specific tags).
-	maps.Copy(result, audioCollection.tags)
-
-	// Apply track-specific tags.
-	result["collectionTitle"] = audioCollection.title
-	result["trackArtist"] = strings.Join(track.ArtistNames, ", ")
-	result["trackGenre"] = strings.Join(track.Genres, ", ")
-	result["trackID"] = strconv.FormatInt(track.ID, 10)
-	result["trackNumber"] = strconv.FormatInt(trackNumber, 10)
-	result["trackNumberPad"] = fmt.Sprintf("%0*d", trackNumberPaddingWidth, trackNumber)
-	result["trackTitle"] = track.Title
-	result["trackCount"] = strconv.FormatInt(audioCollection.tracksCount, 10)
-
-	return result
 }
 
 // downloadAndSaveTrack downloads and saves a track to a file.
@@ -790,14 +757,21 @@ func (s *ServiceImpl) downloadAndSaveTrack(
 	defer fetchResult.Body.Close() //nolint:errcheck // Error on close is not critical here.
 
 	// Download to temporary .part file first for atomic operation.
-	// Use a local variable to avoid issues with named return values.
-	tempFilePath := trackPath + ".part"
-
-	// Always overwrite .part files (they indicate incomplete downloads).
-	f, openErr := os.OpenFile(filepath.Clean(tempFilePath), overwriteFileOptions, defaultFolderPermissions)
+	// Use unique temp files per worker to avoid concurrent write collisions.
+	tmpFile, openErr := os.CreateTemp(filepath.Dir(trackPath), filepath.Base(trackPath)+".part-*")
 	if openErr != nil {
-		return nil, fmt.Errorf("failed to create temporary file: %w", openErr)
+		return nil, fmt.Errorf("failed to create temporary track file: %w", openErr)
 	}
+
+	tempFilePath := tmpFile.Name()
+	if chmodErr := tmpFile.Chmod(defaultFolderPermissions); chmodErr != nil {
+		_ = tmpFile.Close()
+		_ = os.Remove(tempFilePath)
+
+		return nil, fmt.Errorf("failed to set temporary file permissions: %w", chmodErr)
+	}
+
+	f := tmpFile
 
 	// Track whether download succeeded.
 	// If not, we'll clean up the .part file on function exit.
@@ -898,7 +872,10 @@ func (s *ServiceImpl) downloadAndSaveLyrics(
 	trackFilename string,
 	audioCollection *audioCollection,
 ) *zvuk.Lyrics {
-	if !s.cfg.DownloadLyrics || !track.Lyrics {
+	if !s.cfg.DownloadLyrics ||
+		!track.Lyrics ||
+		audioCollection.category == DownloadCategoryAudiobook ||
+		audioCollection.category == DownloadCategoryPodcast {
 		return nil
 	}
 
@@ -957,14 +934,45 @@ func (s *ServiceImpl) downloadAndSaveLyrics(
 
 // writeLyrics writes lyrics to a file.
 func (s *ServiceImpl) writeLyrics(ctx context.Context, lyrics, destinationPath string) (bool, error) {
-	fileOptions := overwriteFileOptions
+	destinationPath = filepath.Clean(destinationPath)
+
 	if !s.cfg.ReplaceLyrics {
-		fileOptions = createNewFileOptions
+		if _, err := os.Stat(destinationPath); err == nil {
+			logger.Infof(ctx, "File '%s' already exists, skipping download", destinationPath)
+
+			return true, nil
+		}
 	}
 
-	file, err := os.OpenFile(filepath.Clean(destinationPath), fileOptions, defaultFolderPermissions)
+	// Write into a temp file in the same folder, then atomically rename to destination.
+	// This avoids partially-written .lrc files on crashes/interruption.
+	tmpFile, err := os.CreateTemp(filepath.Dir(destinationPath), filepath.Base(destinationPath)+".tmp-*")
 	if err != nil {
-		if os.IsExist(err) && !s.cfg.ReplaceLyrics {
+		return false, err
+	}
+
+	tmpPath := tmpFile.Name()
+
+	defer func() {
+		_ = tmpFile.Close()
+		_ = os.Remove(tmpPath)
+	}()
+
+	if chmodErr := os.Chmod(tmpPath, defaultFolderPermissions); chmodErr != nil {
+		return false, chmodErr
+	}
+
+	_, err = tmpFile.WriteString(lyrics)
+	if err != nil {
+		return false, err
+	}
+
+	if err = tmpFile.Close(); err != nil {
+		return false, err
+	}
+
+	if err = utils.RenameFile(tmpPath, destinationPath, s.cfg.ReplaceLyrics); err != nil {
+		if errors.Is(err, os.ErrExist) && !s.cfg.ReplaceLyrics {
 			logger.Infof(ctx, "File '%s' already exists, skipping download", destinationPath)
 
 			return true, nil
@@ -973,92 +981,5 @@ func (s *ServiceImpl) writeLyrics(ctx context.Context, lyrics, destinationPath s
 		return false, err
 	}
 
-	defer file.Close()
-
-	_, err = file.WriteString(lyrics)
-
-	return false, err
-}
-
-// finalizeAlbumCoverArt finalizes the album cover art.
-//
-//nolint:cyclop,funlen,nolintlint // Function doesn't seem to be complex.
-func (s *ServiceImpl) finalizeAlbumCoverArt(
-	ctx context.Context,
-	trackIndex int64,
-	audioCollection *audioCollection,
-	trackFilename string,
-) {
-	// Ensure this is the last track and a valid cover exists.
-	if trackIndex != audioCollection.tracksCount || audioCollection.coverPath == "" || trackFilename == "" {
-		return
-	}
-
-	// Skip in dry-run mode (cover was never actually created).
-	if s.cfg.DryRun {
-		return
-	}
-
-	// Use temp path if available (for concurrent downloads), otherwise use regular path.
-	sourceCoverPath := audioCollection.coverPath
-	if audioCollection.coverTempPath != "" {
-		sourceCoverPath = audioCollection.coverTempPath
-	}
-
-	coverExt := filepath.Ext(sourceCoverPath)
-	if coverExt == "" {
-		// Assign a default extension if none is found.
-		coverExt = extensionJPG
-	}
-
-	var coverFilename string
-
-	// For single-track albums/audiobooks without a dedicated folder, rename to match the track filename.
-	if !s.cfg.CreateFolderForSingles && audioCollection.tracksCount == 1 {
-		coverFilename = utils.SetFileExtension(trackFilename, coverExt, true)
-	} else {
-		// For multi-track or with folders, use standard name.
-		coverFilename = utils.SetFileExtension(defaultCoverBasename, coverExt, false)
-	}
-
-	newCoverPath := filepath.Join(audioCollection.tracksPath, coverFilename)
-
-	// Check if the existing cover file exists.
-	originalCoverStat, err := os.Stat(sourceCoverPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			logger.Errorf(ctx, "Cover file not found: '%s'", sourceCoverPath)
-		} else {
-			logger.Errorf(ctx, "Unable to retrieve cover file info: %v", err)
-		}
-
-		return
-	}
-
-	// Check if the new cover file already exists and is the same as the original.
-	existingCoverStat, err := os.Stat(newCoverPath)
-	if err == nil && os.SameFile(originalCoverStat, existingCoverStat) {
-		// No need to rename if the file is already correctly named.
-		return
-	}
-
-	// Check ReplaceCovers flag if destination exists.
-	if !s.cfg.ReplaceCovers && err == nil {
-		logger.Infof(ctx, "Cover already exists at final path, skipping rename")
-		// Clean up temp file.
-		if removeErr := os.Remove(sourceCoverPath); removeErr != nil {
-			logger.Warnf(ctx, "Failed to remove temp cover '%s': %v", sourceCoverPath, removeErr)
-		}
-
-		return
-	}
-
-	// Rename the cover file from temp UUID name (or original name) to final name.
-	if err = os.Rename(sourceCoverPath, newCoverPath); err != nil {
-		logger.Errorf(
-			ctx,
-			"Failed to rename cover from '%s' to '%s': %v",
-			sourceCoverPath,
-			newCoverPath, err)
-	}
+	return false, nil
 }

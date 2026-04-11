@@ -117,13 +117,12 @@ func TestDownloadTracks_Sequential(t *testing.T) {
 
 	// Create download metadata.
 	metadata := &downloadTracksMetadata{
-		category:        DownloadCategoryAlbum,
-		trackIDs:        trackIDs,
-		tracksMetadata:  tracksMetadata,
-		albumsMetadata:  albumsMetadata,
-		albumsTags:      albumsTags,
-		labelsMetadata:  labelsMetadata,
-		audioCollection: nil,
+		category:       DownloadCategoryAlbum,
+		trackIDs:       trackIDs,
+		tracksMetadata: tracksMetadata,
+		albumsMetadata: albumsMetadata,
+		albumsTags:     albumsTags,
+		labelsMetadata: labelsMetadata,
 	}
 
 	// Execute download.
@@ -191,7 +190,7 @@ func TestDownloadTracks_Concurrent(t *testing.T) {
 
 	// Track concurrent execution metrics.
 	var (
-		activeConcurrentCount int32
+		activeConcurrentCount atomic.Int32
 		maxConcurrent         int32
 		concurrentMutex       sync.Mutex
 	)
@@ -223,7 +222,7 @@ func TestDownloadTracks_Concurrent(t *testing.T) {
 			GetStreamMetadata(gomock.Any(), trackIDString, TrackQualityFLACString).
 			DoAndReturn(func(_ context.Context, _ string, _ string) (*zvuk.StreamMetadata, error) {
 				// Increment active count.
-				current := atomic.AddInt32(&activeConcurrentCount, 1)
+				current := activeConcurrentCount.Add(1)
 
 				// Track maximum concurrent downloads.
 				concurrentMutex.Lock()
@@ -238,7 +237,7 @@ func TestDownloadTracks_Concurrent(t *testing.T) {
 				time.Sleep(50 * time.Millisecond)
 
 				// Decrement active count.
-				atomic.AddInt32(&activeConcurrentCount, -1)
+				activeConcurrentCount.Add(-1)
 
 				return streamMetadata, nil
 			})
@@ -256,13 +255,12 @@ func TestDownloadTracks_Concurrent(t *testing.T) {
 
 	// Create download metadata.
 	metadata := &downloadTracksMetadata{
-		category:        DownloadCategoryAlbum,
-		trackIDs:        trackIDs,
-		tracksMetadata:  tracksMetadata,
-		albumsMetadata:  albumsMetadata,
-		albumsTags:      albumsTags,
-		labelsMetadata:  labelsMetadata,
-		audioCollection: nil,
+		category:       DownloadCategoryAlbum,
+		trackIDs:       trackIDs,
+		tracksMetadata: tracksMetadata,
+		albumsMetadata: albumsMetadata,
+		albumsTags:     albumsTags,
+		labelsMetadata: labelsMetadata,
 	}
 
 	// Execute download.
@@ -357,7 +355,7 @@ func TestDownloadTracks_ConcurrentLimitRespected(t *testing.T) {
 
 	// Track maximum concurrent downloads.
 	var (
-		activeConcurrentCount int32
+		activeConcurrentCount atomic.Int32
 		maxConcurrentObserved int32
 	)
 
@@ -389,7 +387,7 @@ func TestDownloadTracks_ConcurrentLimitRespected(t *testing.T) {
 		mockClient.EXPECT().
 			GetStreamMetadata(gomock.Any(), trackIDString, TrackQualityFLACString).
 			DoAndReturn(func(_ context.Context, _ string, _ string) (*zvuk.StreamMetadata, error) {
-				current := atomic.AddInt32(&activeConcurrentCount, 1)
+				current := activeConcurrentCount.Add(1)
 
 				// Track maximum.
 				for {
@@ -403,7 +401,7 @@ func TestDownloadTracks_ConcurrentLimitRespected(t *testing.T) {
 				// Hold for a bit to ensure overlapping execution.
 				time.Sleep(30 * time.Millisecond)
 
-				atomic.AddInt32(&activeConcurrentCount, -1)
+				activeConcurrentCount.Add(-1)
 
 				return streamMetadata, nil
 			})
@@ -421,13 +419,12 @@ func TestDownloadTracks_ConcurrentLimitRespected(t *testing.T) {
 
 	// Create download metadata.
 	metadata := &downloadTracksMetadata{
-		category:        DownloadCategoryAlbum,
-		trackIDs:        trackIDs,
-		tracksMetadata:  tracksMetadata,
-		albumsMetadata:  albumsMetadata,
-		albumsTags:      albumsTags,
-		labelsMetadata:  labelsMetadata,
-		audioCollection: nil,
+		category:       DownloadCategoryAlbum,
+		trackIDs:       trackIDs,
+		tracksMetadata: tracksMetadata,
+		albumsMetadata: albumsMetadata,
+		albumsTags:     albumsTags,
+		labelsMetadata: labelsMetadata,
 	}
 
 	// Execute download.
@@ -529,13 +526,12 @@ func TestDownloadTracks_ConcurrentWithFewerTracks(t *testing.T) {
 
 	// Create download metadata.
 	metadata := &downloadTracksMetadata{
-		category:        DownloadCategoryAlbum,
-		trackIDs:        trackIDs,
-		tracksMetadata:  tracksMetadata,
-		albumsMetadata:  albumsMetadata,
-		albumsTags:      albumsTags,
-		labelsMetadata:  labelsMetadata,
-		audioCollection: nil,
+		category:       DownloadCategoryAlbum,
+		trackIDs:       trackIDs,
+		tracksMetadata: tracksMetadata,
+		albumsMetadata: albumsMetadata,
+		albumsTags:     albumsTags,
+		labelsMetadata: labelsMetadata,
 	}
 
 	// Execute download.

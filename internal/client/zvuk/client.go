@@ -45,8 +45,8 @@ type Client interface {
 	GetPlaylistsMetadata(ctx context.Context, playlistIDs []string) (*GetPlaylistsMetadataResponse, error)
 	// GetStreamMetadata retrieves streaming metadata for a specific track and quality.
 	GetStreamMetadata(ctx context.Context, trackID, quality string) (*StreamMetadata, error)
-	// GetChapterStreamMetadata retrieves streaming metadata for audiobook chapters via GraphQL.
-	GetChapterStreamMetadata(ctx context.Context, chapterIDs []string) (map[string]*ChapterStreamMetadata, error)
+	// GetStreamQualities retrieves streaming metadata for audiobook chapters and podcasts episodes.
+	GetStreamQualities(ctx context.Context, streamIDs []string) (map[string]*StreamQualities, error)
 	// GetTrackLyrics retrieves lyrics for a specific track.
 	GetTrackLyrics(ctx context.Context, trackID string) (*Lyrics, error)
 	// GetTracksMetadata retrieves metadata for the specified track IDs.
@@ -458,7 +458,7 @@ func (c *ClientImpl) GetStreamMetadata(ctx context.Context, trackID, quality str
 		// Retry on specific HTTP status codes.
 		if i < c.cfg.RetryAttemptsCount-1 && fetchResult != nil && fetchResult.StatusCode == http.StatusTeapot {
 			logger.Infof(ctx, "Retrying due to error (%d attempts left): %v", c.cfg.RetryAttemptsCount-i-1, err)
-			utils.RandomPause(c.cfg.ParsedMaxRetryPause, c.cfg.ParsedMaxRetryPause)
+			utils.RandomPause(c.cfg.ParsedMinRetryPause, c.cfg.ParsedMaxRetryPause)
 
 			continue
 		}
@@ -507,16 +507,16 @@ func (c *ClientImpl) GetTracksMetadata(ctx context.Context, trackIDs []string) (
 		return result, nil
 	}
 
-	// Fetch uncached tracks from API.
-	logger.Debugf(ctx, "Fetching %d uncached tracks from API", len(uncachedIDs))
+	// Fetch uncached tracks from GraphQL API.
+	logger.Debugf(ctx, "Fetching %d uncached tracks from GraphQL API", len(uncachedIDs))
 
-	metadata, err := c.getEntitiesMetadata(ctx, zvukAPITrackURI, uncachedIDs, nil)
+	tracks, err := c.getTracksViaGraphQL(ctx, uncachedIDs)
 	if err != nil {
 		return nil, err
 	}
 
 	// Store fetched tracks in cache and add to result.
-	for id, track := range metadata.Tracks {
+	for id, track := range tracks {
 		c.tracksCache.Add(id, track)
 		result[id] = track
 	}
