@@ -26,7 +26,7 @@ func init() { //nolint:gochecknoinits // If the logging level is not set, the ap
 }
 
 // New creates a new instance of *zap.SugaredLogger with output in simple console format.
-// If the logging level is not provided, the default level (zap.ErrorLevel) will be used.
+// If the logging level is not provided, the default level (zap.InfoLevel) will be used.
 func New(level zapcore.LevelEnabler, options ...zap.Option) *zap.SugaredLogger {
 	if level == nil {
 		level = defaultLevel

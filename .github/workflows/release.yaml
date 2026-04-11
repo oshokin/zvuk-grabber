@@ -35,7 +35,7 @@ jobs:
     steps:
       # Check out repository with full Git history for version analysis.
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -91,7 +91,7 @@ jobs:
       # Run GoReleaser to build binaries and create GitHub release.
       - name: GoReleaser
         if: steps.bump.outputs.has_release == '1'
-        uses: goreleaser/goreleaser-action@v6
+        uses: goreleaser/goreleaser-action@v7
         with:
           version: ${{ env.GORELEASER_VERSION }}
           args: release --clean

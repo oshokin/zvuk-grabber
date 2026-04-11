@@ -125,7 +125,7 @@ func TestDownloadTracks_MinQualityFilter(t *testing.T) {
 			// Verify error message if track was skipped.
 			if tc.expectedSkipped > 0 && tc.expectedErrorContains != "" {
 				require.NotEmpty(t, impl.stats.Errors, "Should have recorded an error")
-				assert.Contains(t, impl.stats.Errors[0].ErrorMessage, tc.expectedErrorContains,
+				assert.Contains(t, impl.stats.Errors[0].Error.Error(), tc.expectedErrorContains,
 					"Error message should mention quality threshold")
 				assert.Equal(t, "quality check", impl.stats.Errors[0].Phase,
 					"Error phase should be 'quality check'")
@@ -246,7 +246,7 @@ func TestDownloadTracks_MinDurationFilter(t *testing.T) {
 			// Verify error message if track was skipped.
 			if tc.expectedSkipped > 0 && tc.expectedErrorContains != "" {
 				require.NotEmpty(t, impl.stats.Errors, "Should have recorded an error")
-				assert.Contains(t, impl.stats.Errors[0].ErrorMessage, tc.expectedErrorContains,
+				assert.Contains(t, impl.stats.Errors[0].Error.Error(), tc.expectedErrorContains,
 					"Error message should mention duration threshold")
 				assert.Equal(t, "duration check", impl.stats.Errors[0].Phase,
 					"Error phase should be 'duration check'")
@@ -367,7 +367,7 @@ func TestDownloadTracks_MaxDurationFilter(t *testing.T) {
 			// Verify error message if track was skipped.
 			if tc.expectedSkipped > 0 && tc.expectedErrorContains != "" {
 				require.NotEmpty(t, impl.stats.Errors, "Should have recorded an error")
-				assert.Contains(t, impl.stats.Errors[0].ErrorMessage, tc.expectedErrorContains,
+				assert.Contains(t, impl.stats.Errors[0].Error.Error(), tc.expectedErrorContains,
 					"Error message should mention duration threshold")
 				assert.Equal(t, "duration check", impl.stats.Errors[0].Phase,
 					"Error phase should be 'duration check'")

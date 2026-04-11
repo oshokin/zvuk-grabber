@@ -166,13 +166,12 @@ func TestDownloadTracks_AllFormatsWithCoverEmbedding(t *testing.T) {
 				Return(fetchTrackResult, nil)
 
 			metadata := &downloadTracksMetadata{
-				category:        DownloadCategoryAlbum,
-				trackIDs:        []int64{trackID},
-				tracksMetadata:  tracksMetadata,
-				albumsMetadata:  albumsMetadata,
-				albumsTags:      albumsTags,
-				labelsMetadata:  labelsMetadata,
-				audioCollection: nil,
+				category:       DownloadCategoryAlbum,
+				trackIDs:       []int64{trackID},
+				tracksMetadata: tracksMetadata,
+				albumsMetadata: albumsMetadata,
+				albumsTags:     albumsTags,
+				labelsMetadata: labelsMetadata,
 			}
 
 			// Execute download.

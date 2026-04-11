@@ -146,21 +146,6 @@ func (mr *MockClientMockRecorder) GetBaseURL() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBaseURL", reflect.TypeOf((*MockClient)(nil).GetBaseURL))
 }
 
-// GetChapterStreamMetadata mocks base method.
-func (m *MockClient) GetChapterStreamMetadata(ctx context.Context, chapterIDs []string) (map[string]*zvuk.ChapterStreamMetadata, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetChapterStreamMetadata", ctx, chapterIDs)
-	ret0, _ := ret[0].(map[string]*zvuk.ChapterStreamMetadata)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetChapterStreamMetadata indicates an expected call of GetChapterStreamMetadata.
-func (mr *MockClientMockRecorder) GetChapterStreamMetadata(ctx, chapterIDs any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChapterStreamMetadata", reflect.TypeOf((*MockClient)(nil).GetChapterStreamMetadata), ctx, chapterIDs)
-}
-
 // GetLabelsMetadata mocks base method.
 func (m *MockClient) GetLabelsMetadata(ctx context.Context, labelIDs []string) (map[string]*zvuk.Label, error) {
 	m.ctrl.T.Helper()
@@ -219,6 +204,21 @@ func (m *MockClient) GetStreamMetadata(ctx context.Context, trackID, quality str
 func (mr *MockClientMockRecorder) GetStreamMetadata(ctx, trackID, quality any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetStreamMetadata", reflect.TypeOf((*MockClient)(nil).GetStreamMetadata), ctx, trackID, quality)
+}
+
+// GetStreamQualities mocks base method.
+func (m *MockClient) GetStreamQualities(ctx context.Context, streamIDs []string) (map[string]*zvuk.StreamQualities, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetStreamQualities", ctx, streamIDs)
+	ret0, _ := ret[0].(map[string]*zvuk.StreamQualities)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetStreamQualities indicates an expected call of GetStreamQualities.
+func (mr *MockClientMockRecorder) GetStreamQualities(ctx, streamIDs any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetStreamQualities", reflect.TypeOf((*MockClient)(nil).GetStreamQualities), ctx, streamIDs)
 }
 
 // GetTrackLyrics mocks base method.

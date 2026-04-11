@@ -102,11 +102,11 @@ func (r *trackQualityResolver) ResolveQuality(
 
 // audiobookQualityResolver handles quality resolution for audiobook chapters.
 type audiobookQualityResolver struct {
-	chapterStreams map[string]*zvuk.ChapterStreamMetadata
+	chapterStreams map[string]*zvuk.StreamQualities
 }
 
 // NewAudiobookQualityResolver creates a resolver for audiobook chapters.
-func NewAudiobookQualityResolver(chapterStreams map[string]*zvuk.ChapterStreamMetadata) QualityResolver {
+func NewAudiobookQualityResolver(chapterStreams map[string]*zvuk.StreamQualities) QualityResolver {
 	return &audiobookQualityResolver{chapterStreams: chapterStreams}
 }
 
@@ -169,7 +169,7 @@ func (r *audiobookQualityResolver) ResolveQuality(
 }
 
 // getHighestAvailableQuality determines the highest available quality from chapter stream metadata.
-func getHighestAvailableQuality(streamMetadata *zvuk.ChapterStreamMetadata) TrackQuality {
+func getHighestAvailableQuality(streamMetadata *zvuk.StreamQualities) TrackQuality {
 	if streamMetadata.FLAC != "" {
 		return TrackQualityFLAC
 	}
@@ -187,7 +187,7 @@ func getHighestAvailableQuality(streamMetadata *zvuk.ChapterStreamMetadata) Trac
 
 // selectChapterStreamURL selects the appropriate stream URL based on desired quality with fallback.
 func selectChapterStreamURL(
-	streamMetadata *zvuk.ChapterStreamMetadata,
+	streamMetadata *zvuk.StreamQualities,
 	desiredQuality TrackQuality,
 ) string {
 	switch desiredQuality {
@@ -250,7 +250,7 @@ func findSubstring(s, substr string) bool {
 func createQualityResolver(
 	category DownloadCategory,
 	zvukClient zvuk.Client,
-	chapterStreams map[string]*zvuk.ChapterStreamMetadata,
+	chapterStreams map[string]*zvuk.StreamQualities,
 ) QualityResolver {
 	if category == DownloadCategoryAudiobook || category == DownloadCategoryPodcast {
 		return NewAudiobookQualityResolver(chapterStreams)
@@ -266,10 +266,11 @@ func (s *ServiceImpl) resolveTrackQuality(
 	track *zvuk.Track,
 	metadata *downloadTracksMetadata,
 ) (*QualityResolutionResult, error) {
-	desiredQuality := TrackQuality(s.cfg.Quality)
-	minQuality := TrackQuality(s.cfg.MinQuality)
-
-	resolver := createQualityResolver(metadata.category, s.zvukClient, metadata.chapterStreams)
+	var (
+		desiredQuality = TrackQuality(s.cfg.Quality)
+		minQuality     = TrackQuality(s.cfg.MinQuality)
+		resolver       = createQualityResolver(metadata.category, s.zvukClient, metadata.chapterStreamsMetadata)
+	)
 
 	result, err := resolver.ResolveQuality(ctx, trackID, track, desiredQuality, minQuality)
 	if err != nil {

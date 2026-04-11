@@ -2,6 +2,7 @@ package zvuk
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 )
 
@@ -303,7 +304,7 @@ func parseEpisodePodcastAuthors(podcastData map[string]any, track *Track, podcas
 			continue
 		}
 
-		if len(podcast.ArtistNames) == 0 || !contains(podcast.ArtistNames, name) {
+		if len(podcast.ArtistNames) == 0 || !slices.Contains(podcast.ArtistNames, name) {
 			podcast.ArtistNames = append(podcast.ArtistNames, name)
 		}
 
@@ -311,12 +312,163 @@ func parseEpisodePodcastAuthors(podcastData map[string]any, track *Track, podcas
 	}
 }
 
-func contains(slice []string, item string) bool {
-	for _, s := range slice {
-		if s == item {
-			return true
-		}
+// parseTrackFromGraphQL converts a GraphQL track response to Track struct.
+func parseTrackFromGraphQL(data map[string]any) (*Track, error) {
+	trackIDRaw, parsedTrackID, err := parseTrackID(data)
+	if err != nil {
+		return nil, err
 	}
 
-	return false
+	track := &Track{ID: parsedTrackID}
+	parseTrackBaseFields(data, track)
+	parseTrackImage(data, track)
+	track.Genres = parseTrackGenres(data["genres"])
+
+	releaseData, parsedReleaseID, err := parseTrackRelease(data, trackIDRaw)
+	if err != nil {
+		return nil, err
+	}
+
+	track.ReleaseID = parsedReleaseID
+	if releaseTitle, releaseTitleOk := releaseData["title"].(string); releaseTitleOk {
+		track.ReleaseTitle = releaseTitle
+	}
+
+	if len(track.ArtistNames) == 0 {
+		track.ArtistNames = parseArtistTitles(releaseData["artists"])
+	}
+
+	return track, nil
+}
+
+func parseArtistTitles(data any) []string {
+	artistsData, ok := data.([]any)
+	if !ok {
+		return nil
+	}
+
+	result := make([]string, 0, len(artistsData))
+	for _, artistData := range artistsData {
+		artistMap, isArtistMap := artistData.(map[string]any)
+		if !isArtistMap {
+			continue
+		}
+
+		title, isTitleString := artistMap["title"].(string)
+		if !isTitleString || title == "" {
+			continue
+		}
+
+		result = append(result, title)
+	}
+
+	return result
+}
+
+func parseTrackID(data map[string]any) (string, int64, error) {
+	trackIDRaw, ok := data["id"].(string)
+	if !ok || trackIDRaw == "" {
+		return "", 0, ErrTrackIDMissing
+	}
+
+	parsedTrackID, err := strconv.ParseInt(trackIDRaw, 10, 64)
+	if err != nil {
+		return "", 0, fmt.Errorf("invalid track ID: %w", err)
+	}
+
+	return trackIDRaw, parsedTrackID, nil
+}
+
+func parseTrackBaseFields(data map[string]any, track *Track) {
+	if title, titleOk := data["title"].(string); titleOk {
+		track.Title = title
+	}
+
+	if lyrics, lyricsOk := data["lyrics"].(bool); lyricsOk {
+		track.Lyrics = lyrics
+	}
+
+	if credits, creditsOk := data["credits"].(string); creditsOk {
+		track.Credits = credits
+	}
+
+	if duration, durationOk := data["duration"].(float64); durationOk {
+		track.Duration = int64(duration)
+	}
+
+	if availability, availabilityOk := data["availability"].(float64); availabilityOk {
+		track.Availability = int64(availability)
+	}
+
+	if position, positionOk := data["position"].(float64); positionOk {
+		track.Position = int64(position)
+	}
+
+	if hasFLAC, hasFLACOk := data["hasFlac"].(bool); hasFLACOk {
+		track.HasFLAC = hasFLAC
+	}
+
+	track.HighestQuality = "high"
+	if track.HasFLAC {
+		track.HighestQuality = "flac"
+	}
+
+	track.ArtistNames = parseArtistTitles(data["artists"])
+}
+
+func parseTrackImage(data map[string]any, track *Track) {
+	imageData, imageOk := data["image"].(map[string]any)
+	if !imageOk {
+		return
+	}
+
+	src, srcOk := imageData["src"].(string)
+	if !srcOk {
+		return
+	}
+
+	track.Image = &Image{SourceURL: src}
+}
+
+func parseTrackGenres(data any) []string {
+	genresData, genresOk := data.([]any)
+	if !genresOk {
+		return nil
+	}
+
+	result := make([]string, 0, len(genresData))
+	for _, genreData := range genresData {
+		genreMap, isGenreMap := genreData.(map[string]any)
+		if !isGenreMap {
+			continue
+		}
+
+		name, isNameString := genreMap["name"].(string)
+		if !isNameString {
+			continue
+		}
+
+		result = append(result, name)
+	}
+
+	return result
+}
+
+func parseTrackRelease(data map[string]any, trackIDRaw string) (map[string]any, int64, error) {
+	releaseData, releaseOk := data["release"].(map[string]any)
+	if !releaseOk {
+		return nil, 0, fmt.Errorf("%w: track '%s'", ErrTrackReleaseDataMissing, trackIDRaw)
+	}
+
+	releaseIDRaw, releaseIDOk := releaseData["id"].(string)
+	if !releaseIDOk || releaseIDRaw == "" {
+		return nil, 0, fmt.Errorf("%w: track '%s'", ErrTrackReleaseIDMissing, trackIDRaw)
+	}
+
+	parsedReleaseID, err := strconv.ParseInt(releaseIDRaw, 10, 64)
+	if err != nil {
+		return nil, 0, fmt.Errorf("invalid release ID for track '%s': %w", trackIDRaw, err)
+	}
+
+	return releaseData, parsedReleaseID, nil
 }

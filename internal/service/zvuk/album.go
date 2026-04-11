@@ -4,16 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/url"
-	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/oshokin/zvuk-grabber/internal/client/zvuk"
-	"github.com/oshokin/zvuk-grabber/internal/logger"
-	"github.com/oshokin/zvuk-grabber/internal/utils"
 )
 
 // fetchAlbumDataResponse contains the complete metadata for an album.
@@ -39,49 +34,6 @@ var (
 	// ErrAlbumNotFound indicates that the requested album was not found.
 	ErrAlbumNotFound = errors.New("album not found")
 )
-
-// downloadAlbum downloads an album and its tracks.
-func (s *ServiceImpl) downloadAlbum(ctx context.Context, item *DownloadItem) {
-	albumID := item.ItemID
-
-	// Fetch album data (tracks, metadata, labels).
-	fetchAlbumDataResponse, err := s.fetchAlbumData(ctx, albumID)
-	if err != nil {
-		logger.Errorf(ctx, "Failed to fetch album data for ID '%s': %v", albumID, err)
-		s.recordError(&ErrorContext{
-			Category:  DownloadCategoryAlbum,
-			ItemID:    albumID,
-			ItemTitle: "Album ID: " + albumID,
-			ItemURL:   item.URL,
-			Phase:     "fetching album data",
-		}, err)
-
-		return
-	}
-
-	// Generate tags for templating (e.g., folder names, filenames).
-	albumTags := s.fillAlbumTagsForTemplating(fetchAlbumDataResponse.album)
-
-	// Register the album collection (create folders, download cover art, etc.).
-	audioCollection := s.registerAlbumCollection(ctx, fetchAlbumDataResponse.album, albumTags, true)
-	if audioCollection == nil {
-		return
-	}
-
-	// Prepare metadata for downloading tracks.
-	metadata := &downloadTracksMetadata{
-		category:        DownloadCategoryAlbum,
-		trackIDs:        audioCollection.trackIDs,
-		tracksMetadata:  fetchAlbumDataResponse.tracks,
-		albumsMetadata:  fetchAlbumDataResponse.releases,
-		albumsTags:      map[string]map[string]string{albumID: audioCollection.tags},
-		labelsMetadata:  fetchAlbumDataResponse.labels,
-		audioCollection: audioCollection,
-	}
-
-	// Download all tracks in the album.
-	s.downloadTracks(ctx, metadata)
-}
 
 // fetchAlbumData fetches album data including tracks, metadata, and labels.
 func (s *ServiceImpl) fetchAlbumData(ctx context.Context, albumID string) (*fetchAlbumDataResponse, error) {
@@ -114,200 +66,91 @@ func (s *ServiceImpl) fetchAlbumData(ctx context.Context, albumID string) (*fetc
 	}, nil
 }
 
-// registerAlbumCollection registers an album collection, creates folders, and downloads cover art.
-func (s *ServiceImpl) registerAlbumCollection(
-	ctx context.Context,
-	album *zvuk.Release,
-	albumTags map[string]string,
-	isAlbumDownload bool,
-) *audioCollection {
-	// Log the album being downloaded.
-	if isAlbumDownload {
-		logger.Infof(
-			ctx,
-			"Downloading '%s - %s (%s)'",
-			albumTags["albumArtist"],
-			albumTags["albumTitle"],
-			albumTags["releaseYear"])
-	}
-
-	// Determine if the album is a single and should not have a dedicated folder.
-	isSingleWithoutFolder := !s.cfg.CreateFolderForSingles && len(album.TrackIDs) == 1
-	albumFolderName := ""
-
-	// Generate a folder name for the album if it's not a single or if singles require folders.
-	if !isSingleWithoutFolder {
-		// Get raw template output before sanitization (might contain invalid characters).
-		rawAlbumFolderName := s.templateManager.GetAlbumFolderName(ctx, albumTags)
-
-		// Universal path handling: process both Unix and Windows separators.
-		albumFolderName = s.generateSanitizedFolderPath(ctx, rawAlbumFolderName)
-	}
-
-	// Create the album folder path by joining with the base output path.
-	albumPath := filepath.Join(s.cfg.OutputPath, albumFolderName)
-
-	// Create folder unless in dry-run mode.
-	if !s.cfg.DryRun {
-		err := os.MkdirAll(albumPath, defaultFolderPermissions)
-		if err != nil {
-			logger.Errorf(ctx, "Failed to create album folder '%s': %v", albumPath, err)
-
-			return nil
-		}
-	} else {
-		logger.Infof(ctx, "[DRY-RUN] Would create album folder: %s", albumPath)
-	}
-
-	// Download the album cover art.
-	albumCoverPath := s.downloadAlbumCover(ctx, album, albumPath)
-	albumID := strconv.FormatInt(album.ID, 10)
-
-	// Lock to ensure thread-safe access to audioCollections.
-	s.audioCollectionsMutex.Lock()
-	defer s.audioCollectionsMutex.Unlock()
-
-	// Check if another goroutine registered this collection while we were doing I/O.
-	audioCollectionKey := ShortDownloadItem{
-		Category: DownloadCategoryAlbum,
-		ItemID:   albumID,
-	}
-	if existing, ok := s.audioCollections[audioCollectionKey]; ok && existing != nil {
-		return existing
-	}
-
-	// Create and register the audio collection.
-	audioCollection := &audioCollection{
-		category:    DownloadCategoryAlbum,
-		title:       albumTags["albumTitle"],
-		tags:        albumTags,
-		tracksPath:  albumPath,
-		coverPath:   albumCoverPath,
-		trackIDs:    album.TrackIDs,
-		tracksCount: int64(len(album.TrackIDs)),
-	}
-
-	s.audioCollections[audioCollectionKey] = audioCollection
-
-	return audioCollection
+// AlbumCollectionHandler handles album collection logic.
+type AlbumCollectionHandler struct {
+	BaseCollectionHandler
 }
 
-// generateSanitizedFolderPath generates a sanitized folder path from a raw path string.
-func (s *ServiceImpl) generateSanitizedFolderPath(ctx context.Context, rawPath string) string {
-	// Split using both separators to handle mixed/foreign path formats.
-	components := strings.FieldsFunc(rawPath, func(r rune) bool {
-		// Handle both Unix and Windows paths.
-		return r == '/' || r == '\\'
-	})
-
-	// Sanitize each component individually to prevent path traversal attacks.
-	// Keep empty components to maintain path structure (e.g., "a//b" becomes "a/b").
-	sanitizedComponents := utils.Map(components, utils.SanitizeFilename)
-
-	// Join with OS-specific separators and normalize path.
-	joinedPath := filepath.Join(sanitizedComponents...)
-
-	// Truncate to filesystem limits while preserving extension (if any).
-	return s.truncateFolderName(ctx, "Album", joinedPath)
+func NewAlbumCollectionHandler(templateManager TemplateManager) *AlbumCollectionHandler {
+	return &AlbumCollectionHandler{
+		BaseCollectionHandler: BaseCollectionHandler{
+			Category:             DownloadCategoryAlbum,
+			TemplateManager:      templateManager,
+			SingleFolderHandling: true,
+			DescriptionSupport:   false,
+		},
+	}
 }
 
-// parseAlbumDate parses an album date from a raw integer to a time.Time object and a year string.
-func (s *ServiceImpl) parseAlbumDate(rawDate int64) (time.Time, string) {
-	dateString := strconv.FormatInt(rawDate, 10)
+// LogMessage returns the log message for an album.
+func (h *AlbumCollectionHandler) LogMessage(ctx context.Context, item *zvuk.Release, tags map[string]string) string {
+	return fmt.Sprintf(
+		"Downloading %s: %s - %s (%s)",
+		h.Category.ToLowerCase(),
+		tags[TagAlbumArtist],
+		tags[TagAlbumTitle],
+		tags[TagReleaseYear],
+	)
+}
 
-	// Attempt to parse the date in "YYYYMMDD" format.
+// FillTags fills the tags for an album.
+func (h *AlbumCollectionHandler) FillTags(item *zvuk.Release) map[string]string {
+	dateString := strconv.FormatInt(item.Date, 10)
+
+	albumYear := defaultUnknownYear
+	if len(dateString) >= 4 {
+		albumYear = dateString[:4]
+	}
+
+	var (
+		albumDate        string
+		releaseTimestamp string
+	)
+
 	parsedDate, err := time.Parse("20060102", dateString)
-	if err != nil {
-		// Fallback: return only the year if parsing fails.
-		return time.Time{}, dateString[:4]
+	if err == nil {
+		albumDate = parsedDate.Format("2006-01-02")
+		albumYear = strconv.Itoa(parsedDate.Year())
+		releaseTimestamp = strconv.FormatInt(parsedDate.Unix(), 10)
 	}
-
-	return parsedDate, strconv.Itoa(parsedDate.Year())
-}
-
-// fillAlbumTagsForTemplating fills album tags for templating purposes.
-func (s *ServiceImpl) fillAlbumTagsForTemplating(release *zvuk.Release) map[string]string {
-	albumDate, albumYear := s.parseAlbumDate(release.Date)
 
 	return map[string]string{
-		"albumArtist":      strings.Join(release.ArtistNames, ", "),
-		"albumID":          strconv.FormatInt(release.ID, 10),
-		"albumTitle":       release.Title,
-		"albumTrackCount":  strconv.FormatInt(int64(len(release.TrackIDs)), 10),
-		"releaseDate":      albumDate.Format("2006-01-02"),
-		"releaseTimestamp": strconv.FormatInt(albumDate.Unix(), 10),
-		"releaseYear":      albumYear,
-		"type":             "album",
+		TagAlbumArtist:      strings.Join(item.ArtistNames, ", "),
+		TagAlbumID:          strconv.FormatInt(item.ID, 10),
+		TagAlbumTitle:       item.Title,
+		TagAlbumTrackCount:  strconv.FormatInt(int64(len(item.TrackIDs)), 10),
+		TagReleaseDate:      albumDate,
+		TagReleaseTimestamp: releaseTimestamp,
+		TagReleaseYear:      albumYear,
+		TagType:             h.Category.ToLowerCase(),
 	}
 }
 
-// downloadAlbumCover downloads the cover art for an album.
-func (s *ServiceImpl) downloadAlbumCover(
-	ctx context.Context,
-	album *zvuk.Release,
-	albumPath string,
-) string {
-	// Check if the album has an image.
-	if album.Image == nil {
-		return ""
-	}
-
-	// Trim and validate the source URL.
-	trimmedSourceURL := strings.TrimSpace(album.Image.SourceURL)
-	if trimmedSourceURL == "" {
-		return ""
-	}
-
-	// Parse the cover URL and determine its extension.
-	parsedCover := s.parseAlbumCoverURL(trimmedSourceURL)
-	albumCoverURL := parsedCover.url
-	albumCoverExtension := parsedCover.extension
-
-	if albumCoverExtension == "" {
-		albumCoverExtension = extensionJPG
-	}
-
-	// Generate the cover filename and path.
-	albumCoverFilename := utils.SetFileExtension(defaultCoverBasename, albumCoverExtension, false)
-	albumCoverPath := filepath.Join(albumPath, albumCoverFilename)
-
-	// Download and save the cover art.
-	isExist, err := s.downloadAndSaveFile(ctx, albumCoverURL, albumCoverPath, s.cfg.ReplaceCovers)
-	if err != nil {
-		logger.Errorf(ctx, "Failed to download album cover: %v", err)
-
-		return ""
-	}
-
-	if isExist {
-		s.incrementCoverSkipped()
-	} else {
-		s.incrementCoverDownloaded()
-	}
-
-	return albumCoverPath
+// GetTitle returns the title for an album.
+func (h *AlbumCollectionHandler) GetTitle(item *zvuk.Release) string {
+	return item.Title
 }
 
-// parseAlbumCoverURL parses a cover URL to extract the URL and extension.
-func (s *ServiceImpl) parseAlbumCoverURL(sourceURL string) *parsedCoverURL {
-	// Parse the URL to extract query parameters.
-	parsedURL, err := url.Parse(sourceURL)
-	if err != nil {
-		// Fallback: remove the size parameter and return the URL as-is.
-		return &parsedCoverURL{
-			url:       strings.Replace(sourceURL, "&size={size}", "", 1),
-			extension: "",
-		}
+// GetTrackIDs returns the track IDs for an album.
+func (h *AlbumCollectionHandler) GetTrackIDs(item *zvuk.Release) []int64 {
+	return item.TrackIDs
+}
+
+// GetCoverURL returns the cover URL for an album.
+func (h *AlbumCollectionHandler) GetCoverURL(item *zvuk.Release) string {
+	if item.Image != nil {
+		return item.Image.SourceURL
 	}
 
-	// Extract the file extension from the query parameters.
-	query := parsedURL.Query()
-	ext := strings.TrimSpace(query.Get("ext"))
-	query.Del("size")
-	parsedURL.RawQuery = query.Encode()
+	return ""
+}
 
-	return &parsedCoverURL{
-		url:       parsedURL.String(),
-		extension: ext,
-	}
+// GetDescription returns the description for an album.
+func (h *AlbumCollectionHandler) GetDescription(item *zvuk.Release) string {
+	return "" // Albums don't have descriptions.
+}
+
+// GetFolderNameTemplate returns the folder name template for an album.
+func (h *AlbumCollectionHandler) GetFolderNameTemplate(ctx context.Context, tags map[string]string) string {
+	return h.TemplateManager.GetAlbumFolderName(ctx, tags)
 }

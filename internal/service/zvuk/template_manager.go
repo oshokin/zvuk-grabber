@@ -188,7 +188,7 @@ func (s *TemplateManagerImpl) GetAlbumFolderName(ctx context.Context, tags map[s
 		buffer      bytes.Buffer
 	)
 
-	var sanitizedTags = make(map[string]string, len(tags))
+	sanitizedTags := make(map[string]string, len(tags))
 	for key, val := range tags {
 		sanitizedTags[key] = utils.SanitizeFilename(val)
 	}

@@ -4,6 +4,7 @@ package zvuk
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strconv"
 	"sync"
@@ -12,7 +13,6 @@ import (
 	"github.com/oshokin/zvuk-grabber/internal/client/zvuk"
 	"github.com/oshokin/zvuk-grabber/internal/config"
 	"github.com/oshokin/zvuk-grabber/internal/logger"
-	"github.com/oshokin/zvuk-grabber/internal/utils"
 )
 
 // Service provides methods for downloading audio content from Zvuk URLs.
@@ -39,10 +39,24 @@ type ServiceImpl struct {
 	audioCollections map[ShortDownloadItem]*audioCollection
 	// audioCollectionsMutex protects concurrent access to audioCollections.
 	audioCollectionsMutex *sync.Mutex
+	// albumHandler is the collection handler for albums.
+	albumHandler *AlbumCollectionHandler
+	// playlistHandler is the collection handler for playlists.
+	playlistHandler *PlaylistCollectionHandler
+	// audiobookHandler is the collection handler for audiobooks.
+	audiobookHandler *AudiobookCollectionHandler
+	// podcastHandler is the collection handler for podcasts.
+	podcastHandler *PodcastCollectionHandler
+	// validator validates track constraints.
+	validator *TrackValidator
 	// stats tracks download statistics for the current session.
 	stats *DownloadStatistics
 	// statsMutex protects concurrent access to statistics.
-	statsMutex *sync.Mutex
+	statsMutex sync.Mutex
+	// filePathLocks serializes writes to the same destination path.
+	filePathLocks map[string]*pathLock
+	// filePathLocksMutex protects concurrent access to filePathLocks.
+	filePathLocksMutex sync.Mutex
 }
 
 // NewService creates a download service instance with dependency-injected components.
@@ -53,7 +67,7 @@ func NewService(
 	templateManager TemplateManager,
 	tagProcessor TagProcessor,
 ) Service {
-	return &ServiceImpl{
+	s := &ServiceImpl{
 		cfg:                   cfg,
 		zvukClient:            zvukClient,
 		urlProcessor:          urlProcessor,
@@ -61,9 +75,16 @@ func NewService(
 		tagProcessor:          tagProcessor,
 		audioCollections:      make(map[ShortDownloadItem]*audioCollection),
 		audioCollectionsMutex: new(sync.Mutex),
+		albumHandler:          NewAlbumCollectionHandler(templateManager),
+		playlistHandler:       NewPlaylistCollectionHandler(templateManager),
+		audiobookHandler:      NewAudiobookCollectionHandler(templateManager),
+		podcastHandler:        NewPodcastCollectionHandler(templateManager),
+		validator:             NewTrackValidator(cfg),
 		stats:                 new(DownloadStatistics),
-		statsMutex:            new(sync.Mutex),
+		filePathLocks:         make(map[string]*pathLock),
 	}
+
+	return s
 }
 
 // DownloadURLs orchestrates the full download pipeline, from URL processing to file creation.
@@ -149,23 +170,16 @@ func (s *ServiceImpl) downloadStandaloneItems(ctx context.Context, items []*Down
 		default:
 		}
 
-		//nolint:exhaustive // All meaningful cases are explicitly handled; default covers unknown values.
-		switch item.Category {
-		case DownloadCategoryAlbum:
-			logger.Infof(ctx, "Downloading item: %v (%d / %d)", item, index+1, itemsCount)
-			s.downloadAlbum(ctx, item)
-		case DownloadCategoryPlaylist:
-			logger.Infof(ctx, "Downloading item: %v (%d / %d)", item, index+1, itemsCount)
-			s.downloadPlaylist(ctx, item)
-		case DownloadCategoryAudiobook:
-			logger.Infof(ctx, "Downloading item: %v (%d / %d)", item, index+1, itemsCount)
-			s.downloadAudiobook(ctx, item)
-		case DownloadCategoryPodcast:
-			logger.Infof(ctx, "Downloading item: %v (%d / %d)", item, index+1, itemsCount)
-			s.downloadPodcast(ctx, item)
-		default:
+		// Check if the category is supported for downloading.
+		if !item.Category.IsSupported() {
 			logger.Errorf(ctx, "Unknown URL category: %d", item.Category)
+			continue
 		}
+
+		// Download the collection.
+		logger.Infof(ctx, "Downloading item: %v (%d / %d)", item, index+1, itemsCount)
+
+		s.downloadCollection(ctx, item)
 	}
 }
 
@@ -173,25 +187,16 @@ func (s *ServiceImpl) downloadStandaloneItems(ctx context.Context, items []*Down
 func (s *ServiceImpl) downloadTrackItems(ctx context.Context, items []*DownloadItem) {
 	logger.Info(ctx, "Downloading tracks")
 
-	// Convert track IDs from strings to integers.
-	numericTrackIDs := make([]int64, 0, len(items))
-	trackIDs := utils.Map(items, func(v *DownloadItem) string { return v.ItemID })
-
-	for _, trackIDString := range trackIDs {
-		trackID, err := strconv.ParseInt(trackIDString, 10, 64)
-		if err != nil {
-			logger.Errorf(ctx, "Failed to parse track ID '%s': %v", trackID, err)
-
-			return
-		}
-
-		numericTrackIDs = append(numericTrackIDs, trackID)
+	trackIDsToFetch, numericTrackIDs := s.prepareStandaloneTrackIDs(ctx, items)
+	if len(trackIDsToFetch) == 0 {
+		return
 	}
 
 	// Fetch metadata for the tracks.
-	tracksMetadata, err := s.zvukClient.GetTracksMetadata(ctx, trackIDs)
+	tracksMetadata, err := s.zvukClient.GetTracksMetadata(ctx, trackIDsToFetch)
 	if err != nil {
 		logger.Errorf(ctx, "Failed to get track metadata: %v", err)
+		s.recordStandaloneTrackBatchError(trackIDsToFetch, "fetching track metadata", err)
 
 		return
 	}
@@ -200,21 +205,97 @@ func (s *ServiceImpl) downloadTrackItems(ctx context.Context, items []*DownloadI
 	fetchAlbumsDataFromTracksResponse, err := s.fetchAlbumsDataFromTracks(ctx, tracksMetadata)
 	if err != nil {
 		logger.Errorf(ctx, "Failed to fetch album and label metadata: %v", err)
+		s.recordStandaloneTrackBatchError(trackIDsToFetch, "fetching album and label metadata", err)
 
 		return
 	}
 
 	// Prepare metadata for downloading the tracks.
 	metadata := &downloadTracksMetadata{
-		category:        DownloadCategoryTrack,
-		trackIDs:        numericTrackIDs,
-		tracksMetadata:  tracksMetadata,
-		albumsMetadata:  fetchAlbumsDataFromTracksResponse.releases,
-		albumsTags:      fetchAlbumsDataFromTracksResponse.releasesTags,
-		labelsMetadata:  fetchAlbumsDataFromTracksResponse.labels,
-		audioCollection: nil,
+		category:       DownloadCategoryTrack,
+		trackIDs:       numericTrackIDs,
+		tracksMetadata: tracksMetadata,
+		albumsMetadata: fetchAlbumsDataFromTracksResponse.releases,
+		albumsTags:     fetchAlbumsDataFromTracksResponse.releasesTags,
+		labelsMetadata: fetchAlbumsDataFromTracksResponse.labels,
 	}
 
 	// Download the tracks.
 	s.downloadTracks(ctx, metadata)
+}
+
+func (s *ServiceImpl) prepareStandaloneTrackIDs(ctx context.Context, items []*DownloadItem) ([]string, []int64) {
+	items = s.urlProcessor.DeduplicateDownloadItems(items)
+
+	numericTrackIDs := make([]int64, 0, len(items))
+	trackIDsToFetch := make([]string, 0, len(items))
+	registeredCollectionTrackIDs := s.getRegisteredCollectionTrackIDs()
+
+	for _, item := range items {
+		trackIDString := item.ItemID
+
+		trackID, err := strconv.ParseInt(trackIDString, 10, 64)
+		if err != nil {
+			logger.Errorf(ctx, "Failed to parse track ID '%s': %v", trackIDString, err)
+			s.recordStandaloneTrackError(
+				trackIDString,
+				"parsing track ID",
+				fmt.Errorf("invalid track ID '%s': %w", trackIDString, err),
+			)
+
+			continue
+		}
+
+		if _, isExist := registeredCollectionTrackIDs[trackID]; isExist {
+			logger.Infof(ctx,
+				"Track ID '%s' is already covered by previously processed collections, skipping standalone download",
+				trackIDString)
+			s.incrementTrackSkipped(SkipReasonExists)
+
+			continue
+		}
+
+		numericTrackIDs = append(numericTrackIDs, trackID)
+		trackIDsToFetch = append(trackIDsToFetch, trackIDString)
+	}
+
+	return trackIDsToFetch, numericTrackIDs
+}
+
+func (s *ServiceImpl) recordStandaloneTrackBatchError(trackIDs []string, phase string, err error) {
+	for _, trackID := range trackIDs {
+		s.recordStandaloneTrackError(trackID, phase, err)
+	}
+}
+
+func (s *ServiceImpl) recordStandaloneTrackError(trackID, phase string, err error) {
+	s.recordError(&DownloadError{
+		Category:       DownloadCategoryTrack,
+		ItemID:         trackID,
+		ItemTitle:      "Standalone track",
+		ParentCategory: DownloadCategoryTrack,
+		ParentID:       "standalone-tracks",
+		ParentTitle:    "standalone track URLs",
+		Phase:          phase,
+		Error:          err,
+	})
+}
+
+func (s *ServiceImpl) getRegisteredCollectionTrackIDs() map[int64]struct{} {
+	result := make(map[int64]struct{})
+
+	s.audioCollectionsMutex.Lock()
+	defer s.audioCollectionsMutex.Unlock()
+
+	for _, collection := range s.audioCollections {
+		if collection == nil {
+			continue
+		}
+
+		for _, trackID := range collection.trackIDs {
+			result[trackID] = struct{}{}
+		}
+	}
+
+	return result
 }

@@ -8,8 +8,9 @@ name: Build and Test
 on:
   # Run on all pull requests.
   pull_request:
-  # Run on all pushes to any branch.
+  # Run on pushes to the default release branch only.
   push:
+    branches: [master]
   # Allow this workflow to be called from other workflows as a reusable workflow.
   workflow_call:
   # Enable manually triggering this workflow via the API or web UI.
@@ -18,8 +19,8 @@ on:
 # Environment variables (constants for configuration).
 env:
   # Tool versions.
-  GOLANGCI_LINT_VERSION: "v2.5.0"
-  GO_VERSION: "1.25.x"
+  GOLANGCI_LINT_VERSION: "v2.11.4"
+  GO_VERSION: "1.26.x"
 
   # Test configuration.
   TEST_TIMEOUT: "600s"
@@ -56,7 +57,7 @@ jobs:
       fail-fast: false
       # Create a matrix of 2 jobs: 1 Go version × 2 platforms.
       matrix:
-        go-version: ["1.25.x"]
+        go-version: ["1.26.x"]
         platform: [ubuntu-latest, windows-latest]
     steps:
       # Checkout the repository code.

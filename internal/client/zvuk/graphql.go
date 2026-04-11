@@ -69,7 +69,7 @@ func (c *ClientImpl) GetArtistReleaseIDs(ctx context.Context, artistID string, o
 	return releaseIDs, nil
 }
 
-// getAudiobookViaGraphQL fetches a single audiobook with its tracks using GraphQL.
+// getAudiobookViaGraphQL fetches a single audiobook with its tracks.
 //
 //nolint:funlen // GraphQL query requires length.
 func (c *ClientImpl) getAudiobookViaGraphQL(
@@ -174,13 +174,13 @@ func (c *ClientImpl) getAudiobookViaGraphQL(
 	}, nil
 }
 
-// GetChapterStreamMetadata retrieves streaming metadata for audiobook chapters via GraphQL.
+// GetStreamQualities retrieves streaming metadata for audiobook chapters and podcasts episodes.
 //
 //nolint:funlen // GraphQL query construction and response parsing require comprehensive implementation.
-func (c *ClientImpl) GetChapterStreamMetadata(
+func (c *ClientImpl) GetStreamQualities(
 	ctx context.Context,
 	chapterIDs []string,
-) (map[string]*ChapterStreamMetadata, error) {
+) (map[string]*StreamQualities, error) {
 	graphqlRequest := graphql.NewRequest(`
 		query getStream($ids: [ID!]!, $quality: String, $encodeType: String, $includeFlacDrm: Boolean!) {
 			mediaContents(ids: $ids, quality: $quality, encodeType: $encodeType) {
@@ -232,7 +232,8 @@ func (c *ClientImpl) GetChapterStreamMetadata(
 		return nil, ErrUnexpectedMediaContentsFormat
 	}
 
-	result := make(map[string]*ChapterStreamMetadata, len(chapterIDs))
+	result := make(map[string]*StreamQualities, len(chapterIDs))
+
 	for i, contentData := range data {
 		contentMap, contentOk := contentData.(map[string]any)
 		if !contentOk {
@@ -251,7 +252,7 @@ func (c *ClientImpl) GetChapterStreamMetadata(
 		chapterID := chapterIDs[i]
 
 		// Extract all available stream URLs.
-		metadata := &ChapterStreamMetadata{}
+		metadata := &StreamQualities{}
 		if midURL, midOk := streamData["mid"].(string); midOk {
 			metadata.Mid = midURL
 		}
@@ -270,7 +271,89 @@ func (c *ClientImpl) GetChapterStreamMetadata(
 	return result, nil
 }
 
-// getPodcastViaGraphQL fetches a single podcast with its episodes using GraphQL.
+// getTracksViaGraphQL fetches tracks metadata from GraphQL API.
+func (c *ClientImpl) getTracksViaGraphQL(ctx context.Context, trackIDs []string) (map[string]*Track, error) {
+	if len(trackIDs) == 0 {
+		return map[string]*Track{}, nil
+	}
+
+	graphqlRequest := graphql.NewRequest(`
+		query getTracks($ids: [ID!]!) {
+			getTracks(ids: $ids) {
+				id
+				title
+				lyrics
+				credits
+				duration
+				availability
+				position
+				hasFlac
+				artists {
+					id
+					title
+				}
+				image {
+					src
+				}
+				genres {
+					id
+					name
+				}
+				release {
+					id
+					type
+					title
+					date
+					credits
+					artists {
+						id
+						title
+					}
+					image {
+						src
+					}
+					label {
+						id
+						title
+					}
+				}
+			}
+		}
+	`)
+	graphqlRequest.Header.Add("X-Auth-Token", c.cfg.AuthToken)
+	graphqlRequest.Var("ids", trackIDs)
+
+	var graphQLResponse map[string]any
+	if err := c.graphQLClient.Run(ctx, graphqlRequest, &graphQLResponse); err != nil {
+		return nil, err
+	}
+
+	tracksData, ok := graphQLResponse["getTracks"].([]any)
+	if !ok {
+		return nil, ErrUnexpectedTracksResponseFormat
+	}
+
+	result := make(map[string]*Track, len(tracksData))
+	for _, trackData := range tracksData {
+		trackMap, hasExpectedFormat := trackData.(map[string]any)
+		if !hasExpectedFormat {
+			continue
+		}
+
+		track, parseErr := parseTrackFromGraphQL(trackMap)
+		if parseErr != nil {
+			logger.Warnf(ctx, "Failed to parse track from GraphQL: %v", parseErr)
+
+			continue
+		}
+
+		result[strconv.FormatInt(track.ID, 10)] = track
+	}
+
+	return result, nil
+}
+
+// getPodcastViaGraphQL fetches a single podcast with its episodes.
 //
 //nolint:funlen // GraphQL query requires length.
 func (c *ClientImpl) getPodcastViaGraphQL(

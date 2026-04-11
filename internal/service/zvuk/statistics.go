@@ -3,6 +3,7 @@ package zvuk
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -95,8 +96,18 @@ func (s *ServiceImpl) incrementCoverSkipped() {
 	atomic.AddInt64(&s.stats.CoversSkipped, 1)
 }
 
+// incrementDescriptionSaved atomically increments the saved descriptions counter.
+func (s *ServiceImpl) incrementDescriptionSaved() {
+	atomic.AddInt64(&s.stats.DescriptionsSaved, 1)
+}
+
+// incrementDescriptionSkipped atomically increments the skipped descriptions counter.
+func (s *ServiceImpl) incrementDescriptionSkipped() {
+	atomic.AddInt64(&s.stats.DescriptionsSkipped, 1)
+}
+
 // groupErrors separates track errors from collection errors for better display organization.
-func (s *ServiceImpl) groupErrors(errors []DownloadError) (trackErrors, collectionErrors []DownloadError) {
+func (s *ServiceImpl) groupErrors(errors []*DownloadError) (trackErrors, collectionErrors []*DownloadError) {
 	for i := range errors {
 		if errors[i].Category == DownloadCategoryTrack {
 			trackErrors = append(trackErrors, errors[i])
@@ -115,8 +126,8 @@ func (s *ServiceImpl) PrintDownloadSummary(ctx context.Context) {
 
 	stats := s.stats
 
-	// If nothing was processed, don't print summary.
-	if stats.TotalTracksProcessed == 0 {
+	// If nothing was processed and no errors were recorded, don't print summary.
+	if stats.TotalTracksProcessed == 0 && len(stats.Errors) == 0 {
 		return
 	}
 
@@ -128,6 +139,7 @@ func (s *ServiceImpl) PrintDownloadSummary(ctx context.Context) {
 	s.printDataTransferStatistics(ctx, stats)
 	s.printLyricsStatistics(ctx, stats)
 	s.printCoverArtStatistics(ctx, stats)
+	s.printDescriptionStatistics(ctx, stats)
 	s.printSummaryFooter(ctx)
 	s.printErrorDetails(ctx, stats)
 	s.printFinalMessage(ctx, wasInterrupted, stats)
@@ -230,10 +242,8 @@ func (s *ServiceImpl) printDataTransferStatistics(ctx context.Context, stats *Do
 		logger.Info(ctx, "")
 
 		if stats.IsDryRun {
-			//nolint:gosec // TotalBytesDownloaded is always positive, no overflow risk.
 			logger.Infof(ctx, "Estimated Size:   %s", humanize.Bytes(uint64(stats.TotalBytesDownloaded)))
 		} else {
-			//nolint:gosec // TotalBytesDownloaded is always positive, no overflow risk.
 			logger.Infof(ctx, "Data Downloaded:  %s", humanize.Bytes(uint64(stats.TotalBytesDownloaded)))
 		}
 	}
@@ -293,6 +303,24 @@ func (s *ServiceImpl) printCoverArtStatistics(ctx context.Context, stats *Downlo
 	}
 }
 
+// printDescriptionStatistics prints description download statistics.
+func (s *ServiceImpl) printDescriptionStatistics(ctx context.Context, stats *DownloadStatistics) {
+	totalDescriptions := stats.DescriptionsSaved + stats.DescriptionsSkipped
+	if totalDescriptions == 0 {
+		return
+	}
+
+	logger.Infof(ctx, "Description:      %d total", totalDescriptions)
+
+	if stats.DescriptionsSaved > 0 {
+		logger.Infof(ctx, "  Downloaded:     %d", stats.DescriptionsSaved)
+	}
+
+	if stats.DescriptionsSkipped > 0 {
+		logger.Infof(ctx, "  Skipped:        %d", stats.DescriptionsSkipped)
+	}
+}
+
 // printSummaryFooter prints the summary footer separator.
 func (s *ServiceImpl) printSummaryFooter(ctx context.Context) {
 	logger.Info(ctx, "═══════════════════════════════════════════════════════════════")
@@ -321,7 +349,7 @@ func (s *ServiceImpl) printErrorDetails(ctx context.Context, stats *DownloadStat
 }
 
 // printCollectionErrors prints collection-level errors (albums, playlists, artists).
-func (s *ServiceImpl) printCollectionErrors(ctx context.Context, collectionErrors []DownloadError) {
+func (s *ServiceImpl) printCollectionErrors(ctx context.Context, collectionErrors []*DownloadError) {
 	if len(collectionErrors) == 0 {
 		return
 	}
@@ -339,12 +367,12 @@ func (s *ServiceImpl) printCollectionErrors(ctx context.Context, collectionError
 
 		logger.Errorf(ctx, "      ID: %s", collectionErrors[i].ItemID)
 		logger.Errorf(ctx, "      Phase: %s", collectionErrors[i].Phase)
-		logger.Errorf(ctx, "      Error: %s", collectionErrors[i].ErrorMessage)
+		logger.Errorf(ctx, "      Error: %s", collectionErrors[i].Error.Error())
 	}
 }
 
 // printTrackErrors prints track-level errors grouped by parent collection.
-func (s *ServiceImpl) printTrackErrors(ctx context.Context, trackErrors []DownloadError) {
+func (s *ServiceImpl) printTrackErrors(ctx context.Context, trackErrors []*DownloadError) {
 	if len(trackErrors) == 0 {
 		return
 	}
@@ -366,8 +394,8 @@ func (s *ServiceImpl) printTrackErrors(ctx context.Context, trackErrors []Downlo
 }
 
 // groupTrackErrorsByParent groups track errors by their parent collection.
-func (s *ServiceImpl) groupTrackErrorsByParent(trackErrors []DownloadError) map[string][]DownloadError {
-	parentGroups := make(map[string][]DownloadError)
+func (s *ServiceImpl) groupTrackErrorsByParent(trackErrors []*DownloadError) map[string][]*DownloadError {
+	parentGroups := make(map[string][]*DownloadError)
 
 	for i := range trackErrors {
 		key := trackErrors[i].ParentID
@@ -382,7 +410,7 @@ func (s *ServiceImpl) groupTrackErrorsByParent(trackErrors []DownloadError) map[
 }
 
 // printParentGroupErrors prints errors for tracks from a specific parent collection.
-func (s *ServiceImpl) printParentGroupErrors(ctx context.Context, errs []DownloadError) {
+func (s *ServiceImpl) printParentGroupErrors(ctx context.Context, errs []*DownloadError) {
 	firstErr := errs[0]
 
 	logger.Info(ctx, "")
@@ -399,12 +427,12 @@ func (s *ServiceImpl) printParentGroupErrors(ctx context.Context, errs []Downloa
 		logger.Errorf(ctx, "    [%d] %s", i+1, errs[i].ItemTitle)
 		logger.Errorf(ctx, "        Track ID: %s", errs[i].ItemID)
 		logger.Errorf(ctx, "        Phase: %s", errs[i].Phase)
-		logger.Errorf(ctx, "        Error: %s", errs[i].ErrorMessage)
+		logger.Errorf(ctx, "        Error: %s", errs[i].Error.Error())
 	}
 }
 
 // printRetryCommand generates and prints a command to retry failed downloads.
-func (s *ServiceImpl) printRetryCommand(ctx context.Context, errors []DownloadError) {
+func (s *ServiceImpl) printRetryCommand(ctx context.Context, errors []*DownloadError) {
 	if len(errors) == 0 {
 		return
 	}
@@ -433,12 +461,15 @@ func (s *ServiceImpl) printRetryCommand(ctx context.Context, errors []DownloadEr
 		logger.Info(ctx, "")
 
 		// Build command line.
-		command := "zvuk-grabber download"
+		var commandStringBuilder strings.Builder
+
+		commandStringBuilder.WriteString("zvuk-grabber download")
+
 		for _, url := range urls {
-			command += " " + url
+			commandStringBuilder.WriteString(" " + url)
 		}
 
-		logger.Infof(ctx, "  %s", command)
+		logger.Infof(ctx, "  %s", commandStringBuilder.String())
 	}
 }
 

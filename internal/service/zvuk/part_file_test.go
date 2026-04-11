@@ -87,13 +87,12 @@ func TestDownloadTracks_PartFileHandling(t *testing.T) {
 		Return(fetchTrackResult, nil)
 
 	metadata := &downloadTracksMetadata{
-		category:        DownloadCategoryAlbum,
-		trackIDs:        trackIDs,
-		tracksMetadata:  tracksMetadata,
-		albumsMetadata:  albumsMetadata,
-		albumsTags:      albumsTags,
-		labelsMetadata:  labelsMetadata,
-		audioCollection: nil,
+		category:       DownloadCategoryAlbum,
+		trackIDs:       trackIDs,
+		tracksMetadata: tracksMetadata,
+		albumsMetadata: albumsMetadata,
+		albumsTags:     albumsTags,
+		labelsMetadata: labelsMetadata,
 	}
 
 	// Execute download.
@@ -189,13 +188,12 @@ func TestDownloadTracks_PartFileCleanupOnFailure(t *testing.T) {
 		Return(fetchTrackResult, nil) // Expects full size but only returns half.
 
 	metadata := &downloadTracksMetadata{
-		category:        DownloadCategoryAlbum,
-		trackIDs:        trackIDs,
-		tracksMetadata:  tracksMetadata,
-		albumsMetadata:  albumsMetadata,
-		albumsTags:      albumsTags,
-		labelsMetadata:  labelsMetadata,
-		audioCollection: nil,
+		category:       DownloadCategoryAlbum,
+		trackIDs:       trackIDs,
+		tracksMetadata: tracksMetadata,
+		albumsMetadata: albumsMetadata,
+		albumsTags:     albumsTags,
+		labelsMetadata: labelsMetadata,
 	}
 
 	// Execute download (should fail due to incomplete data).

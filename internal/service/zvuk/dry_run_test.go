@@ -107,13 +107,12 @@ func TestDownloadTracks_DryRunMode(t *testing.T) {
 		Return(lyricsData, nil)
 
 	metadata := &downloadTracksMetadata{
-		category:        DownloadCategoryAlbum,
-		trackIDs:        []int64{trackID},
-		tracksMetadata:  tracksMetadata,
-		albumsMetadata:  albumsMetadata,
-		albumsTags:      albumsTags,
-		labelsMetadata:  labelsMetadata,
-		audioCollection: nil,
+		category:       DownloadCategoryAlbum,
+		trackIDs:       []int64{trackID},
+		tracksMetadata: tracksMetadata,
+		albumsMetadata: albumsMetadata,
+		albumsTags:     albumsTags,
+		labelsMetadata: labelsMetadata,
 	}
 
 	// Set dry-run flag in statistics (normally set by DownloadURLs).

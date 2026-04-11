@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"sync"
 	"testing"
 	"time"
 
@@ -19,14 +20,20 @@ import (
 	"github.com/oshokin/zvuk-grabber/internal/logger"
 )
 
-// testErrUnauthorized simulates an invalid-token error response from the API.
-//
-//nolint:errname,revive,staticcheck // This is a test error, not intended to be used in production.
-var testErrUnauthorized = errors.New("unauthorized: invalid token")
+var (
+	// errUnauthorizedTest simulates an invalid-token error response from the API.
+	errUnauthorizedTest = errors.New("unauthorized: invalid token")
+
+	// fatalExitMu is a helper mutex so that parallel tests don't clobber each other.
+	fatalExitMu sync.Mutex
+)
 
 // assertFatalExit runs fn and asserts that the custom fatal handler would exit the process.
 func assertFatalExit(t *testing.T, fn func()) {
 	t.Helper()
+
+	fatalExitMu.Lock()
+	defer fatalExitMu.Unlock()
 
 	logger.SetFatalHandler(func(code int) {
 		panic(fmt.Sprintf("fatal-exit-%d", code))
@@ -148,7 +155,7 @@ func TestNewService(t *testing.T) {
 	defer ctrl.Finish()
 
 	config := &config.Config{
-		OutputPath: "/tmp/test",
+		OutputPath: t.TempDir(),
 	}
 
 	mockClient := mock_zvuk_client.NewMockClient(ctrl)
@@ -175,7 +182,7 @@ func TestServiceImpl_DownloadURLs(t *testing.T) {
 	defer ctrl.Finish()
 
 	config := &config.Config{
-		OutputPath: "/tmp/test",
+		OutputPath: t.TempDir(),
 	}
 
 	mockClient := mock_zvuk_client.NewMockClient(ctrl)
@@ -216,7 +223,7 @@ func TestServiceImpl_DownloadURLs_EmptyURLs(t *testing.T) {
 	defer ctrl.Finish()
 
 	config := &config.Config{
-		OutputPath: "/tmp/test",
+		OutputPath: t.TempDir(),
 	}
 
 	mockClient := mock_zvuk_client.NewMockClient(ctrl)
@@ -257,7 +264,7 @@ func TestServiceImpl_DownloadURLs_NilURLs(t *testing.T) {
 	defer ctrl.Finish()
 
 	config := &config.Config{
-		OutputPath: "/tmp/test",
+		OutputPath: t.TempDir(),
 	}
 
 	mockClient := mock_zvuk_client.NewMockClient(ctrl)
@@ -408,7 +415,7 @@ func TestDownloadURLs_InvalidToken(t *testing.T) {
 
 	urls := []string{"https://zvuk.com/track/123"}
 
-	mockClient.EXPECT().GetUserProfile(gomock.Any()).Return(nil, testErrUnauthorized)
+	mockClient.EXPECT().GetUserProfile(gomock.Any()).Return(nil, errUnauthorizedTest)
 
 	service := NewService(cfg, mockClient, mockURLProcessor, mockTemplateManager, mockTagProcessor)
 

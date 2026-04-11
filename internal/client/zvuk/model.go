@@ -52,9 +52,9 @@ type GetStreamMetadataResponse struct {
 	Result *StreamMetadata `json:"result"`
 }
 
-// ChapterStreamMetadata represents all available stream URLs for a chapter.
-// This is a simple data container - quality selection logic belongs in the service layer.
-type ChapterStreamMetadata struct {
+// StreamQualities represents all available stream URLs
+// for a track, audiobook chapter, or podcast episode.
+type StreamQualities struct {
 	// Mid is the mid-quality (MP3 128kbps) stream URL.
 	Mid string
 	// High is the high-quality (MP3 320kbps) stream URL.

@@ -3,6 +3,8 @@ package zvuk
 import (
 	"context"
 	"errors"
+
+	"github.com/oshokin/zvuk-grabber/internal/logger"
 )
 
 // Common errors for the service layer.
@@ -33,52 +35,59 @@ var (
 	ErrPodcastContextFailed = errors.New("failed to prepare podcast context")
 )
 
-// ErrorContext provides context information for download errors.
-type ErrorContext struct {
-	// Category is the type of item that failed (track, album, playlist, artist).
-	Category DownloadCategory
-	// ItemID is the unique identifier of the item that failed.
-	ItemID string
-	// ItemTitle is the human-readable title of the item.
-	ItemTitle string
-	// ItemURL is the URL of the failed item (for albums/playlists/artists).
-	ItemURL string
-	// Phase indicates when the error occurred (e.g., "fetching metadata", "downloading track").
-	Phase string
-	// ParentCategory is the type of parent collection (album/playlist) for tracks.
-	ParentCategory DownloadCategory
-	// ParentID is the ID of the parent collection.
-	ParentID string
-	// ParentTitle is the title of the parent collection.
-	ParentTitle string
+// handleError handles an error with logging and recording.
+// Returns true if the error should stop execution, false if it can be ignored.
+func (s *ServiceImpl) handleError(
+	ctx context.Context,
+	e *DownloadError,
+	incrementFailed bool,
+) {
+	if e == nil || e.Error == nil {
+		return
+	}
+
+	isContextCanceled := errors.Is(e.Error, context.Canceled)
+
+	// Don't log context cancellation - it's expected when user presses CTRL+C.
+	if !isContextCanceled {
+		logger.Errorf(ctx, "%s failed: %v", e.Phase, e.Error)
+	}
+
+	// Record error for statistics.
+	s.recordError(e)
+
+	// Increment failure counter if requested.
+	if incrementFailed && !isContextCanceled {
+		s.incrementTrackFailed()
+	}
+}
+
+// handleTrackSkipped handles a track skip with logging and recording.
+func (s *ServiceImpl) handleTrackSkipped(
+	reason SkipReason,
+	e *DownloadError,
+) {
+	s.incrementTrackSkipped(reason)
+
+	if e != nil {
+		s.recordError(e)
+	}
 }
 
 // recordError records an error in the statistics with proper context.
 // Context cancellation errors are ignored as they are expected during graceful shutdown.
-func (s *ServiceImpl) recordError(errCtx *ErrorContext, err error) {
-	if errCtx == nil || err == nil {
+func (s *ServiceImpl) recordError(e *DownloadError) {
+	if e == nil || e.Error == nil {
 		return
 	}
 
 	// Don't record context cancellation as an error - it's expected when user presses CTRL+C.
-	if errors.Is(err, context.Canceled) {
+	if errors.Is(e.Error, context.Canceled) {
 		return
 	}
 
 	s.statsMutex.Lock()
 	defer s.statsMutex.Unlock()
 
-	downloadErr := DownloadError{
-		Category:       errCtx.Category,
-		ItemID:         errCtx.ItemID,
-		ItemTitle:      errCtx.ItemTitle,
-		ItemURL:        errCtx.ItemURL,
-		ErrorMessage:   err.Error(),
-		Phase:          errCtx.Phase,
-		ParentCategory: errCtx.ParentCategory,
-		ParentID:       errCtx.ParentID,
-		ParentTitle:    errCtx.ParentTitle,
-	}
-
-	s.stats.Errors = append(s.stats.Errors, downloadErr)
+	s.stats.Errors = append(s.stats.Errors, e)
 }

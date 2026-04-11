@@ -21,8 +21,6 @@ const (
 	zvukAPIReleaseURIPath = "releases"
 	// zvukAPIStreamMetadataURI is the URI path for stream metadata endpoint.
 	zvukAPIStreamMetadataURI = "api/tiny/track/stream"
-	// zvukAPITrackURI is the URI path for track metadata endpoint.
-	zvukAPITrackURI = "api/tiny/tracks"
 	// zvukAPIUserProfileURI is the URI path for user profile endpoint.
 	zvukAPIUserProfileURI = "api/v2/tiny/profile"
 )
