@@ -1,6 +1,7 @@
 package zvuk
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"net/url"
@@ -246,7 +247,7 @@ func (s *ServiceImpl) getTracksSortedByPosition(
 
 	// Sort by position.
 	slices.SortFunc(tracks, func(a, b *trackWithPosition) int {
-		return int(a.position - b.position)
+		return cmp.Compare(a.position, b.position)
 	})
 
 	// Extract sorted IDs.

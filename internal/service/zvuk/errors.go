@@ -46,8 +46,10 @@ func (s *ServiceImpl) handleError(
 		return
 	}
 
+	isContextCanceled := errors.Is(e.Error, context.Canceled)
+
 	// Don't log context cancellation - it's expected when user presses CTRL+C.
-	if !errors.Is(e.Error, context.Canceled) {
+	if !isContextCanceled {
 		logger.Errorf(ctx, "%s failed: %v", e.Phase, e.Error)
 	}
 
@@ -55,7 +57,7 @@ func (s *ServiceImpl) handleError(
 	s.recordError(e)
 
 	// Increment failure counter if requested.
-	if incrementFailed {
+	if incrementFailed && !isContextCanceled {
 		s.incrementTrackFailed()
 	}
 }

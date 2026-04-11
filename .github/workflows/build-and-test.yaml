@@ -8,8 +8,9 @@ name: Build and Test
 on:
   # Run on all pull requests.
   pull_request:
-  # Run on all pushes to any branch.
+  # Run on pushes to the default release branch only.
   push:
+    branches: [master]
   # Allow this workflow to be called from other workflows as a reusable workflow.
   workflow_call:
   # Enable manually triggering this workflow via the API or web UI.

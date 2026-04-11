@@ -36,24 +36,24 @@ func (b *BaseCollectionHandler) HasDescription() bool {
 }
 
 func deriveCollectionTitle(tags map[string]string) string {
-	collectionTitle := tags["collectionTitle"]
+	collectionTitle := tags[TagCollectionTitle]
 	if collectionTitle != "" {
 		return collectionTitle
 	}
 
-	if v := tags["albumTitle"]; v != "" {
+	if v := tags[TagAlbumTitle]; v != "" {
 		return v
 	}
 
-	if v := tags["playlistTitle"]; v != "" {
+	if v := tags[TagPlaylistTitle]; v != "" {
 		return v
 	}
 
-	if v := tags["audiobookTitle"]; v != "" {
+	if v := tags[TagAudiobookTitle]; v != "" {
 		return v
 	}
 
-	if v := tags["podcastTitle"]; v != "" {
+	if v := tags[TagPodcastTitle]; v != "" {
 		return v
 	}
 
@@ -100,9 +100,9 @@ func handleDescription(
 
 	switch in.Category {
 	case DownloadCategoryAudiobook:
-		in.Tags["audiobookDescription"] = string(content)
+		in.Tags[TagAudiobookDescription] = string(content)
 	case DownloadCategoryPodcast:
-		in.Tags["podcastDescription"] = string(content)
+		in.Tags[TagPodcastDescription] = string(content)
 	}
 
 	logger.Infof(ctx, "Updated %s tags with description from existing file", in.Category.ToLowerCase())
@@ -191,7 +191,7 @@ func (b *BaseCollectionHandler) FillTrackTagsForTemplating(
 		audioCollection.category == DownloadCategoryPodcast {
 		result = maps.Clone(audioCollection.tags)
 
-		result["trackGenre"] = strings.Join(track.Genres, ", ")
+		result[TagTrackGenre] = strings.Join(track.Genres, ", ")
 	} else {
 		result = make(map[string]string, len(collectionTags)+len(audioCollection.tags))
 		maps.Copy(result, collectionTags)
@@ -201,13 +201,13 @@ func (b *BaseCollectionHandler) FillTrackTagsForTemplating(
 	}
 
 	// Add track-specific fields.
-	result["collectionTitle"] = audioCollection.title
-	result["trackArtist"] = strings.Join(track.ArtistNames, ", ")
-	result["trackID"] = strconv.FormatInt(track.ID, 10)
-	result["trackNumber"] = strconv.FormatInt(trackNumber, 10)
-	result["trackNumberPad"] = fmt.Sprintf("%0*d", trackNumberPaddingWidth, trackNumber)
-	result["trackTitle"] = track.Title
-	result["trackCount"] = strconv.FormatInt(audioCollection.tracksCount, 10)
+	result[TagCollectionTitle] = audioCollection.title
+	result[TagTrackArtist] = strings.Join(track.ArtistNames, ", ")
+	result[TagTrackID] = strconv.FormatInt(track.ID, 10)
+	result[TagTrackNumber] = strconv.FormatInt(trackNumber, 10)
+	result[TagTrackNumberPad] = fmt.Sprintf("%0*d", trackNumberPaddingWidth, trackNumber)
+	result[TagTrackTitle] = track.Title
+	result[TagTrackCount] = strconv.FormatInt(audioCollection.tracksCount, 10)
 
 	return result
 }

@@ -184,13 +184,22 @@ queueTracks:
 		go func(trackIndex int, currentTrackID int64) {
 			defer waitGroup.Done()
 
-			// Acquire semaphore slot (blocks if all workers are busy).
-			semaphore <- struct{}{}
+			// Acquire semaphore slot or stop immediately on cancellation.
+			select {
+			case semaphore <- struct{}{}:
+			case <-ctx.Done():
+				return
+			}
 
 			defer func() {
 				// Release semaphore slot when done.
 				<-semaphore
 			}()
+
+			// Avoid starting new work when cancellation arrives while waiting for a slot.
+			if ctx.Err() != nil {
+				return
+			}
 
 			s.downloadSingleTrack(ctx, trackIndex, currentTrackID, metadata)
 		}(index, trackID)
@@ -217,14 +226,27 @@ func (s *ServiceImpl) downloadSingleTrack(
 	trackID int64,
 	metadata *downloadTracksMetadata,
 ) {
+	// Stop as early as possible on CTRL+C.
+	if ctx.Err() != nil {
+		return
+	}
+
 	// Create new download track task.
 	task, err := s.newDownloadTrackTask(ctx, trackIndex, trackID, metadata)
 	if err != nil {
 		return
 	}
 
+	if ctx.Err() != nil {
+		return
+	}
+
 	// Download track.
 	s.downloadTrack(ctx, task)
+
+	if ctx.Err() != nil {
+		return
+	}
 
 	// Random pause.
 	utils.RandomPause(0, s.cfg.ParsedMaxDownloadPause)
@@ -286,10 +308,18 @@ func (s *ServiceImpl) downloadTrack(
 	ctx context.Context,
 	task *downloadTrackTask,
 ) {
+	if ctx.Err() != nil {
+		return
+	}
+
 	// Validate track constraints before fetching stream (duration, etc.).
 	// This avoids unnecessary API calls for tracks that will be skipped.
 	if !s.validateTrackConstraints(ctx, task) {
 		return // Validation failed, track skipped.
+	}
+
+	if ctx.Err() != nil {
+		return
 	}
 
 	// Resolve quality and stream URL.
@@ -297,8 +327,16 @@ func (s *ServiceImpl) downloadTrack(
 		return // Errors already handled.
 	}
 
+	if ctx.Err() != nil {
+		return
+	}
+
 	// Generate file paths and tags.
 	s.prepareTrackFiles(ctx, task)
+
+	if ctx.Err() != nil {
+		return
+	}
 
 	// Download and finalize.
 	s.downloadAndFinalizeTrack(ctx, task)
