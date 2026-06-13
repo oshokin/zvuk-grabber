@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/oshokin/zvuk-grabber/internal/client/zvuk"
 	"github.com/oshokin/zvuk-grabber/internal/logger"
@@ -36,7 +37,14 @@ type QualityResolver interface {
 
 // trackQualityResolver handles quality resolution for regular tracks.
 type trackQualityResolver struct {
+	// zvukClient is the API client used to fetch stream metadata.
 	zvukClient zvuk.Client
+}
+
+// audiobookQualityResolver handles quality resolution for audiobook chapters.
+type audiobookQualityResolver struct {
+	// chapterStreams contains pre-fetched stream URLs keyed by chapter ID.
+	chapterStreams map[string]*zvuk.StreamQualities
 }
 
 // NewTrackQualityResolver creates a resolver for regular tracks.
@@ -68,15 +76,8 @@ func (r *trackQualityResolver) ResolveQuality(
 	}
 
 	// Check minimum quality threshold.
-	if minQuality > 0 && finalQuality < minQuality {
-		logger.Warnf(ctx, "Track quality %s is below minimum threshold %s, skipping",
-			finalQuality, minQuality)
-
-		return &QualityResolutionResult{
-			ShouldSkip: true,
-			SkipReason: fmt.Errorf("%w: %s below %s",
-				ErrQualityBelowThreshold, finalQuality, minQuality),
-		}, nil
+	if result := skipBelowMinimumQuality(ctx, "Track", finalQuality, minQuality); result != nil {
+		return result, nil
 	}
 
 	// Fetch stream metadata from API.
@@ -85,24 +86,7 @@ func (r *trackQualityResolver) ResolveQuality(
 		return nil, fmt.Errorf("failed to get stream metadata: %w", err)
 	}
 
-	// Verify actual quality from stream URL.
-	streamURL := streamMetadata.Stream
-
-	actualQuality := defineQualityByStreamURL(streamURL)
-	if actualQuality != TrackQualityUnknown {
-		finalQuality = actualQuality
-	}
-
-	return &QualityResolutionResult{
-		Quality:    finalQuality,
-		StreamURL:  streamURL,
-		ShouldSkip: false,
-	}, nil
-}
-
-// audiobookQualityResolver handles quality resolution for audiobook chapters.
-type audiobookQualityResolver struct {
-	chapterStreams map[string]*zvuk.StreamQualities
+	return qualityResult(finalQuality, streamMetadata.Stream), nil
 }
 
 // NewAudiobookQualityResolver creates a resolver for audiobook chapters.
@@ -131,15 +115,8 @@ func (r *audiobookQualityResolver) ResolveQuality(
 	}
 
 	// Check minimum quality threshold.
-	if minQuality > 0 && highestAvailable < minQuality {
-		logger.Warnf(ctx, "Chapter quality %s is below minimum threshold %s, skipping",
-			highestAvailable, minQuality)
-
-		return &QualityResolutionResult{
-			ShouldSkip: true,
-			SkipReason: fmt.Errorf("%w: %s below %s",
-				ErrQualityBelowThreshold, highestAvailable, minQuality),
-		}, nil
+	if result := skipBelowMinimumQuality(ctx, "Chapter", highestAvailable, minQuality); result != nil {
+		return result, nil
 	}
 
 	// Cap desired quality at what's available.
@@ -155,17 +132,35 @@ func (r *audiobookQualityResolver) ResolveQuality(
 		return nil, fmt.Errorf("%w: chapter '%s' at quality %s", ErrChapterNoStreamURL, trackID, finalQuality)
 	}
 
-	// Verify actual quality from stream URL.
-	actualQuality := defineQualityByStreamURL(streamURL)
-	if actualQuality != TrackQualityUnknown {
-		finalQuality = actualQuality
+	return qualityResult(finalQuality, streamURL), nil
+}
+
+// skipBelowMinimumQuality returns a skip result when quality is below the configured minimum.
+func skipBelowMinimumQuality(
+	ctx context.Context,
+	subject string,
+	quality TrackQuality,
+	minimum TrackQuality,
+) *QualityResolutionResult {
+	if minimum == TrackQualityUnknown || quality >= minimum {
+		return nil
 	}
 
+	logger.Warnf(ctx, "%s quality %s is below minimum threshold %s, skipping", subject, quality, minimum)
+
 	return &QualityResolutionResult{
-		Quality:    finalQuality,
-		StreamURL:  streamURL,
-		ShouldSkip: false,
-	}, nil
+		ShouldSkip: true,
+		SkipReason: fmt.Errorf("%w: %s below %s", ErrQualityBelowThreshold, quality, minimum),
+	}
+}
+
+// qualityResult builds a successful quality resolution result from quality and stream URL.
+func qualityResult(quality TrackQuality, streamURL string) *QualityResolutionResult {
+	if actual := defineQualityByStreamURL(streamURL); actual != TrackQualityUnknown {
+		quality = actual
+	}
+
+	return &QualityResolutionResult{Quality: quality, StreamURL: streamURL}
 }
 
 // getHighestAvailableQuality determines the highest available quality from chapter stream metadata.
@@ -196,54 +191,28 @@ func selectChapterStreamURL(
 			return streamMetadata.FLAC
 		}
 
-		if streamMetadata.High != "" {
-			return streamMetadata.High
-		}
-
-		return streamMetadata.Mid
-
+		fallthrough
 	case TrackQualityMP3High:
 		if streamMetadata.High != "" {
 			return streamMetadata.High
 		}
-
-		return streamMetadata.Mid
-
-	case TrackQualityMP3Mid:
-		return streamMetadata.Mid
-
-	default:
-		return streamMetadata.Mid
 	}
+
+	return streamMetadata.Mid
 }
 
 // defineQualityByStreamURL determines quality by analyzing the stream URL pattern.
 func defineQualityByStreamURL(streamURL string) TrackQuality {
 	switch {
-	case contains(streamURL, "/stream?"):
+	case strings.Contains(streamURL, "/stream?"):
 		return TrackQualityMP3Mid
-	case contains(streamURL, "/streamhq?"):
+	case strings.Contains(streamURL, "/streamhq?"):
 		return TrackQualityMP3High
-	case contains(streamURL, "/streamfl?"), contains(streamURL, "/streamhls?"):
+	case strings.Contains(streamURL, "/streamfl?"), strings.Contains(streamURL, "/streamhls?"):
 		return TrackQualityFLAC
 	default:
 		return TrackQualityUnknown
 	}
-}
-
-// contains is a case-insensitive substring check helper.
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && findSubstring(s, substr)
-}
-
-func findSubstring(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-
-	return false
 }
 
 // createQualityResolver creates the appropriate quality resolver based on category.
@@ -252,7 +221,7 @@ func createQualityResolver(
 	zvukClient zvuk.Client,
 	chapterStreams map[string]*zvuk.StreamQualities,
 ) QualityResolver {
-	if category == DownloadCategoryAudiobook || category == DownloadCategoryPodcast {
+	if category.IsChapterCollection() {
 		return NewAudiobookQualityResolver(chapterStreams)
 	}
 

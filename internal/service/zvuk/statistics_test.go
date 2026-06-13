@@ -10,6 +10,7 @@ import (
 	"github.com/oshokin/zvuk-grabber/internal/config"
 )
 
+// TestDownloadStatistics_InitialState verifies default statistics counters are zero.
 func TestDownloadStatistics_InitialState(t *testing.T) {
 	t.Parallel()
 
@@ -30,6 +31,7 @@ func TestDownloadStatistics_InitialState(t *testing.T) {
 	assert.Equal(t, int64(0), impl.stats.TracksFailed, "Initial tracks failed should be 0")
 }
 
+// TestDownloadStatistics_IncrementTrackDownloaded verifies the downloaded track counter increments.
 func TestDownloadStatistics_IncrementTrackDownloaded(t *testing.T) {
 	t.Parallel()
 
@@ -53,6 +55,7 @@ func TestDownloadStatistics_IncrementTrackDownloaded(t *testing.T) {
 	assert.Equal(t, int64(3072), impl.stats.TotalBytesDownloaded, "Should have 3072 bytes downloaded")
 }
 
+// TestDownloadStatistics_IncrementTrackSkipped verifies the skipped track counter increments.
 func TestDownloadStatistics_IncrementTrackSkipped(t *testing.T) {
 	t.Parallel()
 
@@ -77,6 +80,7 @@ func TestDownloadStatistics_IncrementTrackSkipped(t *testing.T) {
 	assert.Equal(t, int64(1), impl.stats.TracksSkippedQuality, "Should have 1 track skipped (quality)")
 }
 
+// TestDownloadStatistics_IncrementTrackFailed verifies the failed track counter increments.
 func TestDownloadStatistics_IncrementTrackFailed(t *testing.T) {
 	t.Parallel()
 
@@ -98,6 +102,7 @@ func TestDownloadStatistics_IncrementTrackFailed(t *testing.T) {
 	assert.Equal(t, int64(1), impl.stats.TracksFailed, "Should have 1 track failed")
 }
 
+// TestDownloadStatistics_MixedResults verifies counters with mixed download outcomes.
 func TestDownloadStatistics_MixedResults(t *testing.T) {
 	t.Parallel()
 
@@ -133,6 +138,7 @@ func TestDownloadStatistics_MixedResults(t *testing.T) {
 	assert.Equal(t, int64(1), impl.stats.CoversSkipped, "Should have 1 cover skipped")
 }
 
+// TestPrintDownloadSummary_NoTracksProcessed verifies summary output when no tracks were processed.
 func TestPrintDownloadSummary_NoTracksProcessed(t *testing.T) {
 	t.Parallel()
 
@@ -155,6 +161,7 @@ func TestPrintDownloadSummary_NoTracksProcessed(t *testing.T) {
 	assert.Equal(t, int64(0), impl.stats.TotalTracksProcessed, "Should still have 0 tracks processed")
 }
 
+// TestPrintDownloadSummary_WithResults verifies summary output with download results.
 func TestPrintDownloadSummary_WithResults(t *testing.T) {
 	t.Parallel()
 
@@ -184,6 +191,7 @@ func TestPrintDownloadSummary_WithResults(t *testing.T) {
 	assert.Equal(t, int64(36860019), impl.stats.TotalBytesDownloaded, "Should have correct bytes")
 }
 
+// TestDownloadStatistics_ConcurrentAccess verifies thread-safe statistics updates.
 func TestDownloadStatistics_ConcurrentAccess(t *testing.T) {
 	t.Parallel()
 
@@ -226,6 +234,7 @@ func TestDownloadStatistics_ConcurrentAccess(t *testing.T) {
 	assert.Equal(t, int64(10), impl.stats.CoversDownloaded, "Should have 10 covers downloaded")
 }
 
+// TestPrintDownloadSummary_WithInterruption verifies summary output after a canceled download.
 func TestPrintDownloadSummary_WithInterruption(t *testing.T) {
 	t.Parallel()
 
@@ -258,6 +267,7 @@ func TestPrintDownloadSummary_WithInterruption(t *testing.T) {
 	assert.Equal(t, int64(15000000), impl.stats.TotalBytesDownloaded, "Should have 15 MB downloaded")
 }
 
+// TestDownloadStatistics_ErrorTracking verifies errors are accumulated in statistics.
 func TestDownloadStatistics_ErrorTracking(t *testing.T) {
 	t.Parallel()
 

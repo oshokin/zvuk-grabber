@@ -7,160 +7,11 @@ import (
 	"time"
 )
 
-const (
-	// Titles and lowercase representations of the download categories.
-	downloadCategoryUnknownTitle   = "Unknown"
-	downloadCategoryTrackTitle     = "Track"
-	downloadCategoryAlbumTitle     = "Album"
-	downloadCategoryPlaylistTitle  = "Playlist"
-	downloadCategoryArtistTitle    = "Artist"
-	downloadCategoryAudiobookTitle = "Audiobook"
-	downloadCategoryPodcastTitle   = "Podcast"
-	downloadCategoryUnknownLower   = "unknown"
-	downloadCategoryTrackLower     = "track"
-	downloadCategoryAlbumLower     = "album"
-	downloadCategoryPlaylistLower  = "playlist"
-	downloadCategoryArtistLower    = "artist"
-	downloadCategoryAudiobookLower = "audiobook"
-	downloadCategoryPodcastLower   = "podcast"
-
-	// defaultFolderPermissions sets the default permissions for folders: (rwxr-xr-x).
-	defaultFolderPermissions os.FileMode = 0o755
-
-	// File extensions.
-	extensionMP3  = ".mp3"
-	extensionFLAC = ".flac"
-	extensionBin  = ".bin"
-	extensionJPG  = ".jpg"
-	extensionPNG  = ".png"
-	extensionTXT  = ".txt"
-	extensionLRC  = ".lrc"
-
-	// Default filenames and values.
-	defaultCoverFilename       = "cover"
-	defaultDescriptionFilename = "description"
-	defaultUnknownYear         = "0000"
-	trackNumberPaddingWidth    = 2
-)
-
 // DownloadCategory represents the type of content being downloaded.
 type DownloadCategory uint8
 
-const (
-	// DownloadCategoryUnknown - unknown category.
-	DownloadCategoryUnknown DownloadCategory = iota
-	// DownloadCategoryTrack - single track.
-	DownloadCategoryTrack
-	// DownloadCategoryAlbum - full album.
-	DownloadCategoryAlbum
-	// DownloadCategoryPlaylist - playlist.
-	DownloadCategoryPlaylist
-	// DownloadCategoryArtist - complete artist's discography.
-	DownloadCategoryArtist
-	// DownloadCategoryAudiobook - audiobook.
-	DownloadCategoryAudiobook
-	// DownloadCategoryPodcast - podcast.
-	DownloadCategoryPodcast
-)
-
-// String returns a human-readable representation of the DownloadCategory.
-func (dc DownloadCategory) String() string {
-	switch dc {
-	case DownloadCategoryUnknown:
-		return downloadCategoryUnknownLower
-	case DownloadCategoryTrack:
-		return downloadCategoryTrackLower
-	case DownloadCategoryAlbum:
-		return downloadCategoryAlbumLower
-	case DownloadCategoryPlaylist:
-		return downloadCategoryPlaylistLower
-	case DownloadCategoryArtist:
-		return downloadCategoryArtistLower
-	case DownloadCategoryAudiobook:
-		return downloadCategoryAudiobookLower
-	case DownloadCategoryPodcast:
-		return downloadCategoryPodcastLower
-	default:
-		return fmt.Sprintf("%s: %d", downloadCategoryUnknownLower, dc)
-	}
-}
-
-// ToLowerCase returns the lowercase representation of the DownloadCategory.
-func (dc DownloadCategory) ToLowerCase() string {
-	return dc.String()
-}
-
-// ToTitleCase returns the title case representation of the DownloadCategory.
-func (dc DownloadCategory) ToTitleCase() string {
-	switch dc {
-	case DownloadCategoryUnknown:
-		return downloadCategoryUnknownTitle
-	case DownloadCategoryTrack:
-		return downloadCategoryTrackTitle
-	case DownloadCategoryAlbum:
-		return downloadCategoryAlbumTitle
-	case DownloadCategoryPlaylist:
-		return downloadCategoryPlaylistTitle
-	case DownloadCategoryArtist:
-		return downloadCategoryArtistTitle
-	case DownloadCategoryAudiobook:
-		return downloadCategoryAudiobookTitle
-	case DownloadCategoryPodcast:
-		return downloadCategoryPodcastTitle
-	default:
-		return fmt.Sprintf("%s: %d", downloadCategoryUnknownTitle, dc)
-	}
-}
-
-// ToSubcategory returns the subcategory representation of the DownloadCategory.
-func (dc DownloadCategory) ToSubcategory() string {
-	switch dc {
-	case DownloadCategoryArtist:
-		return "album"
-	case DownloadCategoryAudiobook:
-		return "chapter"
-	case DownloadCategoryPodcast:
-		return "episode"
-	default:
-		return "track"
-	}
-}
-
-// IsSupported returns true if the category is supported for downloading.
-func (dc DownloadCategory) IsSupported() bool {
-	switch dc {
-	case DownloadCategoryAlbum, DownloadCategoryPlaylist, DownloadCategoryAudiobook, DownloadCategoryPodcast:
-		return true
-	default:
-		return false
-	}
-}
-
 // SkipReason represents why a track was skipped.
 type SkipReason uint8
-
-const (
-	// SkipReasonExists - track file already exists.
-	SkipReasonExists SkipReason = iota
-	// SkipReasonQuality - track quality below minimum threshold.
-	SkipReasonQuality
-	// SkipReasonDuration - track duration outside acceptable range.
-	SkipReasonDuration
-)
-
-// String returns a human-readable representation of the SkipReason.
-func (sr SkipReason) String() string {
-	switch sr {
-	case SkipReasonExists:
-		return "already exists"
-	case SkipReasonQuality:
-		return "quality filter"
-	case SkipReasonDuration:
-		return "duration filter"
-	default:
-		return fmt.Sprintf("unknown reason: %d", sr)
-	}
-}
 
 // DownloadItem represents a full downloadable item, including its category, URL, and unique identifier.
 type DownloadItem struct {
@@ -253,21 +104,86 @@ type DownloadTrackResult struct {
 	BytesDownloaded int64
 }
 
-// String returns a human-readable representation of the DownloadItem.
-func (di DownloadItem) String() string {
-	return fmt.Sprintf("category: %v, ID: %s", di.Category, di.ItemID)
-}
-
-// GetShortVersion converts a full DownloadItem into a ShortDownloadItem by stripping the URL.
-func (di DownloadItem) GetShortVersion() ShortDownloadItem {
-	return ShortDownloadItem{
-		Category: di.Category,
-		ItemID:   di.ItemID,
-	}
-}
-
 // TrackQuality represents the audio quality level.
 type TrackQuality uint8
+
+// audioCollection represents a collection of audio tracks with associated metadata.
+type audioCollection struct {
+	// category indicates the type of collection (album, playlist, etc.).
+	category DownloadCategory
+	// id is the collection ID.
+	id string
+	// title is the collection name.
+	title string
+	// tags contains metadata key-value pairs for the collection.
+	tags map[string]string
+	// tracksPath is the directory path where tracks will be saved.
+	tracksPath string
+	// embeddableCoverPath is the path for cover that will be embedded to the track tags.
+	embeddableCoverPath string
+	// coverPath is the file path for the collection's cover art.
+	coverPath string
+	// embeddableDescriptionPath is the path for description that will be embedded to the track tags.
+	embeddableDescriptionPath string
+	// descriptionPath is the file path for the collection's description.
+	descriptionPath string
+	// trackIDs is the list of track IDs in the collection.
+	trackIDs []int64
+	// tracksCount is the total number of tracks in the collection.
+	tracksCount int64
+}
+
+const (
+	// defaultFolderPermissions sets the default permissions for folders: (rwxr-xr-x).
+	defaultFolderPermissions os.FileMode = 0o755
+
+	// File extensions.
+	extensionMP3  = ".mp3"
+	extensionFLAC = ".flac"
+	extensionBin  = ".bin"
+	extensionJPG  = ".jpg"
+	extensionPNG  = ".png"
+	extensionTXT  = ".txt"
+	extensionLRC  = ".lrc"
+
+	// Default filenames and values.
+	defaultCoverFilename       = "cover"
+	defaultDescriptionFilename = "description"
+	defaultUnknownYear         = "0000"
+	trackNumberPaddingWidth    = 2
+
+	downloadCategoryUnknownName  = "unknown"
+	downloadCategoryTrackName    = "track"
+	downloadCategoryAlbumName    = "album"
+	downloadCategoryPlaylistName = "playlist"
+	downloadCategoryArtistName   = "artist"
+)
+
+const (
+	// DownloadCategoryUnknown - unknown category.
+	DownloadCategoryUnknown DownloadCategory = iota
+	// DownloadCategoryTrack - single track.
+	DownloadCategoryTrack
+	// DownloadCategoryAlbum - full album.
+	DownloadCategoryAlbum
+	// DownloadCategoryPlaylist - playlist.
+	DownloadCategoryPlaylist
+	// DownloadCategoryArtist - complete artist's discography.
+	DownloadCategoryArtist
+	// DownloadCategoryAudiobook - audiobook.
+	DownloadCategoryAudiobook
+	// DownloadCategoryPodcast - podcast.
+	DownloadCategoryPodcast
+)
+
+const (
+	// SkipReasonExists - track file already exists.
+	SkipReasonExists SkipReason = iota
+	// SkipReasonQuality - track quality below minimum threshold.
+	SkipReasonQuality
+	// SkipReasonDuration - track duration outside acceptable range.
+	SkipReasonDuration
+)
 
 // Enum values for TrackQuality.
 const (
@@ -290,6 +206,91 @@ const (
 	// TrackQualityFLACString is the string representation for FLAC quality.
 	TrackQualityFLACString = "flac"
 )
+
+// downloadCategoryNames maps DownloadCategory values to display strings.
+var downloadCategoryNames = [...]struct {
+	// lower is the lowercase category name used in paths and logs.
+	lower string
+	// title is the human-readable title-case category name.
+	title string
+}{
+	{lower: downloadCategoryUnknownName, title: "Unknown"},
+	{lower: downloadCategoryTrackName, title: "Track"},
+	{lower: downloadCategoryAlbumName, title: "Album"},
+	{lower: downloadCategoryPlaylistName, title: "Playlist"},
+	{lower: downloadCategoryArtistName, title: "Artist"},
+	{lower: "audiobook", title: "Audiobook"},
+	{lower: "podcast", title: "Podcast"},
+}
+
+// String returns a human-readable representation of the DownloadCategory.
+func (dc DownloadCategory) String() string {
+	if int(dc) < len(downloadCategoryNames) {
+		return downloadCategoryNames[dc].lower
+	}
+
+	return fmt.Sprintf("unknown: %d", dc)
+}
+
+// ToTitleCase returns the title case representation of the DownloadCategory.
+func (dc DownloadCategory) ToTitleCase() string {
+	if int(dc) < len(downloadCategoryNames) {
+		return downloadCategoryNames[dc].title
+	}
+
+	return fmt.Sprintf("Unknown: %d", dc)
+}
+
+// IsChapterCollection returns true for collections whose tracks are chapters or episodes.
+func (dc DownloadCategory) IsChapterCollection() bool {
+	return dc == DownloadCategoryAudiobook || dc == DownloadCategoryPodcast
+}
+
+// ToSubcategory returns the subcategory representation of the DownloadCategory.
+func (dc DownloadCategory) ToSubcategory() string {
+	switch dc {
+	case DownloadCategoryArtist:
+		return downloadCategoryAlbumName
+	case DownloadCategoryAudiobook:
+		return "chapter"
+	case DownloadCategoryPodcast:
+		return "episode"
+	default:
+		return downloadCategoryTrackName
+	}
+}
+
+// IsSupported returns true if the category is supported for downloading.
+func (dc DownloadCategory) IsSupported() bool {
+	return dc == DownloadCategoryAlbum || dc == DownloadCategoryPlaylist || dc.IsChapterCollection()
+}
+
+// String returns a human-readable representation of the SkipReason.
+func (sr SkipReason) String() string {
+	switch sr {
+	case SkipReasonExists:
+		return "already exists"
+	case SkipReasonQuality:
+		return "quality filter"
+	case SkipReasonDuration:
+		return "duration filter"
+	default:
+		return fmt.Sprintf("unknown reason: %d", sr)
+	}
+}
+
+// String returns a human-readable representation of the DownloadItem.
+func (di DownloadItem) String() string {
+	return fmt.Sprintf("category: %v, ID: %s", di.Category, di.ItemID)
+}
+
+// GetShortVersion converts a full DownloadItem into a ShortDownloadItem by stripping the URL.
+func (di DownloadItem) GetShortVersion() ShortDownloadItem {
+	return ShortDownloadItem{
+		Category: di.Category,
+		ItemID:   di.ItemID,
+	}
+}
 
 // String returns the display value of the Quality enum.
 func (tq TrackQuality) String() string {
@@ -346,30 +347,4 @@ func ParseQuality(s string) TrackQuality {
 	default:
 		return TrackQualityUnknown
 	}
-}
-
-// audioCollection represents a collection of audio tracks with associated metadata.
-type audioCollection struct {
-	// category indicates the type of collection (album, playlist, etc.).
-	category DownloadCategory
-	// id is the collection ID.
-	id string
-	// title is the collection name.
-	title string
-	// tags contains metadata key-value pairs for the collection.
-	tags map[string]string
-	// tracksPath is the directory path where tracks will be saved.
-	tracksPath string
-	// embeddableCoverPath is the path for cover that will be embedded to the track tags.
-	embeddableCoverPath string
-	// coverPath is the file path for the collection's cover art.
-	coverPath string
-	// embeddableDescriptionPath is the path for description that will be embedded to the track tags.
-	embeddableDescriptionPath string
-	// descriptionPath is the file path for the collection's description.
-	descriptionPath string
-	// trackIDs is the list of track IDs in the collection.
-	trackIDs []int64
-	// tracksCount is the total number of tracks in the collection.
-	tracksCount int64
 }

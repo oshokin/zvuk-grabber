@@ -183,9 +183,37 @@ func LoadConfig(configFilename string) (*Config, error) {
 	return &cfg, nil
 }
 
+// isValidQuality reports whether the quality value is within the supported range.
+func isValidQuality(quality uint8) bool {
+	return quality >= minQuality && quality <= maxQuality
+}
+
+// parsePositiveDuration parses a non-empty duration string and validates it is positive.
+func parsePositiveDuration(raw, name string, invalidErr error) (time.Duration, error) {
+	parsed, err := time.ParseDuration(raw)
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse %s: %w", name, err)
+	}
+
+	if parsed <= 0 {
+		return 0, invalidErr
+	}
+
+	return parsed, nil
+}
+
+// parseOptionalPositiveDuration parses an optional duration string, returning zero when empty.
+func parseOptionalPositiveDuration(raw, name string, invalidErr error) (time.Duration, error) {
+	if raw == "" {
+		return 0, nil
+	}
+
+	return parsePositiveDuration(raw, name, invalidErr)
+}
+
 // ValidateConfig checks the configuration for validity and sets derived fields.
 //
-//nolint:funlen,gocognit,cyclop // Validation functions naturally have high complexity and length due to sequential checks.
+//nolint:funlen,gocognit // Validation functions naturally have high complexity and length due to sequential checks.
 func ValidateConfig(cfg *Config) error {
 	var (
 		downloadSpeedLimit       = strings.TrimSpace(cfg.DownloadSpeedLimit)
@@ -200,13 +228,13 @@ func ValidateConfig(cfg *Config) error {
 
 	cfg.ZvukBaseURL = ZvukBaseURL
 
-	if cfg.Quality < minQuality || cfg.Quality > maxQuality {
+	if !isValidQuality(cfg.Quality) {
 		return fmt.Errorf("%w: must be between %d and %d", ErrInvalidQuality, minQuality, maxQuality)
 	}
 
 	// Validate min_quality if set (0 means no filtering).
 	if cfg.MinQuality > 0 {
-		if cfg.MinQuality < minQuality || cfg.MinQuality > maxQuality {
+		if !isValidQuality(cfg.MinQuality) {
 			return fmt.Errorf("%w: must be between %d and %d, or 0 to disable",
 				ErrInvalidMinQuality, minQuality, maxQuality)
 		}
@@ -216,33 +244,18 @@ func ValidateConfig(cfg *Config) error {
 		}
 	}
 
-	// Parse min_duration if set (empty string means no filtering).
-	if cfg.MinDuration != "" {
-		cfg.ParsedMinDuration, err = time.ParseDuration(cfg.MinDuration)
-		if err != nil {
-			return fmt.Errorf("failed to parse min duration: %w", err)
-		}
-
-		if cfg.ParsedMinDuration <= 0 {
-			return ErrInvalidMinDuration
-		}
+	cfg.ParsedMinDuration, err = parseOptionalPositiveDuration(cfg.MinDuration, "min duration", ErrInvalidMinDuration)
+	if err != nil {
+		return err
 	}
 
-	// Parse max_duration if set (empty string means no filtering).
-	if cfg.MaxDuration != "" {
-		cfg.ParsedMaxDuration, err = time.ParseDuration(cfg.MaxDuration)
-		if err != nil {
-			return fmt.Errorf("failed to parse max duration: %w", err)
-		}
+	cfg.ParsedMaxDuration, err = parseOptionalPositiveDuration(cfg.MaxDuration, "max duration", ErrInvalidMaxDuration)
+	if err != nil {
+		return err
+	}
 
-		if cfg.ParsedMaxDuration <= 0 {
-			return ErrInvalidMaxDuration
-		}
-
-		// Validate that max_duration > min_duration if both are set.
-		if cfg.MinDuration != "" && cfg.ParsedMaxDuration <= cfg.ParsedMinDuration {
-			return ErrMaxDurationTooLow
-		}
+	if cfg.MinDuration != "" && cfg.MaxDuration != "" && cfg.ParsedMaxDuration <= cfg.ParsedMinDuration {
+		return ErrMaxDurationTooLow
 	}
 
 	parsedLogLevel, isLogLevelCorrect := logger.ParseLogLevel(cfg.LogLevel)
@@ -266,31 +279,23 @@ func ValidateConfig(cfg *Config) error {
 		return ErrInvalidRetryAttempts
 	}
 
-	cfg.ParsedMaxDownloadPause, err = time.ParseDuration(cfg.MaxDownloadPause)
+	cfg.ParsedMaxDownloadPause, err = parsePositiveDuration(
+		cfg.MaxDownloadPause,
+		"max download pause",
+		ErrInvalidMaxDownloadPause,
+	)
 	if err != nil {
-		return fmt.Errorf("failed to parse max download pause: %w", err)
+		return err
 	}
 
-	if cfg.ParsedMaxDownloadPause <= 0 {
-		return ErrInvalidMaxDownloadPause
-	}
-
-	cfg.ParsedMinRetryPause, err = time.ParseDuration(cfg.MinRetryPause)
+	cfg.ParsedMinRetryPause, err = parsePositiveDuration(cfg.MinRetryPause, "min retry pause", ErrInvalidMinRetryPause)
 	if err != nil {
-		return fmt.Errorf("failed to parse min retry pause: %w", err)
+		return err
 	}
 
-	if cfg.ParsedMinRetryPause <= 0 {
-		return ErrInvalidMinRetryPause
-	}
-
-	cfg.ParsedMaxRetryPause, err = time.ParseDuration(cfg.MaxRetryPause)
+	cfg.ParsedMaxRetryPause, err = parsePositiveDuration(cfg.MaxRetryPause, "max retry pause", ErrInvalidMaxRetryPause)
 	if err != nil {
-		return fmt.Errorf("failed to parse max retry pause: %w", err)
-	}
-
-	if cfg.ParsedMaxRetryPause <= 0 {
-		return ErrInvalidMaxRetryPause
+		return err
 	}
 
 	if cfg.MaxConcurrentDownloads <= 0 {

@@ -79,6 +79,132 @@ type ClientImpl struct {
 	podcastsCache *lru.Cache[string, *Podcast]
 }
 
+// graphQLCollectionResult holds a GraphQL collection item and its child tracks.
+type graphQLCollectionResult[T any] struct {
+	// item is the parsed collection metadata.
+	item *T
+	// tracks is a map of child track ID to track metadata.
+	tracks map[string]*Track
+}
+
+// newMetadataCache creates an LRU cache for entity metadata.
+func newMetadataCache[T any](size int, entityName string) (*lru.Cache[string, T], error) {
+	cache, err := lru.New[string, T](size)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create %s cache: %w", entityName, err)
+	}
+
+	return cache, nil
+}
+
+// splitCachedMetadata separates cached and uncached entity IDs.
+func splitCachedMetadata[T any](
+	ctx context.Context,
+	ids []string,
+	cache *lru.Cache[string, T],
+	entityName string,
+) (map[string]T, []string) {
+	cachedEntities := make(map[string]T)
+	uncachedIDs := make([]string, 0, len(ids))
+
+	for _, id := range ids {
+		if cached, ok := cache.Get(id); ok {
+			cachedEntities[id] = cached
+			logger.Debugf(ctx, "%s cache hit for ID: %s", entityName, id)
+		} else {
+			uncachedIDs = append(uncachedIDs, id)
+		}
+	}
+
+	return cachedEntities, uncachedIDs
+}
+
+// storeCachedMetadata adds fetched entities to the cache and destination map.
+func storeCachedMetadata[T any](cache *lru.Cache[string, T], destination, source map[string]T) {
+	for id, entity := range source {
+		cache.Add(id, entity)
+		destination[id] = entity
+	}
+}
+
+// fetchCachedMetadata fetches uncached entities and merges them with cached ones.
+func fetchCachedMetadata[T any](
+	ctx context.Context,
+	ids []string,
+	cache *lru.Cache[string, T],
+	entityName string,
+	source string,
+	fetch func(context.Context, []string) (map[string]T, error),
+) (map[string]T, error) {
+	entities, uncachedIDs := splitCachedMetadata(ctx, ids, cache, entityName)
+	if len(uncachedIDs) == 0 {
+		return entities, nil
+	}
+
+	logger.Debugf(ctx, "Fetching %d uncached %ss from %s", len(uncachedIDs), strings.ToLower(entityName), source)
+
+	fetched, err := fetch(ctx, uncachedIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	storeCachedMetadata(cache, entities, fetched)
+
+	return entities, nil
+}
+
+// fetchCachedCollectionMetadata fetches uncached collection entities and their tracks.
+func fetchCachedCollectionMetadata[T any](
+	ctx context.Context,
+	ids []string,
+	cache *lru.Cache[string, T],
+	entityName string,
+	source string,
+	fetch func(context.Context, []string) (map[string]T, map[string]*Track, error),
+) (map[string]T, map[string]*Track, error) {
+	entities, uncachedIDs := splitCachedMetadata(ctx, ids, cache, entityName)
+
+	tracks := make(map[string]*Track)
+	if len(uncachedIDs) == 0 {
+		return entities, tracks, nil
+	}
+
+	logger.Debugf(ctx, "Fetching %d uncached %ss from %s", len(uncachedIDs), strings.ToLower(entityName), source)
+
+	fetchedEntities, fetchedTracks, err := fetch(ctx, uncachedIDs)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	storeCachedMetadata(cache, entities, fetchedEntities)
+	maps.Copy(tracks, fetchedTracks)
+
+	return entities, tracks, nil
+}
+
+// fetchGraphQLCollections fetches multiple GraphQL collections by ID.
+func fetchGraphQLCollections[T any](
+	ctx context.Context,
+	ids []string,
+	entityName string,
+	fetch func(context.Context, string) (*graphQLCollectionResult[T], error),
+) (map[string]*T, map[string]*Track, error) {
+	entities := make(map[string]*T, len(ids))
+	tracks := make(map[string]*Track)
+
+	for _, id := range ids {
+		result, err := fetch(ctx, id)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to fetch %s %s: %w", strings.ToLower(entityName), id, err)
+		}
+
+		entities[id] = result.item
+		maps.Copy(tracks, result.tracks)
+	}
+
+	return entities, tracks, nil
+}
+
 // NewClient creates and returns a new instance of ClientImpl.
 // It initializes the HTTP and GraphQL clients with the provided configuration.
 func NewClient(cfg *config.Config) (Client, error) {
@@ -96,8 +222,12 @@ func NewClient(cfg *config.Config) (Client, error) {
 
 	// Set the authentication cookie.
 	cookie := &http.Cookie{
-		Name:  "auth",
-		Value: cfg.AuthToken,
+		Name:     "auth",
+		Value:    cfg.AuthToken,
+		Path:     "/",
+		Secure:   true,
+		HttpOnly: true,
+		SameSite: http.SameSiteStrictMode,
 	}
 	cookies.SetCookies(baseURL, []*http.Cookie{cookie})
 
@@ -115,34 +245,34 @@ func NewClient(cfg *config.Config) (Client, error) {
 	graphqlClient := graphql.NewClient(graphQLURL.String(), graphql.WithHTTPClient(httpClient))
 
 	// Initialize LRU caches for metadata to reduce redundant API calls.
-	labelsCache, err := lru.New[string, *Label](labelsCacheSize)
+	labelsCache, err := newMetadataCache[*Label](labelsCacheSize, "labels")
 	if err != nil {
-		return nil, fmt.Errorf("failed to create labels cache: %w", err)
+		return nil, err
 	}
 
-	albumsCache, err := lru.New[string, *Release](albumsCacheSize)
+	albumsCache, err := newMetadataCache[*Release](albumsCacheSize, "albums")
 	if err != nil {
-		return nil, fmt.Errorf("failed to create albums cache: %w", err)
+		return nil, err
 	}
 
-	tracksCache, err := lru.New[string, *Track](tracksCacheSize)
+	tracksCache, err := newMetadataCache[*Track](tracksCacheSize, "tracks")
 	if err != nil {
-		return nil, fmt.Errorf("failed to create tracks cache: %w", err)
+		return nil, err
 	}
 
-	playlistsCache, err := lru.New[string, *Playlist](playlistsCacheSize)
+	playlistsCache, err := newMetadataCache[*Playlist](playlistsCacheSize, "playlists")
 	if err != nil {
-		return nil, fmt.Errorf("failed to create playlists cache: %w", err)
+		return nil, err
 	}
 
-	audiobooksCache, err := lru.New[string, *Audiobook](audiobooksCacheSize)
+	audiobooksCache, err := newMetadataCache[*Audiobook](audiobooksCacheSize, "audiobooks")
 	if err != nil {
-		return nil, fmt.Errorf("failed to create audiobooks cache: %w", err)
+		return nil, err
 	}
 
-	podcastsCache, err := lru.New[string, *Podcast](podcastsCacheSize)
+	podcastsCache, err := newMetadataCache[*Podcast](podcastsCacheSize, "podcasts")
 	if err != nil {
-		return nil, fmt.Errorf("failed to create podcasts cache: %w", err)
+		return nil, err
 	}
 
 	// Create and return the ClientImpl instance.
@@ -238,39 +368,21 @@ func (c *ClientImpl) GetBaseURL() string {
 // GetLabelsMetadata retrieves metadata for the specified label IDs.
 // Uses an LRU cache to avoid redundant API calls for the same labels.
 func (c *ClientImpl) GetLabelsMetadata(ctx context.Context, labelIDs []string) (map[string]*Label, error) {
-	result := make(map[string]*Label)
-	uncachedIDs := make([]string, 0, len(labelIDs))
+	return fetchCachedMetadata(
+		ctx,
+		labelIDs,
+		c.labelsCache,
+		"Label",
+		"API",
+		func(ctx context.Context, ids []string) (map[string]*Label, error) {
+			metadata, err := c.getEntitiesMetadata(ctx, zvukAPILabelURI, ids, nil)
+			if err != nil {
+				return nil, err
+			}
 
-	// Check cache first for each label ID.
-	for _, id := range labelIDs {
-		if cached, ok := c.labelsCache.Get(id); ok {
-			result[id] = cached
-			logger.Debugf(ctx, "Label cache hit for ID: %s", id)
-		} else {
-			uncachedIDs = append(uncachedIDs, id)
-		}
-	}
-
-	// If all labels were cached, return immediately.
-	if len(uncachedIDs) == 0 {
-		return result, nil
-	}
-
-	// Fetch uncached labels from API.
-	logger.Debugf(ctx, "Fetching %d uncached labels from API", len(uncachedIDs))
-
-	metadata, err := c.getEntitiesMetadata(ctx, zvukAPILabelURI, uncachedIDs, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	// Store fetched labels in cache and add to result.
-	for id, label := range metadata.Labels {
-		c.labelsCache.Add(id, label)
-		result[id] = label
-	}
-
-	return result, nil
+			return metadata.Labels, nil
+		},
+	)
 }
 
 // GetPlaylistsMetadata retrieves metadata for the specified playlist IDs.
@@ -279,53 +391,26 @@ func (c *ClientImpl) GetPlaylistsMetadata(
 	ctx context.Context,
 	playlistIDs []string,
 ) (*GetPlaylistsMetadataResponse, error) {
-	playlists := make(map[string]*Playlist)
-	tracks := make(map[string]*Track)
-	uncachedIDs := make([]string, 0, len(playlistIDs))
+	playlists, tracks, err := fetchCachedCollectionMetadata(
+		ctx,
+		playlistIDs,
+		c.playlistsCache,
+		"Playlist",
+		"API",
+		func(ctx context.Context, ids []string) (map[string]*Playlist, map[string]*Track, error) {
+			metadata, fetchErr := c.getEntitiesMetadata(ctx, zvukAPIPlaylistURI, ids, url.Values{"include": {"track"}})
+			if fetchErr != nil {
+				return nil, nil, fetchErr
+			}
 
-	// Check cache first for each playlist ID.
-	for _, id := range playlistIDs {
-		if cached, ok := c.playlistsCache.Get(id); ok {
-			playlists[id] = cached
-			logger.Debugf(ctx, "Playlist cache hit for ID: %s", id)
-		} else {
-			uncachedIDs = append(uncachedIDs, id)
-		}
-	}
-
-	// If all playlists were cached, return immediately.
-	// Note: Tracks are not cached from playlist response to ensure fresh track data.
-	if len(uncachedIDs) == 0 {
-		return &GetPlaylistsMetadataResponse{
-			Tracks:    tracks,
-			Playlists: playlists,
-		}, nil
-	}
-
-	// Fetch uncached playlists from API.
-	query := url.Values{}
-	query.Set("include", "track")
-
-	logger.Debugf(ctx, "Fetching %d uncached playlists from API", len(uncachedIDs))
-
-	result, err := c.getEntitiesMetadata(ctx, zvukAPIPlaylistURI, uncachedIDs, query)
+			return metadata.Playlists, metadata.Tracks, nil
+		},
+	)
 	if err != nil {
 		return nil, err
 	}
 
-	// Store fetched playlists in cache and add to result.
-	for id, playlist := range result.Playlists {
-		c.playlistsCache.Add(id, playlist)
-		playlists[id] = playlist
-	}
-
-	// Add tracks from the API response.
-	maps.Copy(tracks, result.Tracks)
-
-	return &GetPlaylistsMetadataResponse{
-		Tracks:    tracks,
-		Playlists: playlists,
-	}, nil
+	return &GetPlaylistsMetadataResponse{Tracks: tracks, Playlists: playlists}, nil
 }
 
 // GetAudiobooksMetadata retrieves metadata for the specified audiobook IDs.
@@ -334,51 +419,21 @@ func (c *ClientImpl) GetAudiobooksMetadata(
 	ctx context.Context,
 	audiobookIDs []string,
 ) (*GetAudiobooksMetadataResponse, error) {
-	audiobooks := make(map[string]*Audiobook)
-	tracks := make(map[string]*Track)
-	uncachedIDs := make([]string, 0, len(audiobookIDs))
-
-	// Check cache first for each audiobook ID.
-	for _, id := range audiobookIDs {
-		if cached, ok := c.audiobooksCache.Get(id); ok {
-			audiobooks[id] = cached
-			logger.Debugf(ctx, "Audiobook cache hit for ID: %s", id)
-		} else {
-			uncachedIDs = append(uncachedIDs, id)
-		}
+	audiobooks, tracks, err := fetchCachedCollectionMetadata(
+		ctx,
+		audiobookIDs,
+		c.audiobooksCache,
+		"Audiobook",
+		"GraphQL API",
+		func(ctx context.Context, ids []string) (map[string]*Audiobook, map[string]*Track, error) {
+			return fetchGraphQLCollections(ctx, ids, "Audiobook", c.getAudiobookViaGraphQL)
+		},
+	)
+	if err != nil {
+		return nil, err
 	}
 
-	// If all audiobooks were cached, return immediately.
-	// Note: Tracks are not cached from audiobook response to ensure fresh track data.
-	if len(uncachedIDs) == 0 {
-		return &GetAudiobooksMetadataResponse{
-			Tracks:     tracks,
-			Audiobooks: audiobooks,
-		}, nil
-	}
-
-	logger.Debugf(ctx, "Fetching %d uncached audiobooks from GraphQL API", len(uncachedIDs))
-
-	// Fetch each audiobook via GraphQL.
-	for _, audiobookID := range uncachedIDs {
-		audiobookResult, err := c.getAudiobookViaGraphQL(ctx, audiobookID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to fetch audiobook %s: %w", audiobookID, err)
-		}
-
-		// Store in cache.
-		if c.audiobooksCache != nil {
-			c.audiobooksCache.Add(audiobookID, audiobookResult.Audiobook)
-		}
-
-		audiobooks[audiobookID] = audiobookResult.Audiobook
-		maps.Copy(tracks, audiobookResult.Tracks)
-	}
-
-	return &GetAudiobooksMetadataResponse{
-		Tracks:     tracks,
-		Audiobooks: audiobooks,
-	}, nil
+	return &GetAudiobooksMetadataResponse{Tracks: tracks, Audiobooks: audiobooks}, nil
 }
 
 // GetPodcastsMetadata retrieves metadata for the specified podcast IDs.
@@ -387,51 +442,21 @@ func (c *ClientImpl) GetPodcastsMetadata(
 	ctx context.Context,
 	podcastIDs []string,
 ) (*GetPodcastsMetadataResponse, error) {
-	podcasts := make(map[string]*Podcast)
-	tracks := make(map[string]*Track)
-	uncachedIDs := make([]string, 0, len(podcastIDs))
-
-	// Check cache first for each podcast ID.
-	for _, id := range podcastIDs {
-		if cached, ok := c.podcastsCache.Get(id); ok {
-			podcasts[id] = cached
-			logger.Debugf(ctx, "Podcast cache hit for ID: %s", id)
-		} else {
-			uncachedIDs = append(uncachedIDs, id)
-		}
+	podcasts, tracks, err := fetchCachedCollectionMetadata(
+		ctx,
+		podcastIDs,
+		c.podcastsCache,
+		"Podcast",
+		"GraphQL API",
+		func(ctx context.Context, ids []string) (map[string]*Podcast, map[string]*Track, error) {
+			return fetchGraphQLCollections(ctx, ids, "Podcast", c.getPodcastViaGraphQL)
+		},
+	)
+	if err != nil {
+		return nil, err
 	}
 
-	// If all podcasts were cached, return immediately.
-	// Note: Tracks are not cached from podcast response to ensure fresh track data.
-	if len(uncachedIDs) == 0 {
-		return &GetPodcastsMetadataResponse{
-			Tracks:   tracks,
-			Podcasts: podcasts,
-		}, nil
-	}
-
-	logger.Debugf(ctx, "Fetching %d uncached podcasts from GraphQL API", len(uncachedIDs))
-
-	// Fetch each podcast via GraphQL.
-	for _, podcastID := range uncachedIDs {
-		podcastResult, err := c.getPodcastViaGraphQL(ctx, podcastID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to fetch podcast %s: %w", podcastID, err)
-		}
-
-		// Store in cache.
-		if c.podcastsCache != nil {
-			c.podcastsCache.Add(podcastID, podcastResult.Podcast)
-		}
-
-		podcasts[podcastID] = podcastResult.Podcast
-		maps.Copy(tracks, podcastResult.Tracks)
-	}
-
-	return &GetPodcastsMetadataResponse{
-		Tracks:   tracks,
-		Podcasts: podcasts,
-	}, nil
+	return &GetPodcastsMetadataResponse{Tracks: tracks, Podcasts: podcasts}, nil
 }
 
 // GetStreamMetadata retrieves streaming metadata for a specific track and quality.
@@ -489,39 +514,7 @@ func (c *ClientImpl) GetTrackLyrics(ctx context.Context, trackID string) (*Lyric
 // GetTracksMetadata retrieves metadata for the specified track IDs.
 // Uses an LRU cache to avoid redundant API calls for the same tracks.
 func (c *ClientImpl) GetTracksMetadata(ctx context.Context, trackIDs []string) (map[string]*Track, error) {
-	result := make(map[string]*Track)
-	uncachedIDs := make([]string, 0, len(trackIDs))
-
-	// Check cache first for each track ID.
-	for _, id := range trackIDs {
-		if cached, ok := c.tracksCache.Get(id); ok {
-			result[id] = cached
-			logger.Debugf(ctx, "Track cache hit for ID: %s", id)
-		} else {
-			uncachedIDs = append(uncachedIDs, id)
-		}
-	}
-
-	// If all tracks were cached, return immediately.
-	if len(uncachedIDs) == 0 {
-		return result, nil
-	}
-
-	// Fetch uncached tracks from GraphQL API.
-	logger.Debugf(ctx, "Fetching %d uncached tracks from GraphQL API", len(uncachedIDs))
-
-	tracks, err := c.getTracksViaGraphQL(ctx, uncachedIDs)
-	if err != nil {
-		return nil, err
-	}
-
-	// Store fetched tracks in cache and add to result.
-	for id, track := range tracks {
-		c.tracksCache.Add(id, track)
-		result[id] = track
-	}
-
-	return result, nil
+	return fetchCachedMetadata(ctx, trackIDs, c.tracksCache, "Track", "GraphQL API", c.getTracksViaGraphQL)
 }
 
 // GetUserProfile retrieves the user's profile information.
@@ -534,6 +527,7 @@ func (c *ClientImpl) GetUserProfile(ctx context.Context) (*UserProfile, error) {
 	return result.Data.Result, nil
 }
 
+// getEntitiesMetadata fetches metadata for the given entity IDs.
 func (c *ClientImpl) getEntitiesMetadata(
 	ctx context.Context,
 	entityURI string,
@@ -580,43 +574,24 @@ func (c *ClientImpl) getAlbumsMetadataFromCache(
 	ctx context.Context,
 	releaseIDs []string,
 ) (*GetAlbumsMetadataResponse, error) {
-	releases := make(map[string]*Release)
-	uncachedIDs := make([]string, 0, len(releaseIDs))
+	releases, err := fetchCachedMetadata(
+		ctx,
+		releaseIDs,
+		c.albumsCache,
+		"Album",
+		"API",
+		func(ctx context.Context, ids []string) (map[string]*Release, error) {
+			metadata, fetchErr := c.getEntitiesMetadata(ctx, zvukAPIReleaseMetadataURI, ids, nil)
+			if fetchErr != nil {
+				return nil, fetchErr
+			}
 
-	// Check cache first for each album ID.
-	for _, id := range releaseIDs {
-		if cached, ok := c.albumsCache.Get(id); ok {
-			releases[id] = cached
-			logger.Debugf(ctx, "Album cache hit for ID: %s", id)
-		} else {
-			uncachedIDs = append(uncachedIDs, id)
-		}
-	}
-
-	// If all albums were cached, return immediately.
-	if len(uncachedIDs) == 0 {
-		return &GetAlbumsMetadataResponse{
-			Tracks:   nil,
-			Releases: releases,
-		}, nil
-	}
-
-	// Fetch uncached albums from API.
-	logger.Debugf(ctx, "Fetching %d uncached albums from API", len(uncachedIDs))
-
-	result, err := c.getEntitiesMetadata(ctx, zvukAPIReleaseMetadataURI, uncachedIDs, nil)
+			return metadata.Releases, nil
+		},
+	)
 	if err != nil {
 		return nil, err
 	}
 
-	// Store fetched albums in cache and add to result.
-	for id, release := range result.Releases {
-		c.albumsCache.Add(id, release)
-		releases[id] = release
-	}
-
-	return &GetAlbumsMetadataResponse{
-		Tracks:   nil,
-		Releases: releases,
-	}, nil
+	return &GetAlbumsMetadataResponse{Releases: releases}, nil
 }

@@ -63,6 +63,11 @@ func TestValidateLoginURL(t *testing.T) {
 			url:         "https://evil.com/phishing",
 			expectError: true,
 		},
+		{
+			name:        "invalid URL - allowed domain only in query",
+			url:         "https://evil.com/phishing?redirect=https://zvuk.com",
+			expectError: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -127,9 +132,7 @@ func TestConstants(t *testing.T) {
 	t.Parallel()
 
 	// Test URL constants.
-	assert.Equal(t, "https://id.zvuk.com/desktop?returnUrl=https://zvuk.com/", zvukLoginURL)
 	assert.Equal(t, "zvuk.com", zvukDomain)
-	assert.Equal(t, "id.zvuk.com", idZvukDomain)
 	assert.Equal(t, "id.sber.ru", sberIDDomain)
 
 	// Test cookie name.
@@ -141,7 +144,6 @@ func TestConstants(t *testing.T) {
 
 	// Test timing constants.
 	assert.Equal(t, 200, int(browserSlowMotionDelay.Milliseconds()))
-	assert.Equal(t, 1, int(loginPollInterval.Seconds()))
 	assert.Equal(t, 10, int(maxLoginWaitTime.Minutes()))
 	assert.Equal(t, 2, int(sessionEstablishDelay.Seconds()))
 }

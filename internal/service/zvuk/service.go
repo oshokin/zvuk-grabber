@@ -224,6 +224,7 @@ func (s *ServiceImpl) downloadTrackItems(ctx context.Context, items []*DownloadI
 	s.downloadTracks(ctx, metadata)
 }
 
+// prepareStandaloneTrackIDs parses, deduplicates, and filters standalone track download items.
 func (s *ServiceImpl) prepareStandaloneTrackIDs(ctx context.Context, items []*DownloadItem) ([]string, []int64) {
 	items = s.urlProcessor.DeduplicateDownloadItems(items)
 
@@ -262,12 +263,14 @@ func (s *ServiceImpl) prepareStandaloneTrackIDs(ctx context.Context, items []*Do
 	return trackIDsToFetch, numericTrackIDs
 }
 
+// recordStandaloneTrackBatchError records the same error for each track ID in the batch.
 func (s *ServiceImpl) recordStandaloneTrackBatchError(trackIDs []string, phase string, err error) {
 	for _, trackID := range trackIDs {
 		s.recordStandaloneTrackError(trackID, phase, err)
 	}
 }
 
+// recordStandaloneTrackError records a download error for a standalone track.
 func (s *ServiceImpl) recordStandaloneTrackError(trackID, phase string, err error) {
 	s.recordError(&DownloadError{
 		Category:       DownloadCategoryTrack,
@@ -281,6 +284,7 @@ func (s *ServiceImpl) recordStandaloneTrackError(trackID, phase string, err erro
 	})
 }
 
+// getRegisteredCollectionTrackIDs returns track IDs already covered by registered collections.
 func (s *ServiceImpl) getRegisteredCollectionTrackIDs() map[int64]struct{} {
 	result := make(map[int64]struct{})
 

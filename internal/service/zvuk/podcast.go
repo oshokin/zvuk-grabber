@@ -5,44 +5,26 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/oshokin/zvuk-grabber/internal/client/zvuk"
 )
 
-// parseEpisodePublicationDate parses episode publication date to YYYY-MM-DD format.
-func parseEpisodePublicationDate(publicationDateISO string) string {
-	if publicationDateISO == "" {
-		return ""
-	}
-
-	// Parse ISO 8601 date format: "2020-05-04T00:00:00"
-	parsedDate, err := time.Parse(time.RFC3339, publicationDateISO)
-	if err != nil {
-		// Try to extract YYYY-MM-DD from the beginning.
-		if len(publicationDateISO) >= 10 {
-			return publicationDateISO[:10]
-		}
-
-		return ""
-	}
-
-	return parsedDate.Format("2006-01-02")
-}
-
 // PodcastCollectionHandler handles podcast collection logic.
 type PodcastCollectionHandler struct {
+	// BaseCollectionHandler provides shared collection handler behavior.
 	BaseCollectionHandler
 }
 
+// parseEpisodePublicationDate parses episode publication date to YYYY-MM-DD format.
+func parseEpisodePublicationDate(publicationDateISO string) string {
+	date, _ := parsePublicationDateAndYear(publicationDateISO)
+	return date
+}
+
+// NewPodcastCollectionHandler creates a handler for podcast downloads.
 func NewPodcastCollectionHandler(templateManager TemplateManager) *PodcastCollectionHandler {
 	return &PodcastCollectionHandler{
-		BaseCollectionHandler: BaseCollectionHandler{
-			Category:             DownloadCategoryPodcast,
-			TemplateManager:      templateManager,
-			SingleFolderHandling: true,
-			DescriptionSupport:   true,
-		},
+		BaseCollectionHandler: newBaseCollectionHandler(DownloadCategoryPodcast, templateManager, true, true),
 	}
 }
 
@@ -65,7 +47,7 @@ func (h *PodcastCollectionHandler) FillTags(item *zvuk.Podcast) map[string]strin
 	}
 
 	tags := map[string]string{
-		TagType:               h.Category.ToLowerCase(),
+		TagType:               h.Category.String(),
 		TagPodcastID:          strconv.FormatInt(item.ID, 10),
 		TagPodcastTitle:       item.Title,
 		TagPodcastAuthors:     strings.Join(item.ArtistNames, ", "),
@@ -87,24 +69,16 @@ func (h *PodcastCollectionHandler) FillTags(item *zvuk.Podcast) map[string]strin
 }
 
 // GetTitle returns the title for a podcast.
-func (h *PodcastCollectionHandler) GetTitle(item *zvuk.Podcast) string {
-	return item.Title
-}
+func (h *PodcastCollectionHandler) GetTitle(item *zvuk.Podcast) string { return item.Title }
 
 // GetTrackIDs returns the track IDs for a podcast.
-func (h *PodcastCollectionHandler) GetTrackIDs(item *zvuk.Podcast) []int64 {
-	return item.TrackIDs
-}
+func (h *PodcastCollectionHandler) GetTrackIDs(item *zvuk.Podcast) []int64 { return item.TrackIDs }
 
 // GetCoverURL returns the cover URL for a podcast.
-func (h *PodcastCollectionHandler) GetCoverURL(item *zvuk.Podcast) string {
-	return item.BigImageURL
-}
+func (h *PodcastCollectionHandler) GetCoverURL(item *zvuk.Podcast) string { return item.BigImageURL }
 
 // GetDescription returns the description for a podcast.
-func (h *PodcastCollectionHandler) GetDescription(item *zvuk.Podcast) string {
-	return item.Description
-}
+func (h *PodcastCollectionHandler) GetDescription(item *zvuk.Podcast) string { return item.Description }
 
 // GetFolderNameTemplate returns the folder name template for a podcast.
 func (h *PodcastCollectionHandler) GetFolderNameTemplate(ctx context.Context, tags map[string]string) string {

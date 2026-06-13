@@ -41,6 +41,7 @@ func RenameFile(srcPath, dstPath string, replace bool) error {
 	return replaceExistingDestination(sourcePath, destinationPath)
 }
 
+// replaceExistingDestination moves an existing destination aside before renaming the source into place.
 func replaceExistingDestination(sourcePath, destinationPath string) error {
 	backupPath := destinationPath + ".bak-" + uuid.NewString()
 

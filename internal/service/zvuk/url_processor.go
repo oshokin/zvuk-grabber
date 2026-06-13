@@ -70,19 +70,12 @@ func (up *URLProcessorImpl) ExtractDownloadItems(
 		tracks          []*DownloadItem
 		standaloneItems []*DownloadItem
 		artists         = make([]*DownloadItem, 0, len(urls))
-		parsedURLs      = make(map[string]struct{}, len(urls))
 	)
 
 	// Iterate through each URL and categorize it.
 	for _, url := range urls {
-		// Skip already parsed URLs to avoid duplicates.
-		if _, ok := parsedURLs[url]; ok {
-			continue
-		}
-
 		// Parse the URL into a DownloadItem.
 		item := up.parseDownloadItem(url)
-		parsedURLs[url] = struct{}{}
 
 		// Categorize the item based on its type.
 		switch item.Category {
@@ -113,7 +106,7 @@ func (up *URLProcessorImpl) DeduplicateDownloadItems(items []*DownloadItem) []*D
 
 	// Iterate through items and add only unique ones to the result.
 	for _, item := range items {
-		key := ShortDownloadItem{Category: item.Category, ItemID: item.ItemID}
+		key := item.GetShortVersion()
 		if _, ok := uniqueItems[key]; ok {
 			continue
 		}
@@ -126,6 +119,7 @@ func (up *URLProcessorImpl) DeduplicateDownloadItems(items []*DownloadItem) []*D
 	return result
 }
 
+// parseDownloadItem parses a URL into a DownloadItem by matching known URL patterns.
 func (up *URLProcessorImpl) parseDownloadItem(url string) *DownloadItem {
 	// Match the URL against each pattern to determine its category.
 	for _, p := range categoriesByPatterns {
@@ -138,7 +132,6 @@ func (up *URLProcessorImpl) parseDownloadItem(url string) *DownloadItem {
 	return &DownloadItem{
 		Category: DownloadCategoryUnknown,
 		URL:      url,
-		ItemID:   "",
 	}
 }
 
@@ -158,13 +151,9 @@ func (up *URLProcessorImpl) processAndFlattenURLs(urls []string) ([]string, erro
 	for _, url := range urls {
 		// If the URL is not a text file, add it directly to the processed list.
 		if !strings.HasSuffix(url, extensionTXT) {
-			if _, ok := processedSet[url]; ok {
-				continue
+			if utils.AddUnique(processedSet, url) {
+				processedURLs = append(processedURLs, url)
 			}
-
-			processedSet[url] = struct{}{}
-
-			processedURLs = append(processedURLs, url)
 
 			continue
 		}
@@ -182,16 +171,11 @@ func (up *URLProcessorImpl) processAndFlattenURLs(urls []string) ([]string, erro
 
 		// Add each line (URL) from the text file to the processed list.
 		for _, line := range lines {
-			if _, ok := processedSet[line]; ok {
-				continue
+			if utils.AddUnique(processedSet, line) {
+				processedURLs = append(processedURLs, line)
 			}
-
-			processedSet[line] = struct{}{}
-
-			processedURLs = append(processedURLs, line)
 		}
 
-		// Mark the text file as processed.
 		processedTextFiles[url] = struct{}{}
 	}
 

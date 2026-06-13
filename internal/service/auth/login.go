@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math/rand/v2"
+	"net/url"
 	"strings"
 	"time"
 
@@ -41,6 +42,8 @@ func (s *ServiceImpl) waitForUserLogin(ctx context.Context) (string, error) {
 	logger.Info(ctx, "Please complete the login in the browser:")
 	logger.Info(ctx, "")
 	logger.Info(ctx, "1. Click the 'Войти' (Login) button in the top right corner")
+	logger.Info(ctx, "")
+	logger.Info(ctx, "   If a promo overlay blocks the login form, close extra popups and continue login manually")
 	logger.Info(ctx, "")
 	logger.Info(ctx, "2. Enter your FULL phone number (e.g., +71488251742)")
 	logger.Info(ctx, "   NOTE: Include country code and all digits")
@@ -86,6 +89,8 @@ func (s *ServiceImpl) waitForLoginComplete(ctx context.Context) (string, error) 
 		lastURL   string
 		// Track if we've entered Sber ID OAuth flow.
 		inSberOAuth bool
+		// Log the auth-cookie detection hint only once.
+		authCookieDetected bool
 	)
 
 	for {
@@ -155,33 +160,34 @@ func (s *ServiceImpl) waitForLoginComplete(ctx context.Context) (string, error) 
 						// Wait for page to load.
 						time.Sleep(oauthPageLoadDelay)
 
-						// Now check if we're logged in.
-						if authCookie := s.getAuthCookie(ctx); authCookie != "" {
-							logger.Info(ctx, "Auth cookie detected - login successful!")
-							return authCookie, nil
+						if authCookie := s.getAuthCookie(ctx); authCookie == "" {
+							logger.Debug(ctx, "No auth cookie yet, continuing to wait...")
 						}
-
-						logger.Debug(ctx, "No auth cookie yet, continuing to wait...")
 					}
 				}
 			}
 		}
 
-		// If we're in OAuth flow and back at Zvuk ID domain, check for auth cookie directly.
-		// This avoids triggering API calls that get rate-limited.
-		// Note: Check if URL STARTS with the domain to avoid false matches in query params.
+		// If we're in OAuth flow and back on Zvuk domains, auth cookie can appear before
+		// login is fully completed. Do not finish early: wait for UI confirmation.
 		if inSberOAuth && (strings.HasPrefix(currentURL, "https://id.zvuk.com") ||
 			strings.HasPrefix(currentURL, "https://zvuk.com")) {
-			// Try to get auth cookie directly without checking login status.
 			if authCookie := s.getAuthCookie(ctx); authCookie != "" {
-				logger.Info(ctx, "Auth cookie detected - login successful!")
-				return authCookie, nil
+				if !authCookieDetected {
+					logger.Info(ctx, "Auth cookie detected. Waiting for final login confirmation on Zvuk page...")
+
+					authCookieDetected = true
+				}
 			}
 		}
 
-		// Check if login is complete (only if not in OAuth flow to avoid rate limiting).
-		if !inSberOAuth && strings.Contains(currentURL, zvukDomain) {
+		// Check if login is complete on Zvuk pages.
+		if strings.HasPrefix(currentURL, "https://zvuk.com") {
 			if loggedIn, checkErr := s.checkIfLoggedIn(ctx); checkErr == nil && loggedIn {
+				if authCookie := s.getAuthCookie(ctx); authCookie != "" {
+					return authCookie, nil
+				}
+
 				return "", nil
 			}
 		}
@@ -248,11 +254,17 @@ func (s *ServiceImpl) checkIfLoggedIn(ctx context.Context) (bool, error) {
 
 // validateLoginURL validates that the user hasn't navigated away from allowed domains.
 func (s *ServiceImpl) validateLoginURL(currentURL string) error {
-	if !strings.Contains(currentURL, idZvukDomain) &&
-		!strings.Contains(currentURL, sberIDDomain) &&
-		!strings.Contains(currentURL, zvukDomain) {
-		return fmt.Errorf("%w to: %s", ErrNavigatedAway, currentURL)
+	parsedURL, err := url.Parse(currentURL)
+	if err == nil && (s.isHostOrSubdomain(parsedURL.Hostname(), zvukDomain) ||
+		s.isHostOrSubdomain(parsedURL.Hostname(), sberIDDomain)) {
+		return nil
 	}
 
-	return nil
+	return fmt.Errorf("%w to: %s", ErrNavigatedAway, currentURL)
+}
+
+// isHostOrSubdomain checks if the host is the same as the domain
+// or a subdomain of the domain.
+func (s *ServiceImpl) isHostOrSubdomain(host, domain string) bool {
+	return host == domain || strings.HasSuffix(host, "."+domain)
 }

@@ -14,6 +14,7 @@ import (
 	"github.com/oshokin/zvuk-grabber/internal/logger"
 )
 
+// TestDownloadCollection_PodcastPassesEpisodeIDsToGetStreamQualities verifies episode IDs are passed to stream quality lookup.
 func TestDownloadCollection_PodcastPassesEpisodeIDsToGetStreamQualities(t *testing.T) {
 	t.Parallel()
 
@@ -65,7 +66,9 @@ func TestDownloadCollection_PodcastPassesEpisodeIDsToGetStreamQualities(t *testi
 		Times(1)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	cancel() // stop before per-track downloads; this test only verifies stream IDs wiring
+
+	// Stop before per-track downloads; this test only verifies stream IDs wiring.
+	cancel()
 
 	impl, ok := service.(*ServiceImpl)
 	assert.True(t, ok, "Service should be of type *ServiceImpl")

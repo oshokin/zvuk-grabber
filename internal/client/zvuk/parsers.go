@@ -6,158 +6,120 @@ import (
 	"strconv"
 )
 
-// parseAudiobookFromGraphQL converts GraphQL book response to Audiobook struct.
-//
-//nolint:funlen,gocognit // Complex parsing logic.
-func parseAudiobookFromGraphQL(data map[string]any, audiobookID string) (*Audiobook, error) {
-	audiobook := &Audiobook{}
+// stringField extracts a string value from a map by key.
+func stringField(data map[string]any, key string) (string, bool) {
+	value, ok := data[key].(string)
+	return value, ok
+}
 
-	// Parse audiobook ID.
+// stringValue extracts a string value from a map, returning empty string when missing.
+func stringValue(data map[string]any, key string) string {
+	value, _ := stringField(data, key)
+	return value
+}
+
+// valueOrZero type-asserts a value to T, returning the zero value on failure.
+func valueOrZero[T any](value any) T {
+	result, ok := value.(T)
+	if !ok {
+		var zero T
+
+		return zero
+	}
+
+	return result
+}
+
+// int64Value extracts an int64 value from a map, coercing from JSON float64.
+func int64Value(data map[string]any, key string) int64 {
+	return int64(valueOrZero[float64](data[key]))
+}
+
+// boolValue extracts a boolean value from a map by key.
+func boolValue(data map[string]any, key string) bool {
+	return valueOrZero[bool](data[key])
+}
+
+// mapValue extracts a nested map from a map by key.
+func mapValue(data map[string]any, key string) map[string]any {
+	return valueOrZero[map[string]any](data[key])
+}
+
+// mapValueFromAny type-asserts a value to map[string]any.
+func mapValueFromAny(value any) map[string]any {
+	return valueOrZero[map[string]any](value)
+}
+
+// imageSource extracts the image source URL from nested image metadata.
+func imageSource(data map[string]any) (string, bool) {
+	return stringField(mapValue(data, "image"), "src")
+}
+
+// imageSourceValue extracts the image source URL, returning empty string when missing.
+func imageSourceValue(data map[string]any) string {
+	value, _ := imageSource(data)
+	return value
+}
+
+// parseOptionalID parses an optional string ID field, returning zero when absent.
+func parseOptionalID(data map[string]any, kind string) (int64, error) {
+	id, ok := stringField(data, "id")
+	if !ok {
+		return 0, nil
+	}
+
+	parsedID, err := strconv.ParseInt(id, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("invalid %s ID: %w", kind, err)
+	}
+
+	return parsedID, nil
+}
+
+// parseAudiobookFromGraphQL converts GraphQL book response to Audiobook struct.
+func parseAudiobookFromGraphQL(data map[string]any, audiobookID string) (*Audiobook, error) {
 	parsedID, err := strconv.ParseInt(audiobookID, 10, 64)
 	if err != nil {
 		return nil, fmt.Errorf("invalid audiobook ID: %w", err)
 	}
 
-	audiobook.ID = parsedID
-
-	// Parse title.
-	if title, ok := data["title"].(string); ok {
-		audiobook.Title = title
+	publisher := mapValue(data, "publisher")
+	audiobook := &Audiobook{
+		ID:              parsedID,
+		Title:           stringValue(data, "title"),
+		PublicationDate: stringValue(data, "publicationDate"),
+		Copyright:       stringValue(data, "copyright"),
+		Description:     stringValue(data, "description"),
+		AgeLimit:        int64Value(data, "ageLimit"),
+		FullDuration:    int64Value(data, "fullDuration"),
+		BigImageURL:     imageSourceValue(data),
+		PublisherName:   stringValue(publisher, "publisherName"),
+		PublisherBrand:  stringValue(publisher, "publisherBrand"),
 	}
 
-	// Parse publication date.
-	if pubDate, ok := data["publicationDate"].(string); ok {
-		audiobook.PublicationDate = pubDate
-	}
+	audiobook.ArtistNames = parseMapStrings(data["bookAuthors"], "rname", false)
+	audiobook.PerformerNames = parseMapStrings(data["performers"], "rname", false)
+	audiobook.Genres = parseMapStrings(data["genres"], "name", false)
 
-	// Parse copyright.
-	if copyright, ok := data["copyright"].(string); ok {
-		audiobook.Copyright = copyright
-	}
-
-	// Parse description.
-	if description, ok := data["description"].(string); ok {
-		audiobook.Description = description
-	}
-
-	// Parse age limit.
-	if ageLimit, ok := data["ageLimit"].(float64); ok {
-		audiobook.AgeLimit = int64(ageLimit)
-	}
-
-	// Parse full duration.
-	if fullDuration, ok := data["fullDuration"].(float64); ok {
-		audiobook.FullDuration = int64(fullDuration)
-	}
-
-	// Parse image.
-	if imageData, imageOk := data["image"].(map[string]any); imageOk {
-		if src, srcOk := imageData["src"].(string); srcOk {
-			audiobook.BigImageURL = src
-		}
-	}
-
-	// Parse authors.
-	if authorsData, authorsOk := data["bookAuthors"].([]any); authorsOk {
-		for _, authorData := range authorsData {
-			authorMap, authorOk := authorData.(map[string]any)
-			if !authorOk {
-				continue
-			}
-
-			if rname, rnameOk := authorMap["rname"].(string); rnameOk {
-				audiobook.ArtistNames = append(audiobook.ArtistNames, rname)
-			}
-		}
-	}
-
-	// Parse publisher.
-	if publisherData, publisherOk := data["publisher"].(map[string]any); publisherOk {
-		if publisherName, nameOk := publisherData["publisherName"].(string); nameOk {
-			audiobook.PublisherName = publisherName
-		}
-
-		if publisherBrand, brandOk := publisherData["publisherBrand"].(string); brandOk {
-			audiobook.PublisherBrand = publisherBrand
-		}
-	}
-
-	// Parse performers.
-	if performersData, performersOk := data["performers"].([]any); performersOk {
-		for _, performerData := range performersData {
-			performerMap, performerOk := performerData.(map[string]any)
-			if !performerOk {
-				continue
-			}
-
-			if rname, rnameOk := performerMap["rname"].(string); rnameOk {
-				audiobook.PerformerNames = append(audiobook.PerformerNames, rname)
-			}
-		}
-	}
-
-	// Parse genres.
-	if genresData, genresOk := data["genres"].([]any); genresOk {
-		for _, genreData := range genresData {
-			genreMap, genreOk := genreData.(map[string]any)
-			if !genreOk {
-				continue
-			}
-
-			if name, nameOk := genreMap["name"].(string); nameOk {
-				audiobook.Genres = append(audiobook.Genres, name)
-			}
-		}
-	}
-
-	// TrackIDs will be filled during chapter parsing.
 	return audiobook, nil
 }
 
 // parseChapterAsTrack converts a GraphQL chapter response to Track struct.
-// Uses audiobook data to fill in common fields (book info, authors, image).
 func parseChapterAsTrack(data map[string]any, audiobook *Audiobook) (*Track, error) {
-	track := &Track{}
-
-	// Parse chapter ID as track ID.
-	if id, ok := data["id"].(string); ok {
-		parsedID, err := strconv.ParseInt(id, 10, 64)
-		if err != nil {
-			return nil, fmt.Errorf("invalid chapter ID: %w", err)
-		}
-
-		track.ID = parsedID
+	parsedID, err := parseOptionalID(data, "chapter")
+	if err != nil {
+		return nil, err
 	}
 
-	// Parse chapter title.
-	if title, ok := data["title"].(string); ok {
-		track.Title = title
+	track := &Track{
+		ID:          parsedID,
+		Title:       stringValue(data, "title"),
+		Duration:    int64Value(data, "duration"),
+		Position:    int64Value(data, "position"),
+		ReleaseID:   audiobook.ID,
+		ArtistNames: audiobook.ArtistNames,
 	}
 
-	// Parse duration.
-	if duration, ok := data["duration"].(float64); ok {
-		track.Duration = int64(duration)
-	}
-
-	// Parse position.
-	if position, ok := data["position"].(float64); ok {
-		track.Position = int64(position)
-	}
-
-	// Parse availability.
-	if availability, ok := data["availability"].(float64); ok {
-		track.Availability = int64(availability)
-	}
-
-	// Quality fields are intentionally left empty for audiobook chapters.
-	// The service layer will determine actual quality from stream metadata.
-	// This keeps the client as a simple data provider without business logic.
-
-	// Use audiobook data for common fields.
-	track.ReleaseID = audiobook.ID
-	track.ReleaseTitle = audiobook.Title
-
-	track.ArtistNames = audiobook.ArtistNames
 	if audiobook.BigImageURL != "" {
 		track.Image = &Image{SourceURL: audiobook.BigImageURL}
 	}
@@ -167,149 +129,56 @@ func parseChapterAsTrack(data map[string]any, audiobook *Audiobook) (*Track, err
 
 // parsePodcastFromGraphQL converts GraphQL podcast response to Podcast struct.
 func parsePodcastFromGraphQL(data map[string]any, podcastID string) (*Podcast, error) {
-	podcast := &Podcast{}
-
-	// Parse podcast ID.
 	parsedID, err := strconv.ParseInt(podcastID, 10, 64)
 	if err != nil {
 		return nil, fmt.Errorf("invalid podcast ID: %w", err)
 	}
 
-	podcast.ID = parsedID
-
-	// Parse title.
-	if title, ok := data["title"].(string); ok {
-		podcast.Title = title
-	}
-
-	// Parse description.
-	if description, ok := data["description"].(string); ok {
-		podcast.Description = description
-	}
-
-	// Parse category.
-	if categoryData, categoryOk := data["category"].(map[string]any); categoryOk {
-		if name, nameOk := categoryData["name"].(string); nameOk {
-			podcast.Category = name
-		}
-	}
-
-	// TrackIDs will be filled during episode parsing.
-	return podcast, nil
+	return &Podcast{
+		ID:          parsedID,
+		Title:       stringValue(data, "title"),
+		Description: stringValue(data, "description"),
+		Category:    stringValue(mapValue(data, "category"), "name"),
+	}, nil
 }
 
 // parseEpisodeAsTrack converts a GraphQL episode response to Track struct.
-// Uses podcast data to fill in common fields (podcast info, authors, image).
 func parseEpisodeAsTrack(data map[string]any, podcast *Podcast) (*Track, error) {
-	track := &Track{}
-
-	if err := parseEpisodeBasicFields(data, track, podcast); err != nil {
+	parsedID, err := parseOptionalID(data, "episode")
+	if err != nil {
 		return nil, err
 	}
 
-	parseEpisodeNestedPodcastData(data, track, podcast)
-
-	// Use podcast data for common fields.
-	track.ReleaseID = podcast.ID
-	track.ReleaseTitle = podcast.Title
-
-	return track, nil
-}
-
-// parseEpisodeBasicFields parses basic episode fields from GraphQL data.
-func parseEpisodeBasicFields(data map[string]any, track *Track, podcast *Podcast) error {
-	// Parse episode ID as track ID.
-	if id, ok := data["id"].(string); ok {
-		parsedID, err := strconv.ParseInt(id, 10, 64)
-		if err != nil {
-			return fmt.Errorf("invalid episode ID: %w", err)
-		}
-
-		track.ID = parsedID
+	track := &Track{
+		ID:        parsedID,
+		Title:     stringValue(data, "title"),
+		Duration:  int64Value(data, "duration"),
+		Credits:   stringValue(data, "publicationDate"),
+		ReleaseID: podcast.ID,
 	}
 
-	// Parse episode title.
-	if title, ok := data["title"].(string); ok {
-		track.Title = title
-	}
-
-	// Parse duration.
-	if duration, ok := data["duration"].(float64); ok {
-		track.Duration = int64(duration)
-	}
-
-	// Parse availability.
-	if availability, ok := data["availability"].(float64); ok {
-		track.Availability = int64(availability)
-	}
-
-	// Parse publication date for episode metadata.
-	if pubDate, ok := data["publicationDate"].(string); ok {
-		track.Credits = pubDate // Store in Credits field for template usage
-	}
-
-	// Parse explicit flag.
-	if explicit, ok := data["explicit"].(bool); ok && explicit {
+	if boolValue(data, "explicit") {
 		podcast.Explicit = true
 	}
 
-	return nil
-}
-
-// parseEpisodeNestedPodcastData parses nested podcast data from episode response.
-func parseEpisodeNestedPodcastData(data map[string]any, track *Track, podcast *Podcast) {
-	podcastData, ok := data["podcast"].(map[string]any)
-	if !ok {
-		return
-	}
-
-	parseEpisodePodcastImage(podcastData, track, podcast)
-	parseEpisodePodcastAuthors(podcastData, track, podcast)
-}
-
-// parseEpisodePodcastImage extracts image URL from nested podcast data.
-func parseEpisodePodcastImage(podcastData map[string]any, track *Track, podcast *Podcast) {
-	imageData, ok := podcastData["image"].(map[string]any)
-	if !ok {
-		return
-	}
-
-	src, ok := imageData["src"].(string)
-	if !ok {
-		return
-	}
-
-	if podcast.BigImageURL == "" {
-		podcast.BigImageURL = src
-	}
-
-	track.Image = &Image{SourceURL: src}
-}
-
-// parseEpisodePodcastAuthors extracts author names from nested podcast data.
-func parseEpisodePodcastAuthors(podcastData map[string]any, track *Track, podcast *Podcast) {
-	authorsData, ok := podcastData["authors"].([]any)
-	if !ok {
-		return
-	}
-
-	for _, authorData := range authorsData {
-		authorMap, isAuthorMap := authorData.(map[string]any)
-		if !isAuthorMap {
-			continue
+	podcastData := mapValue(data, "podcast")
+	if src, ok := imageSource(podcastData); ok {
+		if podcast.BigImageURL == "" {
+			podcast.BigImageURL = src
 		}
 
-		name, isNameString := authorMap["name"].(string)
-		if !isNameString {
-			continue
-		}
+		track.Image = &Image{SourceURL: src}
+	}
 
+	for _, name := range parseMapStrings(podcastData["authors"], "name", false) {
 		if len(podcast.ArtistNames) == 0 || !slices.Contains(podcast.ArtistNames, name) {
 			podcast.ArtistNames = append(podcast.ArtistNames, name)
 		}
 
 		track.ArtistNames = append(track.ArtistNames, name)
 	}
+
+	return track, nil
 }
 
 // parseTrackFromGraphQL converts a GraphQL track response to Track struct.
@@ -321,8 +190,12 @@ func parseTrackFromGraphQL(data map[string]any) (*Track, error) {
 
 	track := &Track{ID: parsedTrackID}
 	parseTrackBaseFields(data, track)
-	parseTrackImage(data, track)
-	track.Genres = parseTrackGenres(data["genres"])
+
+	if src, ok := imageSource(data); ok {
+		track.Image = &Image{SourceURL: src}
+	}
+
+	track.Genres = parseMapStrings(data["genres"], "name", false)
 
 	releaseData, parsedReleaseID, err := parseTrackRelease(data, trackIDRaw)
 	if err != nil {
@@ -330,10 +203,6 @@ func parseTrackFromGraphQL(data map[string]any) (*Track, error) {
 	}
 
 	track.ReleaseID = parsedReleaseID
-	if releaseTitle, releaseTitleOk := releaseData["title"].(string); releaseTitleOk {
-		track.ReleaseTitle = releaseTitle
-	}
-
 	if len(track.ArtistNames) == 0 {
 		track.ArtistNames = parseArtistTitles(releaseData["artists"])
 	}
@@ -341,32 +210,34 @@ func parseTrackFromGraphQL(data map[string]any) (*Track, error) {
 	return track, nil
 }
 
+// parseArtistTitles extracts artist title strings from GraphQL artist data.
 func parseArtistTitles(data any) []string {
-	artistsData, ok := data.([]any)
+	return parseMapStrings(data, "title", true)
+}
+
+// parseMapStrings extracts string values from a slice of GraphQL map items.
+func parseMapStrings(data any, key string, skipEmpty bool) []string {
+	items, ok := data.([]any)
 	if !ok {
 		return nil
 	}
 
-	result := make([]string, 0, len(artistsData))
-	for _, artistData := range artistsData {
-		artistMap, isArtistMap := artistData.(map[string]any)
-		if !isArtistMap {
+	result := make([]string, 0, len(items))
+	for _, item := range items {
+		value, exists := stringField(mapValueFromAny(item), key)
+		if !exists || (skipEmpty && value == "") {
 			continue
 		}
 
-		title, isTitleString := artistMap["title"].(string)
-		if !isTitleString || title == "" {
-			continue
-		}
-
-		result = append(result, title)
+		result = append(result, value)
 	}
 
 	return result
 }
 
+// parseTrackID parses and validates the track ID from GraphQL data.
 func parseTrackID(data map[string]any) (string, int64, error) {
-	trackIDRaw, ok := data["id"].(string)
+	trackIDRaw, ok := stringField(data, "id")
 	if !ok || trackIDRaw == "" {
 		return "", 0, ErrTrackIDMissing
 	}
@@ -379,34 +250,14 @@ func parseTrackID(data map[string]any) (string, int64, error) {
 	return trackIDRaw, parsedTrackID, nil
 }
 
+// parseTrackBaseFields populates basic track fields from GraphQL data.
 func parseTrackBaseFields(data map[string]any, track *Track) {
-	if title, titleOk := data["title"].(string); titleOk {
-		track.Title = title
-	}
-
-	if lyrics, lyricsOk := data["lyrics"].(bool); lyricsOk {
-		track.Lyrics = lyrics
-	}
-
-	if credits, creditsOk := data["credits"].(string); creditsOk {
-		track.Credits = credits
-	}
-
-	if duration, durationOk := data["duration"].(float64); durationOk {
-		track.Duration = int64(duration)
-	}
-
-	if availability, availabilityOk := data["availability"].(float64); availabilityOk {
-		track.Availability = int64(availability)
-	}
-
-	if position, positionOk := data["position"].(float64); positionOk {
-		track.Position = int64(position)
-	}
-
-	if hasFLAC, hasFLACOk := data["hasFlac"].(bool); hasFLACOk {
-		track.HasFLAC = hasFLAC
-	}
+	track.Title = stringValue(data, "title")
+	track.Lyrics = boolValue(data, "lyrics")
+	track.Credits = stringValue(data, "credits")
+	track.Duration = int64Value(data, "duration")
+	track.Position = int64Value(data, "position")
+	track.HasFLAC = boolValue(data, "hasFlac")
 
 	track.HighestQuality = "high"
 	if track.HasFLAC {
@@ -416,52 +267,15 @@ func parseTrackBaseFields(data map[string]any, track *Track) {
 	track.ArtistNames = parseArtistTitles(data["artists"])
 }
 
-func parseTrackImage(data map[string]any, track *Track) {
-	imageData, imageOk := data["image"].(map[string]any)
-	if !imageOk {
-		return
-	}
-
-	src, srcOk := imageData["src"].(string)
-	if !srcOk {
-		return
-	}
-
-	track.Image = &Image{SourceURL: src}
-}
-
-func parseTrackGenres(data any) []string {
-	genresData, genresOk := data.([]any)
-	if !genresOk {
-		return nil
-	}
-
-	result := make([]string, 0, len(genresData))
-	for _, genreData := range genresData {
-		genreMap, isGenreMap := genreData.(map[string]any)
-		if !isGenreMap {
-			continue
-		}
-
-		name, isNameString := genreMap["name"].(string)
-		if !isNameString {
-			continue
-		}
-
-		result = append(result, name)
-	}
-
-	return result
-}
-
+// parseTrackRelease extracts release metadata and ID from GraphQL track data.
 func parseTrackRelease(data map[string]any, trackIDRaw string) (map[string]any, int64, error) {
-	releaseData, releaseOk := data["release"].(map[string]any)
-	if !releaseOk {
+	releaseData, ok := data["release"].(map[string]any)
+	if !ok {
 		return nil, 0, fmt.Errorf("%w: track '%s'", ErrTrackReleaseDataMissing, trackIDRaw)
 	}
 
-	releaseIDRaw, releaseIDOk := releaseData["id"].(string)
-	if !releaseIDOk || releaseIDRaw == "" {
+	releaseIDRaw, ok := stringField(releaseData, "id")
+	if !ok || releaseIDRaw == "" {
 		return nil, 0, fmt.Errorf("%w: track '%s'", ErrTrackReleaseIDMissing, trackIDRaw)
 	}
 

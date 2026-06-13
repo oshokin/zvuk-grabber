@@ -7,6 +7,7 @@ import (
 )
 
 var (
+	// authCmd is the root command for authentication management.
 	authCmd = &cobra.Command{
 		Use:   "auth",
 		Short: "Authentication management commands",
@@ -15,6 +16,7 @@ var (
 Use 'auth login' to log in via browser and automatically extract your authentication token.`,
 	}
 
+	// authLoginCmd opens a browser for login and extracts the authentication token.
 	authLoginCmd = &cobra.Command{
 		Use:   "login",
 		Short: "Login to Zvuk and extract authentication token",

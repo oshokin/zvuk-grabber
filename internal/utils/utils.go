@@ -19,52 +19,21 @@ const (
 
 	// ImagePNGMimeType is the MIME type for PNG images.
 	ImagePNGMimeType = "image/png"
+
+	textMimeTypePrefix         = "text/"
+	applicationJSONMimeType    = "application/json"
+	samlMetadataMimeTypePrefix = "application/samlmetadata+xml"
+
+	windowsReservedNameCON = "CON"
+	windowsReservedNamePRN = "PRN"
+	windowsReservedNameAUX = "AUX"
+	windowsReservedNameNUL = "NUL"
 )
 
-var (
-	// invalidCharsPattern includes ASCII control characters (0-31) and Windows-restricted characters: < > : " / \ | ? *.
-	//nolint:gochecknoglobals // This is immutable, pre-compiled regex pattern and used as a constant.
-	invalidCharsPattern = regexp.MustCompile(`[<>:"/\\|?*\x00-\x1F]`)
-
-	// textContentTypePatterns is a slice of regular expressions that match content types
-	// considered to be text-based. This includes "text/*", "application/json", and
-	// "application/samlmetadata+xml".
-	//nolint:gochecknoglobals // These are immutable, pre-compiled regex patterns and used as constants.
-	textContentTypePatterns = []*regexp.Regexp{
-		regexp.MustCompile("^text/.+"),
-		regexp.MustCompile("^application/json$"),
-		regexp.MustCompile(`^application/samlmetadata\+xml`),
-	}
-
-	// windowsReservedNames is a map of filenames that are reserved on Windows systems.
-	// These names are case-insensitive and cannot be used as filenames or folder names.
-	// Examples include "CON", "PRN", "AUX", "NUL", and COM1-COM9, LPT1-LPT9.
-	//nolint:gochecknoglobals // This is an immutable map used as a constant for validation purposes.
-	windowsReservedNames = map[string]struct{}{
-		"CON":  {},
-		"PRN":  {},
-		"AUX":  {},
-		"NUL":  {},
-		"COM1": {},
-		"COM2": {},
-		"COM3": {},
-		"COM4": {},
-		"COM5": {},
-		"COM6": {},
-		"COM7": {},
-		"COM8": {},
-		"COM9": {},
-		"LPT1": {},
-		"LPT2": {},
-		"LPT3": {},
-		"LPT4": {},
-		"LPT5": {},
-		"LPT6": {},
-		"LPT7": {},
-		"LPT8": {},
-		"LPT9": {},
-	}
-)
+// invalidCharsPattern includes ASCII control characters (0-31) and Windows-restricted characters: < > : " / \ | ? *.
+//
+//nolint:gochecknoglobals // This is immutable, pre-compiled regex pattern and used as a constant.
+var invalidCharsPattern = regexp.MustCompile(`[<>:"/\\|?*\x00-\x1F]`)
 
 // SafeIntToUint8 converts an int value to an uint8 safely,
 // ensuring that the value does not exceed the maximum limit of uint8.
@@ -106,7 +75,7 @@ func SanitizeFilename(name string) string {
 	}
 
 	// If base name is a Windows reserved name, prepend an underscore.
-	if _, ok := windowsReservedNames[strings.ToUpper(baseName)]; ok {
+	if isWindowsReservedName(baseName) {
 		result = "_" + result
 	}
 
@@ -121,6 +90,18 @@ func SanitizeFilename(name string) string {
 	return result
 }
 
+// isWindowsReservedName reports whether the name is a Windows reserved device name.
+func isWindowsReservedName(name string) bool {
+	name = strings.ToUpper(name)
+	switch name {
+	case windowsReservedNameCON, windowsReservedNamePRN, windowsReservedNameAUX, windowsReservedNameNUL:
+		return true
+	}
+
+	return len(name) == 4 && (strings.HasPrefix(name, "COM") || strings.HasPrefix(name, "LPT")) && name[3] >= '1' &&
+		name[3] <= '9'
+}
+
 // RandomPause pauses execution for a random duration between min and max values.
 // The min and max parameters should be of type time.Duration and represent
 // the lower and upper bounds of the delay period, respectively.
@@ -128,6 +109,12 @@ func RandomPause(minPause, maxPause time.Duration) {
 	// Ensure minPause is always less than or equal to maxPause.
 	if minPause > maxPause {
 		minPause, maxPause = maxPause, minPause
+	}
+
+	if minPause == maxPause {
+		time.Sleep(minPause)
+
+		return
 	}
 
 	// Generate a random duration between minPause and maxPause.
@@ -213,6 +200,18 @@ func ReadUniqueLinesFromFile(path string) ([]string, error) {
 	return lines, nil
 }
 
+// AddUnique adds value to the set and returns true when the value was inserted.
+// The set map must be initialized by the caller.
+func AddUnique[T comparable](set map[T]struct{}, value T) bool {
+	if _, exists := set[value]; exists {
+		return false
+	}
+
+	set[value] = struct{}{}
+
+	return true
+}
+
 // ExtractNamedGroup extracts the value of a named capturing group from a regex match.
 // It returns an empty string if the group is not found or if there is no match.
 func ExtractNamedGroup(re *regexp.Regexp, groupName, input string) string {
@@ -240,17 +239,15 @@ func IsTextContentType(contentType string) bool {
 		return false
 	}
 
-	for _, pattern := range textContentTypePatterns {
-		if !pattern.MatchString(parsedType) {
-			continue
-		}
-
-		charset := strings.ToLower(params["charset"])
-
-		return charset == "" || charset == "utf-8" || charset == "us-ascii"
+	isText := (strings.HasPrefix(parsedType, textMimeTypePrefix) && len(parsedType) > len(textMimeTypePrefix)) ||
+		parsedType == applicationJSONMimeType || strings.HasPrefix(parsedType, samlMetadataMimeTypePrefix)
+	if !isText {
+		return false
 	}
 
-	return false
+	charset := strings.ToLower(params["charset"])
+
+	return charset == "" || charset == "utf-8" || charset == "us-ascii"
 }
 
 // Map applies a transformation function to each element of a slice and returns a new slice with the results.

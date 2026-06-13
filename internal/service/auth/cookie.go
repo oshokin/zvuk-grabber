@@ -47,7 +47,8 @@ func (s *ServiceImpl) extractTokenFromProfile(ctx context.Context) (string, erro
 		logger.Debug(ctx, "Cookie list:")
 
 		for i, cookie := range cookies {
-			logger.Debugf(ctx, "Cookie %d: name=%s, domain=%s, value=%s", i+1, cookie.Name, cookie.Domain, cookie.Value)
+			logger.Debugf(ctx, "Cookie %d: name=%s, domain=%s, value_length=%d",
+				i+1, cookie.Name, cookie.Domain, len(cookie.Value))
 		}
 	}
 

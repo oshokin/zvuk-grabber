@@ -2,11 +2,15 @@ package zvuk
 
 import "path/filepath"
 
+// pathLock serializes concurrent access to the same filesystem path.
 type pathLock struct {
+	// refCount tracks how many callers currently hold the lock.
 	refCount int64
-	ch       chan struct{}
+	// ch is a buffered channel used as a mutex for the path.
+	ch chan struct{}
 }
 
+// lockPath acquires an exclusive lock for the given path and returns an unlock function.
 func (s *ServiceImpl) lockPath(path string) func() {
 	cleanPath := filepath.Clean(path)
 	if cleanPath == "" || cleanPath == "." {

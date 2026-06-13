@@ -10,6 +10,124 @@ import (
 	"github.com/oshokin/zvuk-grabber/internal/logger"
 )
 
+const (
+	graphQLAuthHeader = "X-Auth-Token"
+
+	getAudiobookChaptersQuery = `
+		query getBookChapters($ids: [ID!]!) {
+			getBooks(ids: $ids) {
+				title
+				mark
+				explicit
+				publicationDate
+				copyright
+				description
+				ageLimit
+				fullDuration
+				image {
+					src
+				}
+				bookAuthors {
+					id
+					rname
+				}
+				publisher {
+					id
+					publisherName
+					publisherBrand
+				}
+				performers {
+					id
+					rname
+				}
+				genres {
+					id
+					name
+				}
+				chapters {
+					...PlayerChapterData
+				}
+			}
+		}
+
+		fragment PlayerChapterData on Chapter {
+			id
+			title
+			availability
+			duration
+			position
+		}
+	`
+)
+
+// runGraphQL authenticates and executes a GraphQL request.
+func (c *ClientImpl) runGraphQL(ctx context.Context, request *graphql.Request) (map[string]any, error) {
+	request.Header.Add(graphQLAuthHeader, c.cfg.AuthToken)
+
+	var response map[string]any
+	if err := c.graphQLClient.Run(ctx, request, &response); err != nil {
+		return nil, err
+	}
+
+	return response, nil
+}
+
+// firstGraphQLMap extracts the first map item from a GraphQL response field.
+func firstGraphQLMap(
+	response map[string]any,
+	field string,
+	notFoundErr error,
+	formatErr error,
+) (map[string]any, error) {
+	items, ok := response[field].([]any)
+	if !ok || len(items) == 0 {
+		return nil, notFoundErr
+	}
+
+	item, ok := items[0].(map[string]any)
+	if !ok {
+		return nil, formatErr
+	}
+
+	return item, nil
+}
+
+// parseGraphQLChildTracks parses child tracks from GraphQL collection data.
+func parseGraphQLChildTracks[T any](
+	ctx context.Context,
+	data map[string]any,
+	field string,
+	kind string,
+	parent *T,
+	parse func(map[string]any, *T) (*Track, error),
+) (map[string]*Track, []int64) {
+	items, ok := data[field].([]any)
+	if !ok {
+		return map[string]*Track{}, []int64{}
+	}
+
+	tracks := make(map[string]*Track, len(items))
+	trackIDs := make([]int64, 0, len(items))
+
+	for _, item := range items {
+		itemData := mapValueFromAny(item)
+		if itemData == nil {
+			continue
+		}
+
+		track, err := parse(itemData, parent)
+		if err != nil {
+			logger.Warnf(ctx, "Failed to parse %s: %v", kind, err)
+			continue
+		}
+
+		tracks[strconv.FormatInt(track.ID, 10)] = track
+		trackIDs = append(trackIDs, track.ID)
+	}
+
+	return tracks, trackIDs
+}
+
 // GetArtistReleaseIDs retrieves release IDs for a specific artist.
 func (c *ClientImpl) GetArtistReleaseIDs(ctx context.Context, artistID string, offset, limit int) ([]string, error) {
 	graphqlRequest := graphql.NewRequest(`
@@ -27,25 +145,23 @@ func (c *ClientImpl) GetArtistReleaseIDs(ctx context.Context, artistID string, o
 		}
 	`)
 
-	graphqlRequest.Header.Add("X-Auth-Token", c.cfg.AuthToken)
 	graphqlRequest.Var("id", artistID)
 	graphqlRequest.Var("offset", offset)
 	graphqlRequest.Var("limit", limit)
 
-	var graphQLResponse map[string]any
-	if err := c.graphQLClient.Run(ctx, graphqlRequest, &graphQLResponse); err != nil {
+	graphQLResponse, err := c.runGraphQL(ctx, graphqlRequest)
+	if err != nil {
 		return nil, err
 	}
 
-	// Navigate the response map manually.
-	data, ok := graphQLResponse["getArtists"].([]any)
-	if !ok || len(data) == 0 {
-		return nil, ErrArtistNotFound
-	}
-
-	artist, ok := data[0].(map[string]any)
-	if !ok {
-		return nil, ErrUnexpectedArtistResponseFormat
+	artist, err := firstGraphQLMap(
+		graphQLResponse,
+		"getArtists",
+		ErrArtistNotFound,
+		ErrUnexpectedArtistResponseFormat,
+	)
+	if err != nil {
+		return nil, err
 	}
 
 	releases, ok := artist["releases"].([]any)
@@ -71,74 +187,28 @@ func (c *ClientImpl) GetArtistReleaseIDs(ctx context.Context, artistID string, o
 
 // getAudiobookViaGraphQL fetches a single audiobook with its tracks.
 //
-//nolint:funlen // GraphQL query requires length.
+
 func (c *ClientImpl) getAudiobookViaGraphQL(
 	ctx context.Context,
 	audiobookID string,
-) (*GetAudiobookResult, error) {
-	graphqlRequest := graphql.NewRequest(`
-	query getBookChapters($ids: [ID!]!) {
-		getBooks(ids: $ids) {
-			title
-			mark
-			explicit
-			publicationDate
-			copyright
-			description
-			ageLimit
-			fullDuration
-			image {
-				src
-			}
-			bookAuthors {
-				id
-				rname
-			}
-			publisher {
-				id
-				publisherName
-				publisherBrand
-			}
-			performers {
-				id
-				rname
-			}
-			genres {
-				id
-				name
-			}
-			chapters {
-				...PlayerChapterData
-			}
-		}
-	}
-	
-	fragment PlayerChapterData on Chapter {
-		id
-		title
-		availability
-		duration
-		position
-	}
-`)
+) (*graphQLCollectionResult[Audiobook], error) {
+	graphqlRequest := graphql.NewRequest(getAudiobookChaptersQuery)
 
-	graphqlRequest.Header.Add("X-Auth-Token", c.cfg.AuthToken)
 	graphqlRequest.Var("ids", []string{audiobookID})
 
-	var graphQLResponse map[string]any
-	if err := c.graphQLClient.Run(ctx, graphqlRequest, &graphQLResponse); err != nil {
+	graphQLResponse, err := c.runGraphQL(ctx, graphqlRequest)
+	if err != nil {
 		return nil, err
 	}
 
-	// Navigate the response map.
-	data, ok := graphQLResponse["getBooks"].([]any)
-	if !ok || len(data) == 0 {
-		return nil, ErrAudiobookNotFound
-	}
-
-	audiobookData, dataOk := data[0].(map[string]any)
-	if !dataOk {
-		return nil, ErrUnexpectedAudiobookFormat
+	audiobookData, err := firstGraphQLMap(
+		graphQLResponse,
+		"getBooks",
+		ErrAudiobookNotFound,
+		ErrUnexpectedAudiobookFormat,
+	)
+	if err != nil {
+		return nil, err
 	}
 
 	// Parse audiobook metadata.
@@ -148,35 +218,22 @@ func (c *ClientImpl) getAudiobookViaGraphQL(
 	}
 
 	// Parse chapters as tracks.
-	tracks := make(map[string]*Track)
+	tracks, trackIDs := parseGraphQLChildTracks(
+		ctx,
+		audiobookData,
+		"chapters",
+		"chapter",
+		audiobook,
+		parseChapterAsTrack,
+	)
+	audiobook.TrackIDs = trackIDs
 
-	if chaptersData, chaptersOk := audiobookData["chapters"].([]any); chaptersOk {
-		for _, chapterData := range chaptersData {
-			chapterMap, chapterOk := chapterData.(map[string]any)
-			if !chapterOk {
-				continue
-			}
-
-			track, parseErr := parseChapterAsTrack(chapterMap, audiobook)
-			if parseErr != nil {
-				logger.Warnf(ctx, "Failed to parse chapter: %v", parseErr)
-				continue
-			}
-
-			tracks[strconv.FormatInt(track.ID, 10)] = track
-			audiobook.TrackIDs = append(audiobook.TrackIDs, track.ID)
-		}
-	}
-
-	return &GetAudiobookResult{
-		Audiobook: audiobook,
-		Tracks:    tracks,
-	}, nil
+	return &graphQLCollectionResult[Audiobook]{item: audiobook, tracks: tracks}, nil
 }
 
 // GetStreamQualities retrieves streaming metadata for audiobook chapters and podcasts episodes.
 //
-//nolint:funlen // GraphQL query construction and response parsing require comprehensive implementation.
+
 func (c *ClientImpl) GetStreamQualities(
 	ctx context.Context,
 	chapterIDs []string,
@@ -215,14 +272,13 @@ func (c *ClientImpl) GetStreamQualities(
 		}
 	`)
 
-	graphqlRequest.Header.Add("X-Auth-Token", c.cfg.AuthToken)
 	graphqlRequest.Var("ids", chapterIDs)
 	graphqlRequest.Var("quality", defaultStreamQuality)
 	graphqlRequest.Var("encodeType", defaultEncodeType)
 	graphqlRequest.Var("includeFlacDrm", true)
 
-	var graphQLResponse map[string]any
-	if err := c.graphQLClient.Run(ctx, graphqlRequest, &graphQLResponse); err != nil {
+	graphQLResponse, err := c.runGraphQL(ctx, graphqlRequest)
+	if err != nil {
 		return nil, err
 	}
 
@@ -235,37 +291,20 @@ func (c *ClientImpl) GetStreamQualities(
 	result := make(map[string]*StreamQualities, len(chapterIDs))
 
 	for i, contentData := range data {
-		contentMap, contentOk := contentData.(map[string]any)
-		if !contentOk {
-			continue
-		}
-
-		streamData, streamOk := contentMap["stream"].(map[string]any)
-		if !streamOk {
-			continue
-		}
-
 		if i >= len(chapterIDs) {
+			break
+		}
+
+		streamData := mapValue(mapValueFromAny(contentData), "stream")
+		if streamData == nil {
 			continue
 		}
 
-		chapterID := chapterIDs[i]
-
-		// Extract all available stream URLs.
-		metadata := &StreamQualities{}
-		if midURL, midOk := streamData["mid"].(string); midOk {
-			metadata.Mid = midURL
+		result[chapterIDs[i]] = &StreamQualities{
+			Mid:  stringValue(streamData, "mid"),
+			High: stringValue(streamData, "high"),
+			FLAC: stringValue(streamData, "flacdrm"),
 		}
-
-		if highURL, highOk := streamData["high"].(string); highOk {
-			metadata.High = highURL
-		}
-
-		if flacURL, flacOk := streamData["flacdrm"].(string); flacOk {
-			metadata.FLAC = flacURL
-		}
-
-		result[chapterID] = metadata
 	}
 
 	return result, nil
@@ -320,11 +359,10 @@ func (c *ClientImpl) getTracksViaGraphQL(ctx context.Context, trackIDs []string)
 			}
 		}
 	`)
-	graphqlRequest.Header.Add("X-Auth-Token", c.cfg.AuthToken)
 	graphqlRequest.Var("ids", trackIDs)
 
-	var graphQLResponse map[string]any
-	if err := c.graphQLClient.Run(ctx, graphqlRequest, &graphQLResponse); err != nil {
+	graphQLResponse, err := c.runGraphQL(ctx, graphqlRequest)
+	if err != nil {
 		return nil, err
 	}
 
@@ -355,11 +393,11 @@ func (c *ClientImpl) getTracksViaGraphQL(ctx context.Context, trackIDs []string)
 
 // getPodcastViaGraphQL fetches a single podcast with its episodes.
 //
-//nolint:funlen // GraphQL query requires length.
+
 func (c *ClientImpl) getPodcastViaGraphQL(
 	ctx context.Context,
 	podcastID string,
-) (*GetPodcastResult, error) {
+) (*graphQLCollectionResult[Podcast], error) {
 	graphqlRequest := graphql.NewRequest(`
 	query getPodcastEpisodes($ids: [ID!]!) {
 		getPodcasts(ids: $ids) {
@@ -409,23 +447,21 @@ func (c *ClientImpl) getPodcastViaGraphQL(
 	}
 `)
 
-	graphqlRequest.Header.Add("X-Auth-Token", c.cfg.AuthToken)
 	graphqlRequest.Var("ids", []string{podcastID})
 
-	var graphQLResponse map[string]any
-	if err := c.graphQLClient.Run(ctx, graphqlRequest, &graphQLResponse); err != nil {
+	graphQLResponse, err := c.runGraphQL(ctx, graphqlRequest)
+	if err != nil {
 		return nil, err
 	}
 
-	// Navigate the response map.
-	data, ok := graphQLResponse["getPodcasts"].([]any)
-	if !ok || len(data) == 0 {
-		return nil, ErrPodcastNotFound
-	}
-
-	podcastData, dataOk := data[0].(map[string]any)
-	if !dataOk {
-		return nil, ErrUnexpectedPodcastFormat
+	podcastData, err := firstGraphQLMap(
+		graphQLResponse,
+		"getPodcasts",
+		ErrPodcastNotFound,
+		ErrUnexpectedPodcastFormat,
+	)
+	if err != nil {
+		return nil, err
 	}
 
 	// Parse podcast metadata.
@@ -435,28 +471,8 @@ func (c *ClientImpl) getPodcastViaGraphQL(
 	}
 
 	// Parse episodes as tracks.
-	tracks := make(map[string]*Track)
+	tracks, trackIDs := parseGraphQLChildTracks(ctx, podcastData, "episodes", "episode", podcast, parseEpisodeAsTrack)
+	podcast.TrackIDs = trackIDs
 
-	if episodesData, episodesOk := podcastData["episodes"].([]any); episodesOk {
-		for _, episodeData := range episodesData {
-			episodeMap, episodeOk := episodeData.(map[string]any)
-			if !episodeOk {
-				continue
-			}
-
-			track, parseErr := parseEpisodeAsTrack(episodeMap, podcast)
-			if parseErr != nil {
-				logger.Warnf(ctx, "Failed to parse episode: %v", parseErr)
-				continue
-			}
-
-			tracks[strconv.FormatInt(track.ID, 10)] = track
-			podcast.TrackIDs = append(podcast.TrackIDs, track.ID)
-		}
-	}
-
-	return &GetPodcastResult{
-		Podcast: podcast,
-		Tracks:  tracks,
-	}, nil
+	return &graphQLCollectionResult[Podcast]{item: podcast, tracks: tracks}, nil
 }

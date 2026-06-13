@@ -12,15 +12,19 @@ import (
 	"github.com/oshokin/zvuk-grabber/internal/config"
 )
 
+// recordingTagProcessor records the last WriteTags request for assertions.
 type recordingTagProcessor struct {
-	lastReq *WriteTagsRequest
+	// lastRequest is the most recent WriteTags request passed to WriteTags.
+	lastRequest *WriteTagsRequest
 }
 
+// WriteTags stores the request and returns success without writing tags.
 func (r *recordingTagProcessor) WriteTags(_ context.Context, req *WriteTagsRequest) error {
-	r.lastReq = req
+	r.lastRequest = req
 	return nil
 }
 
+// TestWriteTrackMetadata_UsesEmbeddableCoverPath verifies embeddable cover path is preferred over final cover.
 func TestWriteTrackMetadata_UsesEmbeddableCoverPath(t *testing.T) {
 	t.Parallel()
 
@@ -62,12 +66,13 @@ func TestWriteTrackMetadata_UsesEmbeddableCoverPath(t *testing.T) {
 
 	impl.writeTrackMetadata(context.Background(), task, map[string]string{}, nil, tempTrackPath)
 
-	require.NotNil(t, rec.lastReq)
-	assert.Equal(t, embeddableCoverPath, rec.lastReq.CoverPath)
+	require.NotNil(t, rec.lastRequest)
+	assert.Equal(t, embeddableCoverPath, rec.lastRequest.CoverPath)
 	assert.FileExists(t, finalTrackPath)
 	assert.NoFileExists(t, tempTrackPath)
 }
 
+// TestWriteTrackMetadata_FallsBackToFinalCoverPath verifies fallback to final cover when embeddable is missing.
 func TestWriteTrackMetadata_FallsBackToFinalCoverPath(t *testing.T) {
 	t.Parallel()
 
@@ -109,8 +114,8 @@ func TestWriteTrackMetadata_FallsBackToFinalCoverPath(t *testing.T) {
 
 	impl.writeTrackMetadata(context.Background(), task, map[string]string{}, nil, tempTrackPath)
 
-	require.NotNil(t, rec.lastReq)
-	assert.Equal(t, finalCoverPath, rec.lastReq.CoverPath)
+	require.NotNil(t, rec.lastRequest)
+	assert.Equal(t, finalCoverPath, rec.lastRequest.CoverPath)
 	assert.FileExists(t, finalTrackPath)
 	assert.NoFileExists(t, tempTrackPath)
 }

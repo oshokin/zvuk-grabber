@@ -8,6 +8,7 @@ import (
 	"github.com/oshokin/zvuk-grabber/internal/client/zvuk"
 )
 
+// TestResolveTrackPosition verifies track position resolution across download categories.
 func TestResolveTrackPosition(t *testing.T) {
 	t.Parallel()
 

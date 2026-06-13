@@ -78,6 +78,7 @@ func (t *LogTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	return resp, nil
 }
 
+// dumpRequest serializes an HTTP request for debug logging.
 func (t *LogTransport) dumpRequest(req *http.Request) string {
 	// Include the request body in the dump.
 	dump, err := httputil.DumpRequest(req, true)
@@ -88,6 +89,7 @@ func (t *LogTransport) dumpRequest(req *http.Request) string {
 	return t.truncate(dump)
 }
 
+// dumpResponse serializes an HTTP response for debug logging.
 func (t *LogTransport) dumpResponse(resp *http.Response) string {
 	// Check the Content-Type header to determine if the response body should be dumped.
 	contentType := resp.Header.Get("Content-Type")
@@ -100,6 +102,7 @@ func (t *LogTransport) dumpResponse(resp *http.Response) string {
 	return t.truncate(dump)
 }
 
+// truncate limits dump output to the configured maximum log length.
 func (t *LogTransport) truncate(data []byte) string {
 	if uint64(len(data)) > t.maxLogLength {
 		return string(data[:t.maxLogLength]) + "... [truncated]"

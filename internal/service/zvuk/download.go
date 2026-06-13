@@ -41,19 +41,11 @@ func (s *ServiceImpl) downloadCollection(ctx context.Context, item *DownloadItem
 	case DownloadCategoryAlbum:
 		itemData, fetchErr := s.fetchAlbumData(ctx, itemID)
 		if fetchErr != nil {
-			s.recordError(&DownloadError{
-				Category:  category,
-				ItemID:    itemID,
-				ItemTitle: category.ToTitleCase() + " ID: " + itemID,
-				ItemURL:   item.URL,
-				Phase:     "fetching " + category.ToLowerCase() + " data",
-				Error:     fetchErr,
-			})
-
+			s.recordCollectionError(item, "fetching "+category.String()+" data", fetchErr)
 			return
 		}
 
-		audioCollection = registerAlbumCollection(ctx, s, itemID, itemData.releases, itemData.tracks, true)
+		audioCollection = registerCollection(ctx, s, itemID, itemData.releases, itemData.tracks, true, s.albumHandler)
 		if audioCollection == nil {
 			return
 		}
@@ -66,15 +58,7 @@ func (s *ServiceImpl) downloadCollection(ctx context.Context, item *DownloadItem
 	case DownloadCategoryPlaylist:
 		getPlaylistsMetadataResponse, fetchErr := s.zvukClient.GetPlaylistsMetadata(ctx, []string{itemID})
 		if fetchErr != nil {
-			s.recordError(&DownloadError{
-				Category:  category,
-				ItemID:    itemID,
-				ItemTitle: category.ToTitleCase() + " ID: " + itemID,
-				ItemURL:   item.URL,
-				Phase:     "fetching " + category.ToLowerCase() + " metadata",
-				Error:     fetchErr,
-			})
-
+			s.recordCollectionError(item, "fetching "+category.String()+" metadata", fetchErr)
 			return
 		}
 
@@ -97,13 +81,14 @@ func (s *ServiceImpl) downloadCollection(ctx context.Context, item *DownloadItem
 			return
 		}
 
-		audioCollection = registerPlaylistCollection(
+		audioCollection = registerCollection(
 			ctx,
 			s,
 			itemID,
 			getPlaylistsMetadataResponse.Playlists,
 			getPlaylistsMetadataResponse.Tracks,
 			true,
+			s.playlistHandler,
 		)
 		if audioCollection == nil {
 			return
@@ -117,19 +102,19 @@ func (s *ServiceImpl) downloadCollection(ctx context.Context, item *DownloadItem
 	case DownloadCategoryAudiobook:
 		itemData, fetchErr := s.zvukClient.GetAudiobooksMetadata(ctx, []string{itemID})
 		if fetchErr != nil {
-			s.recordError(&DownloadError{
-				Category:  category,
-				ItemID:    itemID,
-				ItemTitle: category.ToTitleCase() + " ID: " + itemID,
-				ItemURL:   item.URL,
-				Phase:     "fetching " + category.ToLowerCase() + " metadata",
-				Error:     fetchErr,
-			})
-
+			s.recordCollectionError(item, "fetching "+category.String()+" metadata", fetchErr)
 			return
 		}
 
-		audioCollection = registerAudiobookCollection(ctx, s, itemID, itemData.Audiobooks, itemData.Tracks, true)
+		audioCollection = registerCollection(
+			ctx,
+			s,
+			itemID,
+			itemData.Audiobooks,
+			itemData.Tracks,
+			true,
+			s.audiobookHandler,
+		)
 		if audioCollection == nil {
 			return
 		}
@@ -138,19 +123,11 @@ func (s *ServiceImpl) downloadCollection(ctx context.Context, item *DownloadItem
 	case DownloadCategoryPodcast:
 		itemData, fetchErr := s.zvukClient.GetPodcastsMetadata(ctx, []string{itemID})
 		if fetchErr != nil {
-			s.recordError(&DownloadError{
-				Category:  category,
-				ItemID:    itemID,
-				ItemTitle: category.ToTitleCase() + " ID: " + itemID,
-				ItemURL:   item.URL,
-				Phase:     "fetching " + category.ToLowerCase() + " metadata",
-				Error:     fetchErr,
-			})
-
+			s.recordCollectionError(item, "fetching "+category.String()+" metadata", fetchErr)
 			return
 		}
 
-		audioCollection = registerPodcastCollection(ctx, s, itemID, itemData.Podcasts, itemData.Tracks, true)
+		audioCollection = registerCollection(ctx, s, itemID, itemData.Podcasts, itemData.Tracks, true, s.podcastHandler)
 		if audioCollection == nil {
 			return
 		}
@@ -161,33 +138,20 @@ func (s *ServiceImpl) downloadCollection(ctx context.Context, item *DownloadItem
 		return
 	}
 
-	switch category {
-	case DownloadCategoryAudiobook, DownloadCategoryPodcast:
+	if category.IsChapterCollection() {
 		// Sort tracks by position when metadata is available.
 		// Keep original track order if metadata is unavailable (e.g., cache-only hits).
 		if len(tracksMetadata) > 0 {
 			audioCollection.trackIDs = s.getTracksSortedByPosition(tracksMetadata, audioCollection.trackIDs)
 		}
 
-		trackIDs := make([]string, len(audioCollection.trackIDs))
-		for i, trackID := range audioCollection.trackIDs {
-			trackIDs[i] = strconv.FormatInt(trackID, 10)
-		}
+		trackIDs := utils.Map(audioCollection.trackIDs, func(trackID int64) string {
+			return strconv.FormatInt(trackID, 10)
+		})
 
 		streamsMetadata, err = s.zvukClient.GetStreamQualities(ctx, trackIDs)
 		if err != nil {
-			s.recordError(&DownloadError{
-				Category:       category,
-				ItemID:         itemID,
-				ItemTitle:      audioCollection.title,
-				ItemURL:        item.URL,
-				ParentCategory: category,
-				ParentID:       itemID,
-				ParentTitle:    audioCollection.title,
-				Phase:          fmt.Sprintf("fetching %s streams", category.ToSubcategory()),
-				Error:          err,
-			})
-
+			s.recordCollectionStreamError(item, audioCollection.title, err)
 			return
 		}
 	}
@@ -206,6 +170,33 @@ func (s *ServiceImpl) downloadCollection(ctx context.Context, item *DownloadItem
 
 	// Download all tracks using unified pipeline.
 	s.downloadTracks(ctx, metadata)
+}
+
+// recordCollectionError records a download error for a collection item.
+func (s *ServiceImpl) recordCollectionError(item *DownloadItem, phase string, err error) {
+	s.recordError(&DownloadError{
+		Category:  item.Category,
+		ItemID:    item.ItemID,
+		ItemTitle: item.Category.ToTitleCase() + " ID: " + item.ItemID,
+		ItemURL:   item.URL,
+		Phase:     phase,
+		Error:     err,
+	})
+}
+
+// recordCollectionStreamError records a stream fetch error for a collection item.
+func (s *ServiceImpl) recordCollectionStreamError(item *DownloadItem, title string, err error) {
+	s.recordError(&DownloadError{
+		Category:       item.Category,
+		ItemID:         item.ItemID,
+		ItemTitle:      title,
+		ItemURL:        item.URL,
+		ParentCategory: item.Category,
+		ParentID:       item.ItemID,
+		ParentTitle:    title,
+		Phase:          fmt.Sprintf("fetching %s streams", item.Category.ToSubcategory()),
+		Error:          err,
+	})
 }
 
 // getTracksSortedByPosition returns a sorted slice of track IDs by their position field from metadata.
@@ -383,7 +374,7 @@ func (s *ServiceImpl) downloadCover(
 	// Download the cover art.
 	isExist, err := s.downloadAndSaveFile(ctx, coverURL, downloadPath, s.cfg.ReplaceCovers)
 	if err != nil {
-		logger.Errorf(ctx, "Failed to download %s cover: %v", category.ToLowerCase(), err)
+		logger.Errorf(ctx, "Failed to download %s cover: %v", category.String(), err)
 		return "", ""
 	}
 
@@ -392,7 +383,7 @@ func (s *ServiceImpl) downloadCover(
 		logger.Infof(ctx, "%s cover already exists, skipping download", category.ToTitleCase())
 		s.incrementCoverSkipped()
 	} else {
-		logger.Infof(ctx, "Successfully downloaded %s cover", category.ToLowerCase())
+		logger.Infof(ctx, "Successfully downloaded %s cover", category.String())
 		s.incrementCoverDownloaded()
 	}
 
@@ -417,23 +408,29 @@ func (s *ServiceImpl) finalizeCover(
 		return
 	}
 
-	// Check if embeddable cover file exists.
-	embeddableCoverStats, err := os.Stat(audioCollection.embeddableCoverPath)
+	finalizeAsset(
+		ctx,
+		audioCollection.embeddableCoverPath,
+		audioCollection.coverPath,
+		s.cfg.ReplaceCovers,
+		"cover",
+	)
+}
+
+// finalizeAsset renames a temporary asset file to its final destination.
+func finalizeAsset(ctx context.Context, sourcePath, destinationPath string, replace bool, assetName string) {
+	sourceStats, err := os.Stat(sourcePath)
 	if err != nil {
 		return
 	}
 
-	// Check if cover file exists and is the same as the embeddable cover file.
-	coverStats, err := os.Stat(audioCollection.coverPath)
-	if err == nil && os.SameFile(embeddableCoverStats, coverStats) {
+	destinationStats, err := os.Stat(destinationPath)
+	if err == nil && os.SameFile(sourceStats, destinationStats) {
 		return
 	}
 
-	// Rename the cover file from temp UUID name (or original name) to final name.
-	err = utils.RenameFile(audioCollection.embeddableCoverPath, audioCollection.coverPath, s.cfg.ReplaceCovers)
-	if err != nil {
-		logger.Errorf(ctx, "Failed to rename cover from '%s' to '%s': %v",
-			audioCollection.embeddableCoverPath, audioCollection.coverPath, err)
+	if err = utils.RenameFile(sourcePath, destinationPath, replace); err != nil {
+		logger.Errorf(ctx, "Failed to rename %s from '%s' to '%s': %v", assetName, sourcePath, destinationPath, err)
 	}
 }
 
@@ -479,18 +476,18 @@ func (s *ServiceImpl) saveDescription(
 
 	// Dry-run mode: simulate description save.
 	if s.cfg.DryRun {
-		logger.Infof(ctx, "[DRY-RUN] Would save %s description to: %s", category.ToLowerCase(), downloadFilename)
+		logger.Infof(ctx, "[DRY-RUN] Would save %s description to: %s", category.String(), downloadFilename)
 		return downloadPath, finalPath
 	}
 
 	// Write description in UTF-8 encoding.
 	err = os.WriteFile(downloadPath, []byte(description), constants.DefaultFilePermissions)
 	if err != nil {
-		logger.Errorf(ctx, "Failed to save %s description: %v", category.ToLowerCase(), err)
+		logger.Errorf(ctx, "Failed to save %s description: %v", category.String(), err)
 		return "", ""
 	}
 
-	logger.Infof(ctx, "Saved %s description to %s", category.ToLowerCase(), downloadFilename)
+	logger.Infof(ctx, "Saved %s description to %s", category.String(), downloadFilename)
 	s.incrementDescriptionSaved()
 
 	return downloadPath, finalPath
@@ -508,33 +505,18 @@ func (s *ServiceImpl) finalizeDescription(
 	// or if the embeddable description path is not set
 	// or if the final description path is not set.
 	if s.cfg.DryRun ||
-		(audioCollection.category != DownloadCategoryAudiobook &&
-			audioCollection.category != DownloadCategoryPodcast) ||
+		!audioCollection.category.IsChapterCollection() ||
 		(itemIndex != audioCollection.tracksCount) ||
 		(audioCollection.embeddableDescriptionPath == "") ||
 		(audioCollection.descriptionPath == "") {
 		return
 	}
 
-	// Check if embeddable description file exists.
-	embeddableDescriptionStats, err := os.Stat(audioCollection.embeddableDescriptionPath)
-	if err != nil {
-		return
-	}
-
-	descriptionStats, err := os.Stat(audioCollection.descriptionPath)
-	if err == nil && os.SameFile(embeddableDescriptionStats, descriptionStats) {
-		return
-	}
-
-	// Rename the description file.
-	err = utils.RenameFile(
+	finalizeAsset(
+		ctx,
 		audioCollection.embeddableDescriptionPath,
 		audioCollection.descriptionPath,
 		s.cfg.ReplaceDescriptions,
+		"description",
 	)
-	if err != nil {
-		logger.Errorf(ctx, "Failed to rename description from '%s' to '%s': %v",
-			audioCollection.embeddableDescriptionPath, audioCollection.descriptionPath, err)
-	}
 }

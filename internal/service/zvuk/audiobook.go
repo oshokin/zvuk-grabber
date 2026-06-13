@@ -12,17 +12,14 @@ import (
 
 // AudiobookCollectionHandler handles audiobook collection logic.
 type AudiobookCollectionHandler struct {
+	// BaseCollectionHandler provides shared collection handler behavior.
 	BaseCollectionHandler
 }
 
+// NewAudiobookCollectionHandler creates a handler for audiobook downloads.
 func NewAudiobookCollectionHandler(templateManager TemplateManager) *AudiobookCollectionHandler {
 	return &AudiobookCollectionHandler{
-		BaseCollectionHandler: BaseCollectionHandler{
-			Category:             DownloadCategoryAudiobook,
-			TemplateManager:      templateManager,
-			SingleFolderHandling: true,
-			DescriptionSupport:   true,
-		},
+		BaseCollectionHandler: newBaseCollectionHandler(DownloadCategoryAudiobook, templateManager, true, true),
 	}
 }
 
@@ -42,7 +39,7 @@ func (h *AudiobookCollectionHandler) LogMessage(
 
 // FillTags fills the tags for an audiobook.
 func (h *AudiobookCollectionHandler) FillTags(item *zvuk.Audiobook) map[string]string {
-	releaseDate, publishYear := h.parsePublicationDateAndYear(item.PublicationDate)
+	releaseDate, publishYear := parsePublicationDateAndYear(item.PublicationDate)
 
 	genreTag := h.Category.ToTitleCase()
 	if len(item.Genres) > 0 {
@@ -50,7 +47,7 @@ func (h *AudiobookCollectionHandler) FillTags(item *zvuk.Audiobook) map[string]s
 	}
 
 	tags := map[string]string{
-		TagType:                   h.Category.ToLowerCase(),
+		TagType:                   h.Category.String(),
 		TagAudiobookID:            strconv.FormatInt(item.ID, 10),
 		TagAudiobookTitle:         item.Title,
 		TagAudiobookAuthors:       strings.Join(item.ArtistNames, ", "),
@@ -90,14 +87,10 @@ func (h *AudiobookCollectionHandler) FillTags(item *zvuk.Audiobook) map[string]s
 }
 
 // GetTitle returns the title for an audiobook.
-func (h *AudiobookCollectionHandler) GetTitle(item *zvuk.Audiobook) string {
-	return item.Title
-}
+func (h *AudiobookCollectionHandler) GetTitle(item *zvuk.Audiobook) string { return item.Title }
 
 // GetTrackIDs returns the track IDs for an audiobook.
-func (h *AudiobookCollectionHandler) GetTrackIDs(item *zvuk.Audiobook) []int64 {
-	return item.TrackIDs
-}
+func (h *AudiobookCollectionHandler) GetTrackIDs(item *zvuk.Audiobook) []int64 { return item.TrackIDs }
 
 // GetCoverURL returns the cover URL for an audiobook.
 func (h *AudiobookCollectionHandler) GetCoverURL(item *zvuk.Audiobook) string {
@@ -115,7 +108,7 @@ func (h *AudiobookCollectionHandler) GetFolderNameTemplate(ctx context.Context, 
 }
 
 // parsePublicationDateAndYear parses the publication date and year from an ISO 8601 date string.
-func (h *AudiobookCollectionHandler) parsePublicationDateAndYear(publicationDate string) (string, string) {
+func parsePublicationDateAndYear(publicationDate string) (string, string) {
 	if publicationDate == "" {
 		return "", defaultUnknownYear
 	}

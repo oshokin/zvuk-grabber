@@ -127,6 +127,15 @@ func TestRandomPause(t *testing.T) {
 	assert.Less(t, duration, 200*time.Millisecond)
 }
 
+// TestRandomPauseWithEqualBounds verifies that a fixed pause does not panic.
+func TestRandomPauseWithEqualBounds(t *testing.T) {
+	t.Parallel()
+
+	assert.NotPanics(t, func() {
+		RandomPause(time.Millisecond, time.Millisecond)
+	})
+}
+
 // TestSetFileExtension tests the SetFileExtension function.
 func TestSetFileExtension(t *testing.T) {
 	t.Parallel()
@@ -233,6 +242,18 @@ func TestReadUniqueLinesFromFile(t *testing.T) {
 	// Test non-existing file.
 	_, err = ReadUniqueLinesFromFile("/non/existing/file")
 	require.Error(t, err)
+}
+
+// TestAddUnique tests the AddUnique function.
+func TestAddUnique(t *testing.T) {
+	t.Parallel()
+
+	set := map[string]struct{}{}
+
+	assert.True(t, AddUnique(set, "alpha"))
+	assert.False(t, AddUnique(set, "alpha"))
+	assert.True(t, AddUnique(set, "beta"))
+	assert.Len(t, set, 2)
 }
 
 // TestExtractNamedGroup tests the ExtractNamedGroup function.

@@ -2,7 +2,6 @@ package zvuk
 
 import (
 	"context"
-	"fmt"
 	"maps"
 	"os"
 	"path/filepath"
@@ -25,6 +24,76 @@ type BaseCollectionHandler struct {
 	DescriptionSupport bool
 }
 
+// folderHandler defines folder naming behavior for collections.
+type folderHandler interface {
+	// HasSingleFolderHandling reports whether tracks are stored in a per-collection folder.
+	HasSingleFolderHandling() bool
+	// GetFolderNameTemplate returns the folder name template for the collection.
+	GetFolderNameTemplate(ctx context.Context, tags map[string]string) string
+	// GetFirstTrackFilename returns the filename for a single-track collection without a folder.
+	GetFirstTrackFilename(ctx context.Context, track *zvuk.Track, tags map[string]string, tracksCount int64) string
+}
+
+// registerCollection registers a collection.
+type registerCollectionCoreInput struct {
+	// Category is the type of content being registered.
+	Category DownloadCategory
+	// ItemID is the unique identifier of the collection item.
+	ItemID string
+	// Title is the human-readable collection title.
+	Title string
+	// TrackIDs is the ordered list of track IDs in the collection.
+	TrackIDs []int64
+	// Tags contains metadata key-value pairs for the collection.
+	Tags map[string]string
+	// ItemFolderName is the resolved output folder name for the collection.
+	ItemFolderName string
+	// FirstTrackFilename is the filename used when a single track has no folder.
+	FirstTrackFilename string
+	// CoverURL is the remote URL of the collection cover art.
+	CoverURL string
+	// Description is the collection description text.
+	Description string
+	// DescriptionSupport indicates whether description files are supported.
+	DescriptionSupport bool
+}
+
+// collectionHandler defines type-specific collection metadata extraction.
+type collectionHandler[T any] interface {
+	folderHandler
+	// GetCategory returns the download category for this handler.
+	GetCategory() DownloadCategory
+	// HasDescription reports whether the collection supports descriptions.
+	HasDescription() bool
+	// FillTags builds metadata tags from the collection item.
+	FillTags(item *T) map[string]string
+	// LogMessage returns the download start log message for the collection.
+	LogMessage(ctx context.Context, item *T, tags map[string]string) string
+	// GetTitle returns the display title of the collection item.
+	GetTitle(item *T) string
+	// GetTrackIDs returns the track IDs belonging to the collection.
+	GetTrackIDs(item *T) []int64
+	// GetCoverURL returns the cover art URL for the collection.
+	GetCoverURL(item *T) string
+	// GetDescription returns the description text for the collection.
+	GetDescription(item *T) string
+}
+
+// newBaseCollectionHandler creates a BaseCollectionHandler with the given settings.
+func newBaseCollectionHandler(
+	category DownloadCategory,
+	templateManager TemplateManager,
+	singleFolderHandling bool,
+	descriptionSupport bool,
+) BaseCollectionHandler {
+	return BaseCollectionHandler{
+		Category:             category,
+		TemplateManager:      templateManager,
+		SingleFolderHandling: singleFolderHandling,
+		DescriptionSupport:   descriptionSupport,
+	}
+}
+
 // HasSingleFolderHandling returns true if the collection has single folder handling.
 func (b *BaseCollectionHandler) HasSingleFolderHandling() bool {
 	return b.SingleFolderHandling
@@ -35,31 +104,23 @@ func (b *BaseCollectionHandler) HasDescription() bool {
 	return b.DescriptionSupport
 }
 
+// GetCategory returns the collection download category.
+func (b *BaseCollectionHandler) GetCategory() DownloadCategory {
+	return b.Category
+}
+
+// deriveCollectionTitle picks the best display title from collection tags.
 func deriveCollectionTitle(tags map[string]string) string {
-	collectionTitle := tags[TagCollectionTitle]
-	if collectionTitle != "" {
-		return collectionTitle
-	}
-
-	if v := tags[TagAlbumTitle]; v != "" {
-		return v
-	}
-
-	if v := tags[TagPlaylistTitle]; v != "" {
-		return v
-	}
-
-	if v := tags[TagAudiobookTitle]; v != "" {
-		return v
-	}
-
-	if v := tags[TagPodcastTitle]; v != "" {
-		return v
+	for _, key := range []string{TagCollectionTitle, TagAlbumTitle, TagPlaylistTitle, TagAudiobookTitle, TagPodcastTitle} {
+		if title := tags[key]; title != "" {
+			return title
+		}
 	}
 
 	return ""
 }
 
+// handleDescription saves and embeds the collection description when supported.
 func handleDescription(
 	ctx context.Context,
 	s *ServiceImpl,
@@ -82,18 +143,11 @@ func handleDescription(
 		return embeddableDescriptionPath, descriptionPath
 	}
 
-	if _, statErr := os.Stat(embeddableDescriptionPath); statErr != nil {
-		return embeddableDescriptionPath, descriptionPath
-	}
-
-	content, readErr := os.ReadFile(embeddableDescriptionPath)
-	if readErr != nil {
-		logger.Warnf(
-			ctx,
-			"Failed to read existing description file '%s': %v",
-			embeddableDescriptionPath,
-			readErr,
-		)
+	content, err := os.ReadFile(embeddableDescriptionPath)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			logger.Warnf(ctx, "Failed to read existing description file '%s': %v", embeddableDescriptionPath, err)
+		}
 
 		return embeddableDescriptionPath, descriptionPath
 	}
@@ -105,17 +159,12 @@ func handleDescription(
 		in.Tags[TagPodcastDescription] = string(content)
 	}
 
-	logger.Infof(ctx, "Updated %s tags with description from existing file", in.Category.ToLowerCase())
+	logger.Infof(ctx, "Updated %s tags with description from existing file", in.Category.String())
 
 	return embeddableDescriptionPath, descriptionPath
 }
 
-type folderHandler interface {
-	HasSingleFolderHandling() bool
-	GetFolderNameTemplate(ctx context.Context, tags map[string]string) string
-	GetFirstTrackFilename(ctx context.Context, track *zvuk.Track, tags map[string]string, tracksCount int64) string
-}
-
+// determineItemFolderAndFilename resolves the output folder and first track filename.
 func determineItemFolderAndFilename(
 	ctx context.Context,
 	s *ServiceImpl,
@@ -137,10 +186,6 @@ func determineItemFolderAndFilename(
 		itemFolderName := s.getFolderNameAfterTemplateExecution(ctx, category, rawItemFolderName)
 
 		return itemFolderName, ""
-	}
-
-	if tracksCount != 1 {
-		return "", ""
 	}
 
 	trackID := strconv.FormatInt(trackIDs[0], 10)
@@ -187,8 +232,7 @@ func (b *BaseCollectionHandler) FillTrackTagsForTemplating(
 ) map[string]string {
 	var result map[string]string
 
-	if audioCollection.category == DownloadCategoryAudiobook ||
-		audioCollection.category == DownloadCategoryPodcast {
+	if audioCollection.category.IsChapterCollection() {
 		result = maps.Clone(audioCollection.tags)
 
 		result[TagTrackGenre] = strings.Join(track.Genres, ", ")
@@ -202,28 +246,10 @@ func (b *BaseCollectionHandler) FillTrackTagsForTemplating(
 
 	// Add track-specific fields.
 	result[TagCollectionTitle] = audioCollection.title
-	result[TagTrackArtist] = strings.Join(track.ArtistNames, ", ")
-	result[TagTrackID] = strconv.FormatInt(track.ID, 10)
-	result[TagTrackNumber] = strconv.FormatInt(trackNumber, 10)
-	result[TagTrackNumberPad] = fmt.Sprintf("%0*d", trackNumberPaddingWidth, trackNumber)
-	result[TagTrackTitle] = track.Title
+	fillCommonTrackTags(result, trackNumber, track)
 	result[TagTrackCount] = strconv.FormatInt(audioCollection.tracksCount, 10)
 
 	return result
-}
-
-// registerCollection registers a collection.
-type registerCollectionCoreInput struct {
-	Category           DownloadCategory
-	ItemID             string
-	Title              string
-	TrackIDs           []int64
-	Tags               map[string]string
-	ItemFolderName     string
-	FirstTrackFilename string
-	CoverURL           string
-	Description        string
-	DescriptionSupport bool
 }
 
 // registerCollectionCore contains the shared, side-effecting parts of collection registration:
@@ -257,11 +283,11 @@ func registerCollectionCore(
 	if !s.cfg.DryRun {
 		err := os.MkdirAll(itemPath, defaultFolderPermissions)
 		if err != nil {
-			logger.Errorf(ctx, "Failed to create %s folder '%s': %v", in.Category.ToLowerCase(), itemPath, err)
+			logger.Errorf(ctx, "Failed to create %s folder '%s': %v", in.Category.String(), itemPath, err)
 			return nil
 		}
 	} else {
-		logger.Infof(ctx, "[DRY-RUN] Would create %s folder: %s", in.Category.ToLowerCase(), itemPath)
+		logger.Infof(ctx, "[DRY-RUN] Would create %s folder: %s", in.Category.String(), itemPath)
 	}
 
 	// Download cover.
@@ -303,201 +329,51 @@ func registerCollectionCore(
 	return audioCollection
 }
 
-func registerAlbumCollection(
+// registerCollection registers a typed collection and returns its audio collection context.
+func registerCollection[T any](
 	ctx context.Context,
 	s *ServiceImpl,
-	albumID string,
-	albums map[string]*zvuk.Release,
+	itemID string,
+	items map[string]*T,
 	tracksMetadata map[string]*zvuk.Track,
-	isDownloadStartingBeingLogged bool,
+	logDownloadStart bool,
+	h collectionHandler[T],
 ) *audioCollection {
-	item, ok := albums[albumID]
+	item, ok := items[itemID]
 	if !ok || item == nil {
-		logger.Errorf(ctx, "%s with ID '%s' is not found", DownloadCategoryAlbum.ToTitleCase(), albumID)
+		logger.Errorf(ctx, "%s with ID '%s' is not found", h.GetCategory().ToTitleCase(), itemID)
+
 		return nil
 	}
 
-	h := s.albumHandler
-	itemTags := h.FillTags(item)
-
-	if isDownloadStartingBeingLogged {
-		if msg := h.LogMessage(ctx, item, itemTags); msg != "" {
+	tags := h.FillTags(item)
+	if logDownloadStart {
+		if msg := h.LogMessage(ctx, item, tags); msg != "" {
 			logger.Infof(ctx, msg)
 		}
 	}
 
 	title := h.GetTitle(item)
 	trackIDs := h.GetTrackIDs(item)
-	tracksCount := int64(len(trackIDs))
-
-	itemFolderName, firstTrackFilename := determineItemFolderAndFilename(
+	folderName, firstTrackFilename := determineItemFolderAndFilename(
 		ctx,
 		s,
 		h,
-		DownloadCategoryAlbum,
-		tracksCount,
+		h.GetCategory(),
+		int64(len(trackIDs)),
 		trackIDs,
 		tracksMetadata,
-		itemTags,
+		tags,
 		title,
 	)
 
 	return registerCollectionCore(ctx, s, &registerCollectionCoreInput{
-		Category:           DownloadCategoryAlbum,
-		ItemID:             albumID,
+		Category:           h.GetCategory(),
+		ItemID:             itemID,
 		Title:              title,
 		TrackIDs:           trackIDs,
-		Tags:               itemTags,
-		ItemFolderName:     itemFolderName,
-		FirstTrackFilename: firstTrackFilename,
-		CoverURL:           h.GetCoverURL(item),
-		Description:        "",
-		DescriptionSupport: h.HasDescription(),
-	})
-}
-
-func registerPlaylistCollection(
-	ctx context.Context,
-	s *ServiceImpl,
-	playlistID string,
-	playlists map[string]*zvuk.Playlist,
-	tracksMetadata map[string]*zvuk.Track,
-	isDownloadStartingBeingLogged bool,
-) *audioCollection {
-	_ = tracksMetadata // playlists never use "single without folder" logic
-
-	item, ok := playlists[playlistID]
-	if !ok || item == nil {
-		logger.Errorf(ctx, "%s with ID '%s' is not found", DownloadCategoryPlaylist.ToTitleCase(), playlistID)
-		return nil
-	}
-
-	h := s.playlistHandler
-	itemTags := h.FillTags(item)
-
-	if isDownloadStartingBeingLogged {
-		if msg := h.LogMessage(ctx, item, itemTags); msg != "" {
-			logger.Infof(ctx, msg)
-		}
-	}
-
-	title := h.GetTitle(item)
-	trackIDs := h.GetTrackIDs(item)
-	itemFolderName := s.truncateFolderName(ctx, DownloadCategoryPlaylist, strings.TrimSpace(title))
-
-	return registerCollectionCore(ctx, s, &registerCollectionCoreInput{
-		Category:           DownloadCategoryPlaylist,
-		ItemID:             playlistID,
-		Title:              title,
-		TrackIDs:           trackIDs,
-		Tags:               itemTags,
-		ItemFolderName:     itemFolderName,
-		FirstTrackFilename: "",
-		CoverURL:           h.GetCoverURL(item),
-		Description:        "",
-		DescriptionSupport: h.HasDescription(),
-	})
-}
-
-func registerAudiobookCollection(
-	ctx context.Context,
-	s *ServiceImpl,
-	audiobookID string,
-	audiobooks map[string]*zvuk.Audiobook,
-	tracksMetadata map[string]*zvuk.Track,
-	isDownloadStartingBeingLogged bool,
-) *audioCollection {
-	item, ok := audiobooks[audiobookID]
-	if !ok || item == nil {
-		logger.Errorf(ctx, "%s with ID '%s' is not found", DownloadCategoryAudiobook.ToTitleCase(), audiobookID)
-		return nil
-	}
-
-	h := s.audiobookHandler
-	itemTags := h.FillTags(item)
-
-	if isDownloadStartingBeingLogged {
-		if msg := h.LogMessage(ctx, item, itemTags); msg != "" {
-			logger.Infof(ctx, msg)
-		}
-	}
-
-	title := h.GetTitle(item)
-	trackIDs := h.GetTrackIDs(item)
-	tracksCount := int64(len(trackIDs))
-
-	itemFolderName, firstTrackFilename := determineItemFolderAndFilename(
-		ctx,
-		s,
-		h,
-		DownloadCategoryAudiobook,
-		tracksCount,
-		trackIDs,
-		tracksMetadata,
-		itemTags,
-		title,
-	)
-
-	return registerCollectionCore(ctx, s, &registerCollectionCoreInput{
-		Category:           DownloadCategoryAudiobook,
-		ItemID:             audiobookID,
-		Title:              title,
-		TrackIDs:           trackIDs,
-		Tags:               itemTags,
-		ItemFolderName:     itemFolderName,
-		FirstTrackFilename: firstTrackFilename,
-		CoverURL:           h.GetCoverURL(item),
-		Description:        h.GetDescription(item),
-		DescriptionSupport: h.HasDescription(),
-	})
-}
-
-func registerPodcastCollection(
-	ctx context.Context,
-	s *ServiceImpl,
-	podcastID string,
-	podcasts map[string]*zvuk.Podcast,
-	tracksMetadata map[string]*zvuk.Track,
-	isDownloadStartingBeingLogged bool,
-) *audioCollection {
-	item, ok := podcasts[podcastID]
-	if !ok || item == nil {
-		logger.Errorf(ctx, "%s with ID '%s' is not found", DownloadCategoryPodcast.ToTitleCase(), podcastID)
-		return nil
-	}
-
-	h := s.podcastHandler
-	itemTags := h.FillTags(item)
-
-	if isDownloadStartingBeingLogged {
-		if msg := h.LogMessage(ctx, item, itemTags); msg != "" {
-			logger.Infof(ctx, msg)
-		}
-	}
-
-	title := h.GetTitle(item)
-	trackIDs := h.GetTrackIDs(item)
-	tracksCount := int64(len(trackIDs))
-
-	itemFolderName, firstTrackFilename := determineItemFolderAndFilename(
-		ctx,
-		s,
-		h,
-		DownloadCategoryPodcast,
-		tracksCount,
-		trackIDs,
-		tracksMetadata,
-		itemTags,
-		title,
-	)
-
-	return registerCollectionCore(ctx, s, &registerCollectionCoreInput{
-		Category:           DownloadCategoryPodcast,
-		ItemID:             podcastID,
-		Title:              title,
-		TrackIDs:           trackIDs,
-		Tags:               itemTags,
-		ItemFolderName:     itemFolderName,
+		Tags:               tags,
+		ItemFolderName:     folderName,
 		FirstTrackFilename: firstTrackFilename,
 		CoverURL:           h.GetCoverURL(item),
 		Description:        h.GetDescription(item),

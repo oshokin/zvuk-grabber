@@ -139,22 +139,6 @@ type Playlist struct {
 	TrackIDs []int64 `json:"track_ids"`
 }
 
-// GetAudiobookResult represents the result of fetching audiobook data.
-type GetAudiobookResult struct {
-	// Audiobook is the audiobook metadata.
-	Audiobook *Audiobook
-	// Tracks is a map of chapter IDs to their track metadata.
-	Tracks map[string]*Track
-}
-
-// GetPodcastResult represents the result of fetching podcast data.
-type GetPodcastResult struct {
-	// Podcast is the podcast metadata.
-	Podcast *Podcast
-	// Tracks is a map of episode IDs to their track metadata.
-	Tracks map[string]*Track
-}
-
 // Audiobook represents metadata for an audiobook.
 type Audiobook struct {
 	// ID is the unique audiobook identifier.
@@ -167,8 +151,6 @@ type Audiobook struct {
 	ArtistNames []string `json:"artist_names"`
 	// TrackIDs is the list of track (chapter) IDs in the audiobook.
 	TrackIDs []int64 `json:"track_ids"`
-	// Date is the audiobook release date timestamp.
-	Date int64 `json:"date"`
 	// PublicationDate is the audiobook publication date.
 	PublicationDate string `json:"publication_date"`
 	// Copyright is the copyright holder.
@@ -213,10 +195,6 @@ type Podcast struct {
 type Release struct {
 	// ID is the unique release identifier.
 	ID int64 `json:"id"`
-	// Type indicates the release type (album, single, etc.).
-	Type string `json:"type"`
-	// ArtistIDs is the list of artist IDs associated with the release.
-	ArtistIDs []int64 `json:"artist_ids"`
 	// Title is the release name.
 	Title string `json:"title"`
 	// Image contains the release cover art metadata.
@@ -225,14 +203,10 @@ type Release struct {
 	TrackIDs []int64 `json:"track_ids"`
 	// ArtistNames is the list of artist names associated with the release.
 	ArtistNames []string `json:"artist_names"`
-	// Credits contains production and other credits information.
-	Credits string `json:"credits"`
 	// LabelID is the ID of the music label.
 	LabelID int64 `json:"label_id"`
 	// Date is the release date timestamp.
 	Date int64 `json:"date"`
-	// GenreIDs is the list of genre IDs for the release.
-	GenreIDs []int64 `json:"genre_ids"`
 }
 
 // Track represents metadata for a music track.
@@ -255,10 +229,6 @@ type Track struct {
 	Genres []string `json:"genres"`
 	// Title is the track name.
 	Title string `json:"title"`
-	// ReleaseTitle is the name of the release containing this track.
-	ReleaseTitle string `json:"release_title"`
-	// Availability indicates the track's availability status.
-	Availability int64 `json:"availability"`
 	// ArtistNames is the list of artist names for the track.
 	ArtistNames []string `json:"artist_names"`
 	// Position is the track's position in the release.

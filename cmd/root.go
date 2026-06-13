@@ -57,37 +57,6 @@ The application provides flexible naming templates, quality selection, and downl
 	}
 )
 
-// Execute executes the root command.
-func Execute() {
-	signals := []os.Signal{syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM}
-	ctx, stop := signal.NotifyContext(context.Background(), signals...)
-
-	defer func() {
-		_ = logger.Logger().Sync() //nolint:errcheck // No need to check the error here, application will exit anyway.
-	}()
-
-	defer stop()
-
-	// We need to wait for the goroutine to finish so defers can run!
-	done := make(chan struct{})
-
-	go func() {
-		defer stop()
-
-		// Signal that ALL defers in this goroutine have finished.
-		defer close(done)
-
-		err := rootCmd.ExecuteContext(ctx)
-		cobra.CheckErr(err)
-	}()
-
-	// Wait for CTRL+C or signal.
-	<-ctx.Done()
-
-	// Wait for goroutine to finish (including ALL defers!).
-	<-done
-}
-
 //nolint:gochecknoinits // Cobra requires the init function to set up flags before the command is executed.
 func init() {
 	// Add version command.
@@ -141,6 +110,38 @@ func init() {
 		"preview what would be downloaded without actually downloading files.")
 }
 
+// Execute executes the root command.
+func Execute() {
+	signals := []os.Signal{syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM}
+	ctx, stop := signal.NotifyContext(context.Background(), signals...)
+
+	defer func() {
+		_ = logger.Logger().Sync() //nolint:errcheck // No need to check the error here, application will exit anyway.
+	}()
+
+	defer stop()
+
+	// We need to wait for the goroutine to finish so defers can run!
+	done := make(chan struct{})
+
+	go func() {
+		defer stop()
+
+		// Signal that ALL defers in this goroutine have finished.
+		defer close(done)
+
+		err := rootCmd.ExecuteContext(ctx)
+		cobra.CheckErr(err)
+	}()
+
+	// Wait for CTRL+C or signal.
+	<-ctx.Done()
+
+	// Wait for goroutine to finish (including ALL defers!).
+	<-done
+}
+
+// initConfig loads configuration from file and binds CLI flags to it.
 func initConfig(cmd *cobra.Command, _ []string) {
 	var err error
 

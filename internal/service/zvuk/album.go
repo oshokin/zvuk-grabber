@@ -11,12 +11,16 @@ import (
 	"github.com/oshokin/zvuk-grabber/internal/client/zvuk"
 )
 
+// AlbumCollectionHandler handles album collection logic.
+type AlbumCollectionHandler struct {
+	// BaseCollectionHandler provides shared collection handler behavior.
+	BaseCollectionHandler
+}
+
 // fetchAlbumDataResponse contains the complete metadata for an album.
 type fetchAlbumDataResponse struct {
 	// tracks contains track metadata mapped by track ID.
 	tracks map[string]*zvuk.Track
-	// album contains the main album/release metadata.
-	album *zvuk.Release
 	// releases contains additional release metadata mapped by release ID.
 	releases map[string]*zvuk.Release
 	// labels contains music label metadata mapped by label ID.
@@ -25,7 +29,9 @@ type fetchAlbumDataResponse struct {
 
 // parsedCoverURL contains the parsed cover URL and extension.
 type parsedCoverURL struct {
-	url       string
+	// url is the cover image URL.
+	url string
+	// extension is the cover image file extension.
 	extension string
 }
 
@@ -60,25 +66,15 @@ func (s *ServiceImpl) fetchAlbumData(ctx context.Context, albumID string) (*fetc
 	// Return the fetched data.
 	return &fetchAlbumDataResponse{
 		tracks:   getAlbumsMetadataResponse.Tracks,
-		album:    album,
 		releases: getAlbumsMetadataResponse.Releases,
 		labels:   labelsMetadata,
 	}, nil
 }
 
-// AlbumCollectionHandler handles album collection logic.
-type AlbumCollectionHandler struct {
-	BaseCollectionHandler
-}
-
+// NewAlbumCollectionHandler creates a handler for album downloads.
 func NewAlbumCollectionHandler(templateManager TemplateManager) *AlbumCollectionHandler {
 	return &AlbumCollectionHandler{
-		BaseCollectionHandler: BaseCollectionHandler{
-			Category:             DownloadCategoryAlbum,
-			TemplateManager:      templateManager,
-			SingleFolderHandling: true,
-			DescriptionSupport:   false,
-		},
+		BaseCollectionHandler: newBaseCollectionHandler(DownloadCategoryAlbum, templateManager, true, false),
 	}
 }
 
@@ -86,7 +82,7 @@ func NewAlbumCollectionHandler(templateManager TemplateManager) *AlbumCollection
 func (h *AlbumCollectionHandler) LogMessage(ctx context.Context, item *zvuk.Release, tags map[string]string) string {
 	return fmt.Sprintf(
 		"Downloading %s: %s - %s (%s)",
-		h.Category.ToLowerCase(),
+		h.Category.String(),
 		tags[TagAlbumArtist],
 		tags[TagAlbumTitle],
 		tags[TagReleaseYear],
@@ -122,7 +118,7 @@ func (h *AlbumCollectionHandler) FillTags(item *zvuk.Release) map[string]string 
 		TagReleaseDate:      albumDate,
 		TagReleaseTimestamp: releaseTimestamp,
 		TagReleaseYear:      albumYear,
-		TagType:             h.Category.ToLowerCase(),
+		TagType:             h.Category.String(),
 	}
 }
 
@@ -147,7 +143,8 @@ func (h *AlbumCollectionHandler) GetCoverURL(item *zvuk.Release) string {
 
 // GetDescription returns the description for an album.
 func (h *AlbumCollectionHandler) GetDescription(item *zvuk.Release) string {
-	return "" // Albums don't have descriptions.
+	// Albums don't have descriptions.
+	return ""
 }
 
 // GetFolderNameTemplate returns the folder name template for an album.

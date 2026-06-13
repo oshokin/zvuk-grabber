@@ -20,6 +20,30 @@ import (
 	"github.com/oshokin/zvuk-grabber/internal/logger"
 )
 
+// mockURLProcessor is a mock implementation of the URLProcessor interface.
+type mockURLProcessor struct{}
+
+// mockTemplateManager is a mock implementation of the TemplateManager interface.
+type mockTemplateManager struct{}
+
+// mockTagProcessor is a mock implementation of the TagProcessor interface.
+type mockTagProcessor struct{}
+
+// partialReadCloser is a mock ReadCloser for partial reads.
+type partialReadCloser struct {
+	// Reader provides the underlying byte stream.
+	io.Reader
+}
+
+// slowReadCloser mocks a slow network stream.
+type slowReadCloser struct {
+	// Reader provides the underlying byte stream.
+	io.Reader
+
+	// delay is the per-read sleep duration to simulate network latency.
+	delay time.Duration
+}
+
 var (
 	// errUnauthorizedTest simulates an invalid-token error response from the API.
 	errUnauthorizedTest = errors.New("unauthorized: invalid token")
@@ -43,9 +67,6 @@ func assertFatalExit(t *testing.T, fn func()) {
 	assert.PanicsWithValue(t, "fatal-exit-1", fn)
 }
 
-// mockURLProcessor is a mock implementation of the URLProcessor interface.
-type mockURLProcessor struct{}
-
 // ExtractDownloadItems pretends to understand URLs and dutifully returns an empty response.
 func (m *mockURLProcessor) ExtractDownloadItems(
 	_ context.Context,
@@ -58,9 +79,6 @@ func (m *mockURLProcessor) ExtractDownloadItems(
 func (m *mockURLProcessor) DeduplicateDownloadItems(items []*DownloadItem) []*DownloadItem {
 	return items
 }
-
-// mockTemplateManager is a mock implementation of the TemplateManager interface.
-type mockTemplateManager struct{}
 
 // GetTrackFilename returns a deterministic filename to keep tests predictable.
 // Uses trackID from tags to ensure unique filenames in concurrent tests.
@@ -113,29 +131,14 @@ func (m *mockTemplateManager) GetPodcastEpisodeFilename(
 	return tags["trackNumberPad"] + " - " + tags["trackTitle"]
 }
 
-// mockTagProcessor is a mock implementation of the TagProcessor interface.
-type mockTagProcessor struct{}
-
 // WriteTags pretends the tags were written successfully for the purpose of tests.
 func (m *mockTagProcessor) WriteTags(_ context.Context, _ *WriteTagsRequest) error {
 	return nil
 }
 
-// partialReadCloser is a mock ReadCloser for partial reads.
-type partialReadCloser struct {
-	io.Reader
-}
-
 // Close is here solely to satisfy the io.ReadCloser contract in our tests.
 func (p *partialReadCloser) Close() error {
 	return nil
-}
-
-// slowReadCloser mocks a slow network stream.
-type slowReadCloser struct {
-	io.Reader
-
-	delay time.Duration
 }
 
 // Read throttles the underlying reader to simulate slow network conditions.

@@ -21,6 +21,7 @@ var (
 	fatalHandlerMutex sync.Mutex
 )
 
+// init initializes the default global logger at info level.
 func init() { //nolint:gochecknoinits // If the logging level is not set, the application will have no logs.
 	SetLogger(New(defaultLevel))
 }
@@ -57,25 +58,17 @@ func New(level zapcore.LevelEnabler, options ...zap.Option) *zap.SugaredLogger {
 
 // ParseLogLevel converts string input to zap log level.
 func ParseLogLevel(s string) (zapcore.Level, bool) {
-	s = strings.ToLower(strings.TrimSpace(s))
-	switch s {
-	case "debug":
-		return zapcore.DebugLevel, true
-	case "info":
-		return zapcore.InfoLevel, true
-	case "warn":
-		return zapcore.WarnLevel, true
-	case "error":
-		return zapcore.ErrorLevel, true
-	case "dpanic":
-		return zapcore.DPanicLevel, true
-	case "panic":
-		return zapcore.PanicLevel, true
-	case "fatal":
-		return zapcore.FatalLevel, true
-	default:
+	normalized := strings.ToLower(strings.TrimSpace(s))
+	if normalized == "" {
 		return zapcore.InfoLevel, false
 	}
+
+	level, err := zapcore.ParseLevel(normalized)
+	if err != nil {
+		return zapcore.InfoLevel, false
+	}
+
+	return level, true
 }
 
 // Level returns the current logging level of the global logger.

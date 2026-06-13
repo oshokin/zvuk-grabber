@@ -30,7 +30,7 @@ vars:
   # -------------------------------
 
   # Linting tool version.
-  GOLANGCI_TAG: "latest"
+  GOLANGCI_TAG: "v2.12.2"
   # GoMock binary version (uber-go/mock fork).
   MOCKGEN_TAG: "v0.6.0"
 

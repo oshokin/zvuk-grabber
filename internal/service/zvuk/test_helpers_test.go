@@ -23,11 +23,32 @@ import (
 
 // testDownloadSetup encapsulates common test dependencies and configuration.
 type testDownloadSetup struct {
-	ctrl       *gomock.Controller
+	// ctrl manages mock lifecycle and expectations.
+	ctrl *gomock.Controller
+	// mockClient is the mocked Zvuk API client.
 	mockClient *mock_zvuk_client.MockClient
-	service    Service
-	config     *config.Config
-	tempDir    string
+	// service is the download service under test.
+	service Service
+	// config is the test configuration.
+	config *config.Config
+	// tempDir is the temporary output directory for downloads.
+	tempDir string
+}
+
+// testMetadataBuilder helps build test metadata with sensible defaults.
+type testMetadataBuilder struct {
+	// trackIDs is the list of track IDs in the test collection.
+	trackIDs []int64
+	// albumID is the parent album ID for the test tracks.
+	albumID int64
+	// tracksMetadata maps track ID strings to track metadata.
+	tracksMetadata map[string]*zvuk.Track
+	// albumsMetadata maps album ID strings to release metadata.
+	albumsMetadata map[string]*zvuk.Release
+	// albumsTags maps album ID strings to tag key-value pairs.
+	albumsTags map[string]map[string]string
+	// labelsMetadata maps label ID strings to label metadata.
+	labelsMetadata map[string]*zvuk.Label
 }
 
 // newTestDownloadSetup creates a standard test setup with optional config overrides.
@@ -72,16 +93,6 @@ func newTestDownloadSetup(t *testing.T, configOverrides ...func(*config.Config))
 // cleanup releases test resources.
 func (s *testDownloadSetup) cleanup() {
 	s.ctrl.Finish()
-}
-
-// testMetadataBuilder helps build test metadata with sensible defaults.
-type testMetadataBuilder struct {
-	trackIDs       []int64
-	albumID        int64
-	tracksMetadata map[string]*zvuk.Track
-	albumsMetadata map[string]*zvuk.Release
-	albumsTags     map[string]map[string]string
-	labelsMetadata map[string]*zvuk.Label
 }
 
 // newTestMetadata creates a metadata builder with auto-generated tracks and album.

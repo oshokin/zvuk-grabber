@@ -31,33 +31,17 @@ func (s *ServiceImpl) initBrowser(ctx context.Context) error {
 	// Store tempDir for cleanup.
 	s.tempDir = tempDir
 
-	// Try to find existing Chrome installation first.
-	chromePath, exists := launcher.LookPath()
+	// Use a visible browser with an isolated temporary profile.
+	browserLauncher := launcher.New().Headless(false).UserDataDir(tempDir)
 
-	var launcherURL string
-
-	if exists {
-		// Use system Chrome if available.
+	if chromePath, exists := launcher.LookPath(); exists {
 		logger.Debugf(ctx, "Using system Chrome installation at: %s", chromePath)
-		launcherURL = launcher.New().
-			// User needs to see the browser to log in.
-			Headless(false).
-			// Use temporary directory for incognito-like behavior.
-			UserDataDir(tempDir).
-			// Use system Chrome.
-			Bin(chromePath).
-			MustLaunch()
+		browserLauncher = browserLauncher.Bin(chromePath)
 	} else {
-		// Fall back to downloading Chromium.
 		logger.Debug(ctx, "System Chrome not found, downloading Chromium")
-
-		launcherURL = launcher.New().
-			// User needs to see the browser to log in.
-			Headless(false).
-			// Use temporary directory for incognito-like behavior.
-			UserDataDir(tempDir).
-			MustLaunch()
 	}
+
+	launcherURL := browserLauncher.MustLaunch()
 
 	logger.Debugf(ctx, "Browser launched at: %s", launcherURL)
 	logger.Debugf(ctx, "User data directory: %s", tempDir)

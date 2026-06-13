@@ -54,6 +54,15 @@ linters:
 
   # All available settings of specific linters.
   settings:
+    decorder:
+      # If true, order of declarations is not checked at all.
+      # Default: true (disabled)
+      disable-dec-order-check: false
+
+      # If true, `init` func can be anywhere in file (does not have to be declared before all other functions).
+      # Default: true (disabled)
+      disable-init-func-first-check: false
+
     # Forbid specific function calls and suggest alternatives.
     forbidigo:
       forbid:

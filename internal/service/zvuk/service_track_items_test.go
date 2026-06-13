@@ -10,8 +10,10 @@ import (
 	"go.uber.org/mock/gomock"
 )
 
+// errTrackMetadataFetch simulates a track metadata HTTP 404 error.
 var errTrackMetadataFetch = errors.New("unexpected HTTP status: 404")
 
+// TestDownloadTrackItems_RecordsMetadataFetchError verifies metadata fetch failures are recorded.
 func TestDownloadTrackItems_RecordsMetadataFetchError(t *testing.T) {
 	t.Parallel()
 
@@ -43,6 +45,7 @@ func TestDownloadTrackItems_RecordsMetadataFetchError(t *testing.T) {
 	assert.ErrorIs(t, impl.stats.Errors[0].Error, errTrackMetadataFetch)
 }
 
+// TestDownloadTrackItems_SkipsTracksCoveredByRegisteredCollections verifies duplicate tracks are skipped.
 func TestDownloadTrackItems_SkipsTracksCoveredByRegisteredCollections(t *testing.T) {
 	t.Parallel()
 

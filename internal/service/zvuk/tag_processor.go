@@ -21,6 +21,7 @@ import (
 
 // TagProcessor defines the interface for writing metadata tags to audio files.
 type TagProcessor interface {
+	// WriteTags writes metadata tags to the audio file described by the request.
 	WriteTags(ctx context.Context, req *WriteTagsRequest) error
 }
 
@@ -106,6 +107,7 @@ func (tp *TagProcessorImpl) WriteTags(ctx context.Context, req *WriteTagsRequest
 	return tp.writeMP3Tags(ctx, req, image)
 }
 
+// writeFLACTags writes metadata and optional cover art to a FLAC file.
 func (tp *TagProcessorImpl) writeFLACTags(ctx context.Context, req *WriteTagsRequest, image *imageMetadata) error {
 	// Parse the FLAC file.
 	f, err := flac.ParseFile(filepath.Clean(req.TrackPath))
@@ -113,12 +115,8 @@ func (tp *TagProcessorImpl) writeFLACTags(ctx context.Context, req *WriteTagsReq
 		return err
 	}
 
-	// Extract existing FLAC comments (metadata) from the file.
-	commentResult, err := tp.extractFLACComment(req.TrackPath)
-	if err != nil {
-		return err
-	}
-
+	// Extract existing FLAC comments (metadata) from the parsed file.
+	commentResult := tp.extractFLACComment(f)
 	tag := commentResult.Comment
 
 	// If no existing comments are found, create a new metadata block.
@@ -147,37 +145,25 @@ func (tp *TagProcessorImpl) writeFLACTags(ctx context.Context, req *WriteTagsReq
 	return f.Save(req.TrackPath)
 }
 
-func (tp *TagProcessorImpl) extractFLACComment(filename string) (*extractFLACCommentResult, error) {
-	f, err := flac.ParseFile(filepath.Clean(filename))
-	if err != nil {
-		return nil, err
-	}
-
+// extractFLACComment finds and parses the Vorbis comment block from a FLAC file.
+func (tp *TagProcessorImpl) extractFLACComment(f *flac.File) *extractFLACCommentResult {
 	// Iterate through the metadata blocks to find the Vorbis comment block.
 	for idx, meta := range f.Meta {
 		if meta.Type != flac.VorbisComment {
 			continue
 		}
 
-		// Parse the Vorbis comment block.
-		var comment *flacvorbis.MetaDataBlockVorbisComment
-
-		comment, err = flacvorbis.ParseFromMetaDataBlock(*meta)
+		comment, err := flacvorbis.ParseFromMetaDataBlock(*meta)
 		if err == nil {
-			return &extractFLACCommentResult{
-				Comment: comment,
-				Index:   idx,
-			}, nil
+			return &extractFLACCommentResult{Comment: comment, Index: idx}
 		}
 	}
 
 	// Return nil comment if no Vorbis comment block is found.
-	return &extractFLACCommentResult{
-		Comment: nil,
-		Index:   -1,
-	}, nil
+	return &extractFLACCommentResult{Index: -1}
 }
 
+// addFLACTags maps track tags to Vorbis comment fields and adds them to the block.
 func (tp *TagProcessorImpl) addFLACTags(tag *flacvorbis.MetaDataBlockVorbisComment, req *WriteTagsRequest) error {
 	// Map of FLAC tag keys to their corresponding values in req.TrackTags.
 	flacTags := map[string]string{
@@ -217,6 +203,7 @@ func (tp *TagProcessorImpl) addFLACTags(tag *flacvorbis.MetaDataBlockVorbisComme
 	return nil
 }
 
+// embedFLACCover appends a picture metadata block to the FLAC file when cover art is provided.
 func (tp *TagProcessorImpl) embedFLACCover(ctx context.Context, f *flac.File, image *imageMetadata) {
 	if image == nil {
 		return
@@ -235,6 +222,7 @@ func (tp *TagProcessorImpl) embedFLACCover(ctx context.Context, f *flac.File, im
 	f.Meta = append(f.Meta, &pictureMeta)
 }
 
+// writeMP3Tags writes metadata and optional cover art to an MP3 file.
 func (tp *TagProcessorImpl) writeMP3Tags(ctx context.Context, req *WriteTagsRequest, image *imageMetadata) error {
 	// Open the MP3 file for writing metadata.
 	//nolint:exhaustruct // ParseFrames intentionally omitted when Parse=false (parsing disabled).

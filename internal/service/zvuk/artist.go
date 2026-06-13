@@ -31,7 +31,7 @@ func (s *ServiceImpl) fetchArtistAlbums(ctx context.Context, artistItems []*Down
 		// Get the list of album IDs for the current artist.
 		albumIDs, err := s.getArtistReleaseIDs(ctx, v.ItemID)
 		if err != nil {
-			logger.Error(ctx, "Failed to fetch artist releases: %v", err)
+			logger.Errorf(ctx, "Failed to fetch artist releases: %v", err)
 			s.recordError(&DownloadError{
 				Category:  DownloadCategoryArtist,
 				ItemID:    v.ItemID,
@@ -57,7 +57,7 @@ func (s *ServiceImpl) fetchArtistAlbums(ctx context.Context, artistItems []*Down
 
 			albumURL, err = s.zvukClient.GetAlbumURL(albumID)
 			if err != nil {
-				logger.Error(ctx, "Failed to generate URL for album with ID %s: %v", albumID, err)
+				logger.Errorf(ctx, "Failed to generate URL for album with ID %s: %v", albumID, err)
 
 				continue
 			}

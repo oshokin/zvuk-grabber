@@ -10,17 +10,14 @@ import (
 
 // PlaylistCollectionHandler handles playlist collection logic.
 type PlaylistCollectionHandler struct {
+	// BaseCollectionHandler provides shared collection handler behavior.
 	BaseCollectionHandler
 }
 
+// NewPlaylistCollectionHandler creates a handler for playlist downloads.
 func NewPlaylistCollectionHandler(templateManager TemplateManager) *PlaylistCollectionHandler {
 	return &PlaylistCollectionHandler{
-		BaseCollectionHandler: BaseCollectionHandler{
-			Category:             DownloadCategoryPlaylist,
-			TemplateManager:      templateManager,
-			SingleFolderHandling: false,
-			DescriptionSupport:   false,
-		},
+		BaseCollectionHandler: newBaseCollectionHandler(DownloadCategoryPlaylist, templateManager, false, false),
 	}
 }
 
@@ -37,7 +34,7 @@ func (h *PlaylistCollectionHandler) LogMessage(
 func (h *PlaylistCollectionHandler) FillTags(item *zvuk.Playlist) map[string]string {
 	// Moved from fillPlaylistTags.
 	return map[string]string{
-		TagType:               h.Category.ToLowerCase(),
+		TagType:               h.Category.String(),
 		TagPlaylistID:         strconv.FormatInt(item.ID, 10),
 		TagPlaylistTitle:      item.Title,
 		TagPlaylistTrackCount: strconv.FormatInt(int64(len(item.TrackIDs)), 10),
@@ -45,28 +42,20 @@ func (h *PlaylistCollectionHandler) FillTags(item *zvuk.Playlist) map[string]str
 }
 
 // GetTitle returns the title for a playlist.
-func (h *PlaylistCollectionHandler) GetTitle(item *zvuk.Playlist) string {
-	return item.Title
-}
+func (h *PlaylistCollectionHandler) GetTitle(item *zvuk.Playlist) string { return item.Title }
 
 // GetTrackIDs returns the track IDs for a playlist.
-func (h *PlaylistCollectionHandler) GetTrackIDs(item *zvuk.Playlist) []int64 {
-	return item.TrackIDs
-}
+func (h *PlaylistCollectionHandler) GetTrackIDs(item *zvuk.Playlist) []int64 { return item.TrackIDs }
 
 // GetCoverURL returns the cover URL for a playlist.
-func (h *PlaylistCollectionHandler) GetCoverURL(item *zvuk.Playlist) string {
-	return item.BigImageURL
-}
+func (h *PlaylistCollectionHandler) GetCoverURL(item *zvuk.Playlist) string { return item.BigImageURL }
 
 // GetDescription returns the description for a playlist.
-func (h *PlaylistCollectionHandler) GetDescription(item *zvuk.Playlist) string {
-	return "" // Playlists don't have descriptions.
-}
+func (h *PlaylistCollectionHandler) GetDescription(item *zvuk.Playlist) string { return "" }
 
 // GetFolderNameTemplate returns the folder name template for a playlist.
 func (h *PlaylistCollectionHandler) GetFolderNameTemplate(ctx context.Context, tags map[string]string) string {
-	return "" // Playlists don't use template, handled differently.
+	return ""
 }
 
 // GetFirstTrackFilename returns the first track filename for a playlist.

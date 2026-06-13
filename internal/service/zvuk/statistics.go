@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"sync/atomic"
 	"time"
 
 	"github.com/dustin/go-humanize"
@@ -15,6 +14,8 @@ import (
 const (
 	// unknownParentKey is used as a fallback key when parent collection is unknown.
 	unknownParentKey = "unknown"
+	// summarySeparator separates sections in the download summary.
+	summarySeparator = "═══════════════════════════════════════════════════════════════"
 )
 
 // formatDuration formats a duration into a human-readable string.
@@ -76,34 +77,52 @@ func (s *ServiceImpl) incrementTrackFailed() {
 	s.stats.TotalTracksProcessed++
 }
 
-// incrementLyricsDownloaded atomically increments the downloaded lyrics counter.
+// incrementLyricsDownloaded safely increments the downloaded lyrics counter.
 func (s *ServiceImpl) incrementLyricsDownloaded() {
-	atomic.AddInt64(&s.stats.LyricsDownloaded, 1)
+	s.statsMutex.Lock()
+	defer s.statsMutex.Unlock()
+
+	s.stats.LyricsDownloaded++
 }
 
-// incrementLyricsSkipped atomically increments the skipped lyrics counter.
+// incrementLyricsSkipped safely increments the skipped lyrics counter.
 func (s *ServiceImpl) incrementLyricsSkipped() {
-	atomic.AddInt64(&s.stats.LyricsSkipped, 1)
+	s.statsMutex.Lock()
+	defer s.statsMutex.Unlock()
+
+	s.stats.LyricsSkipped++
 }
 
-// incrementCoverDownloaded atomically increments the downloaded covers counter.
+// incrementCoverDownloaded safely increments the downloaded covers counter.
 func (s *ServiceImpl) incrementCoverDownloaded() {
-	atomic.AddInt64(&s.stats.CoversDownloaded, 1)
+	s.statsMutex.Lock()
+	defer s.statsMutex.Unlock()
+
+	s.stats.CoversDownloaded++
 }
 
-// incrementCoverSkipped atomically increments the skipped covers counter.
+// incrementCoverSkipped safely increments the skipped covers counter.
 func (s *ServiceImpl) incrementCoverSkipped() {
-	atomic.AddInt64(&s.stats.CoversSkipped, 1)
+	s.statsMutex.Lock()
+	defer s.statsMutex.Unlock()
+
+	s.stats.CoversSkipped++
 }
 
-// incrementDescriptionSaved atomically increments the saved descriptions counter.
+// incrementDescriptionSaved safely increments the saved descriptions counter.
 func (s *ServiceImpl) incrementDescriptionSaved() {
-	atomic.AddInt64(&s.stats.DescriptionsSaved, 1)
+	s.statsMutex.Lock()
+	defer s.statsMutex.Unlock()
+
+	s.stats.DescriptionsSaved++
 }
 
-// incrementDescriptionSkipped atomically increments the skipped descriptions counter.
+// incrementDescriptionSkipped safely increments the skipped descriptions counter.
 func (s *ServiceImpl) incrementDescriptionSkipped() {
-	atomic.AddInt64(&s.stats.DescriptionsSkipped, 1)
+	s.statsMutex.Lock()
+	defer s.statsMutex.Unlock()
+
+	s.stats.DescriptionsSkipped++
 }
 
 // groupErrors separates track errors from collection errors for better display organization.
@@ -135,12 +154,18 @@ func (s *ServiceImpl) PrintDownloadSummary(ctx context.Context) {
 	wasInterrupted := ctx.Err() != nil
 
 	s.printSummaryHeader(ctx, wasInterrupted, stats.IsDryRun)
-	s.printTrackStatistics(ctx, stats)
+
+	if stats.IsDryRun {
+		s.printTrackStatisticsDryRun(ctx, stats)
+	} else {
+		s.printTrackStatisticsRegular(ctx, stats)
+	}
+
 	s.printDataTransferStatistics(ctx, stats)
-	s.printLyricsStatistics(ctx, stats)
-	s.printCoverArtStatistics(ctx, stats)
-	s.printDescriptionStatistics(ctx, stats)
-	s.printSummaryFooter(ctx)
+	s.printAssetStatistics(ctx, "Lyrics:           ", stats.LyricsDownloaded, stats.LyricsSkipped, true)
+	s.printAssetStatistics(ctx, "Cover Art:        ", stats.CoversDownloaded, stats.CoversSkipped, true)
+	s.printAssetStatistics(ctx, "Description:      ", stats.DescriptionsSaved, stats.DescriptionsSkipped, false)
+	logger.Info(ctx, summarySeparator)
 	s.printErrorDetails(ctx, stats)
 	s.printFinalMessage(ctx, wasInterrupted, stats)
 	s.printDryRunSuggestion(ctx, stats)
@@ -148,31 +173,19 @@ func (s *ServiceImpl) PrintDownloadSummary(ctx context.Context) {
 
 // printSummaryHeader prints the summary header.
 func (s *ServiceImpl) printSummaryHeader(ctx context.Context, wasInterrupted, isDryRun bool) {
-	logger.Info(ctx, "")
+	title := "                     DOWNLOAD SUMMARY"
 
 	switch {
 	case isDryRun:
-		logger.Info(ctx, "═══════════════════════════════════════════════════════════════")
-		logger.Info(ctx, "                  DRY-RUN PREVIEW")
-		logger.Info(ctx, "═══════════════════════════════════════════════════════════════")
+		title = "                  DRY-RUN PREVIEW"
 	case wasInterrupted:
-		logger.Info(ctx, "═══════════════════════════════════════════════════════════════")
-		logger.Info(ctx, "           DOWNLOAD SUMMARY (Interrupted)")
-		logger.Info(ctx, "═══════════════════════════════════════════════════════════════")
-	default:
-		logger.Info(ctx, "═══════════════════════════════════════════════════════════════")
-		logger.Info(ctx, "                     DOWNLOAD SUMMARY")
-		logger.Info(ctx, "═══════════════════════════════════════════════════════════════")
+		title = "           DOWNLOAD SUMMARY (Interrupted)"
 	}
-}
 
-// printTrackStatistics prints track download statistics.
-func (s *ServiceImpl) printTrackStatistics(ctx context.Context, stats *DownloadStatistics) {
-	if stats.IsDryRun {
-		s.printTrackStatisticsDryRun(ctx, stats)
-	} else {
-		s.printTrackStatisticsRegular(ctx, stats)
-	}
+	logger.Info(ctx, "")
+	logger.Info(ctx, summarySeparator)
+	logger.Info(ctx, title)
+	logger.Info(ctx, summarySeparator)
 }
 
 // printTrackStatisticsDryRun prints track statistics for dry-run preview mode.
@@ -265,65 +278,32 @@ func (s *ServiceImpl) printDataTransferStatistics(ctx context.Context, stats *Do
 	}
 }
 
-// printLyricsStatistics prints lyrics download statistics.
-func (s *ServiceImpl) printLyricsStatistics(ctx context.Context, stats *DownloadStatistics) {
-	totalLyrics := stats.LyricsDownloaded + stats.LyricsSkipped
-	if totalLyrics == 0 {
+// printAssetStatistics logs downloaded and skipped counts for a single asset type.
+func (s *ServiceImpl) printAssetStatistics(
+	ctx context.Context,
+	title string,
+	downloaded int64,
+	skipped int64,
+	leadingBlankLine bool,
+) {
+	total := downloaded + skipped
+	if total == 0 {
 		return
 	}
 
-	logger.Info(ctx, "")
-	logger.Infof(ctx, "Lyrics:           %d total", totalLyrics)
-
-	if stats.LyricsDownloaded > 0 {
-		logger.Infof(ctx, "  Downloaded:     %d", stats.LyricsDownloaded)
+	if leadingBlankLine {
+		logger.Info(ctx, "")
 	}
 
-	if stats.LyricsSkipped > 0 {
-		logger.Infof(ctx, "  Skipped:        %d", stats.LyricsSkipped)
-	}
-}
+	logger.Infof(ctx, "%s%d total", title, total)
 
-// printCoverArtStatistics prints cover art download statistics.
-func (s *ServiceImpl) printCoverArtStatistics(ctx context.Context, stats *DownloadStatistics) {
-	totalCovers := stats.CoversDownloaded + stats.CoversSkipped
-	if totalCovers == 0 {
-		return
+	if downloaded > 0 {
+		logger.Infof(ctx, "  Downloaded:     %d", downloaded)
 	}
 
-	logger.Info(ctx, "")
-	logger.Infof(ctx, "Cover Art:        %d total", totalCovers)
-
-	if stats.CoversDownloaded > 0 {
-		logger.Infof(ctx, "  Downloaded:     %d", stats.CoversDownloaded)
+	if skipped > 0 {
+		logger.Infof(ctx, "  Skipped:        %d", skipped)
 	}
-
-	if stats.CoversSkipped > 0 {
-		logger.Infof(ctx, "  Skipped:        %d", stats.CoversSkipped)
-	}
-}
-
-// printDescriptionStatistics prints description download statistics.
-func (s *ServiceImpl) printDescriptionStatistics(ctx context.Context, stats *DownloadStatistics) {
-	totalDescriptions := stats.DescriptionsSaved + stats.DescriptionsSkipped
-	if totalDescriptions == 0 {
-		return
-	}
-
-	logger.Infof(ctx, "Description:      %d total", totalDescriptions)
-
-	if stats.DescriptionsSaved > 0 {
-		logger.Infof(ctx, "  Downloaded:     %d", stats.DescriptionsSaved)
-	}
-
-	if stats.DescriptionsSkipped > 0 {
-		logger.Infof(ctx, "  Skipped:        %d", stats.DescriptionsSkipped)
-	}
-}
-
-// printSummaryFooter prints the summary footer separator.
-func (s *ServiceImpl) printSummaryFooter(ctx context.Context) {
-	logger.Info(ctx, "═══════════════════════════════════════════════════════════════")
 }
 
 // printErrorDetails prints detailed error information if any errors occurred.
@@ -342,7 +322,7 @@ func (s *ServiceImpl) printErrorDetails(ctx context.Context, stats *DownloadStat
 	s.printTrackErrors(ctx, trackErrors)
 
 	logger.Info(ctx, "")
-	logger.Info(ctx, "═══════════════════════════════════════════════════════════════")
+	logger.Info(ctx, summarySeparator)
 
 	// Print retry command for failed items.
 	s.printRetryCommand(ctx, stats.Errors)

@@ -18,14 +18,17 @@ import (
 
 // mockZvukClient is a mock implementation of the Client interface for testing.
 type mockZvukClient struct {
+	// server is the in-memory HTTP test server backing API calls.
 	server *httptest.Server
 }
 
+// newMockZvukClient creates a mock client backed by a local test HTTP server.
 func newMockZvukClient() *mockZvukClient {
 	server := httptest.NewServer(http.HandlerFunc(mockHandler))
 	return &mockZvukClient{server: server}
 }
 
+// DownloadFromURL downloads content from the given URL via the test server.
 func (m *mockZvukClient) DownloadFromURL(_ context.Context, url string) (io.ReadCloser, error) {
 	resp, err := http.Get(url)
 	if err != nil {
@@ -35,6 +38,7 @@ func (m *mockZvukClient) DownloadFromURL(_ context.Context, url string) (io.Read
 	return resp.Body, nil
 }
 
+// FetchTrack fetches a track stream from the given URL via the test server.
 func (m *mockZvukClient) FetchTrack(_ context.Context, trackURL string) (io.ReadCloser, int64, error) {
 	resp, err := http.Get(trackURL)
 	if err != nil {
@@ -44,6 +48,7 @@ func (m *mockZvukClient) FetchTrack(_ context.Context, trackURL string) (io.Read
 	return resp.Body, resp.ContentLength, nil
 }
 
+// GetAlbumsMetadata returns empty album metadata for testing.
 func (m *mockZvukClient) GetAlbumsMetadata(
 	_ context.Context,
 	_ []string,
@@ -55,10 +60,12 @@ func (m *mockZvukClient) GetAlbumsMetadata(
 	}, nil
 }
 
+// GetAlbumURL returns a stub album URL for testing.
 func (m *mockZvukClient) GetAlbumURL(_ context.Context, _ string) (string, error) {
 	return "https://example.com/album", nil
 }
 
+// GetArtistReleaseIDs returns stub release IDs for testing.
 func (m *mockZvukClient) GetArtistReleaseIDs(
 	_ context.Context,
 	_ string,
@@ -68,16 +75,19 @@ func (m *mockZvukClient) GetArtistReleaseIDs(
 	return []string{"release1", "release2"}, nil
 }
 
+// GetBaseURL returns the test server base URL.
 func (m *mockZvukClient) GetBaseURL() string {
 	return m.server.URL
 }
 
+// GetLabelsMetadata returns empty label metadata for testing.
 func (m *mockZvukClient) GetLabelsMetadata(_ context.Context, _ []string) (*GetLabelsMetadataResponse, error) {
 	return &GetLabelsMetadataResponse{
 		Labels: make(map[string]*Label),
 	}, nil
 }
 
+// GetPlaylistsMetadata returns empty playlist metadata for testing.
 func (m *mockZvukClient) GetPlaylistsMetadata(
 	_ context.Context,
 	_ []string,
@@ -87,6 +97,7 @@ func (m *mockZvukClient) GetPlaylistsMetadata(
 	}, nil
 }
 
+// GetStreamMetadata returns stub stream metadata for testing.
 func (m *mockZvukClient) GetStreamMetadata(_ context.Context, _ string) (*GetStreamMetadataResponse, error) {
 	return &GetStreamMetadataResponse{
 		Result: &StreamMetadata{
@@ -95,6 +106,7 @@ func (m *mockZvukClient) GetStreamMetadata(_ context.Context, _ string) (*GetStr
 	}, nil
 }
 
+// GetTrackLyrics returns stub lyrics for testing.
 func (m *mockZvukClient) GetTrackLyrics(_ context.Context, _ string) (*GetLyricsResponse, error) {
 	return &GetLyricsResponse{
 		Result: &Lyrics{
@@ -104,6 +116,7 @@ func (m *mockZvukClient) GetTrackLyrics(_ context.Context, _ string) (*GetLyrics
 	}, nil
 }
 
+// GetTracksMetadata returns empty track metadata for testing.
 func (m *mockZvukClient) GetTracksMetadata(_ context.Context, _ []string) (*GetMetadataResponse, error) {
 	return &GetMetadataResponse{
 		Result: &Metadata{
@@ -112,6 +125,7 @@ func (m *mockZvukClient) GetTracksMetadata(_ context.Context, _ []string) (*GetM
 	}, nil
 }
 
+// GetUserProfile returns a stub user profile for testing.
 func (m *mockZvukClient) GetUserProfile(_ context.Context) (*GetUserProfileResponse, error) {
 	return &GetUserProfileResponse{
 		Result: &UserProfile{
@@ -123,6 +137,7 @@ func (m *mockZvukClient) GetUserProfile(_ context.Context) (*GetUserProfileRespo
 	}, nil
 }
 
+// Close shuts down the underlying test HTTP server.
 func (m *mockZvukClient) Close() {
 	if m.server != nil {
 		m.server.Close()
