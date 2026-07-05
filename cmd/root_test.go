@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -12,11 +13,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/oshokin/zvuk-grabber/internal/config"
-	"github.com/oshokin/zvuk-grabber/internal/constants"
+	"github.com/oshokin/zvuk-grabber/internal/files"
 )
 
+// testBaseConfigContent is the baseline YAML fixture used by root command tests.
 const testBaseConfigContent = `
-auth_token: "config_token"
+zvuk_auth_token: "config_token"
 quality: 1
 min_quality: 0
 output_path: "/config/output"
@@ -37,6 +39,16 @@ min_retry_pause: "1s"
 max_retry_pause: "3s"
 max_concurrent_downloads: 1
 `
+
+// testConfigWithReplacements returns the baseline test config with selected YAML substitutions.
+func testConfigWithReplacements(replacements ...string) string {
+	content := testBaseConfigContent
+	for i := 0; i < len(replacements); i += 2 {
+		content = strings.Replace(content, replacements[i], replacements[i+1], 1)
+	}
+
+	return content
+}
 
 // TestFlagOverrides tests that command-line flags correctly override configuration file values.
 //
@@ -263,7 +275,7 @@ func TestFlagOverrides(t *testing.T) {
 			err := os.WriteFile(
 				configPath,
 				[]byte(testBaseConfigContent),
-				constants.DefaultFilePermissions,
+				files.DefaultFilePermissions,
 			) //nolint:gosec // It's a test file.
 			require.NoError(t, err)
 
@@ -316,29 +328,6 @@ func TestFlagOverrides(t *testing.T) {
 //
 //nolint:nolintlint,tparallel // Cannot run in parallel due to Viper global state.
 func TestFlagOverrides_AllQualityValues(t *testing.T) {
-	testBaseConfigContent := `
-auth_token: "config_token"
-quality: 1
-min_quality: 0
-output_path: "/config/output"
-download_lyrics: false
-download_speed_limit: "500KB"
-log_level: "info"
-track_filename_template: "{{.trackNumberPad}} - {{.trackTitle}}"
-album_folder_template: "{{.releaseYear}} - {{.albumArtist}} - {{.albumTitle}}"
-playlist_filename_template: "{{.trackNumberPad}} - {{.trackArtist}} - {{.trackTitle}}"
-replace_tracks: false
-replace_covers: false
-replace_lyrics: false
-create_folder_for_singles: false
-max_folder_name_length: 100
-retry_attempts_count: 3
-max_download_pause: "5s"
-min_retry_pause: "1s"
-max_retry_pause: "3s"
-max_concurrent_downloads: 1
-`
-
 	qualityTests := []struct {
 		name           string
 		qualityValue   int
@@ -358,7 +347,7 @@ max_concurrent_downloads: 1
 			err := os.WriteFile(
 				configPath,
 				[]byte(testBaseConfigContent),
-				constants.DefaultFilePermissions,
+				files.DefaultFilePermissions,
 			) //nolint:gosec // It's a test file.
 			require.NoError(t, err)
 
@@ -388,28 +377,7 @@ max_concurrent_downloads: 1
 //
 //nolint:nolintlint,tparallel // Cannot run in parallel due to Viper global state.
 func TestFlagOverrides_MinQualityValues(t *testing.T) {
-	testConfigContent := `
-auth_token: "config_token"
-quality: 3
-min_quality: 0
-output_path: "/config/output"
-download_lyrics: false
-download_speed_limit: "500KB"
-log_level: "info"
-track_filename_template: "{{.trackNumberPad}} - {{.trackTitle}}"
-album_folder_template: "{{.releaseYear}} - {{.albumArtist}} - {{.albumTitle}}"
-playlist_filename_template: "{{.trackNumberPad}} - {{.trackArtist}} - {{.trackTitle}}"
-replace_tracks: false
-replace_covers: false
-replace_lyrics: false
-create_folder_for_singles: false
-max_folder_name_length: 100
-retry_attempts_count: 3
-max_download_pause: "5s"
-min_retry_pause: "1s"
-max_retry_pause: "3s"
-max_concurrent_downloads: 1
-`
+	testConfigContent := testConfigWithReplacements("quality: 1", "quality: 3")
 
 	minQualityTests := []struct {
 		name               string
@@ -431,7 +399,7 @@ max_concurrent_downloads: 1
 			err := os.WriteFile(
 				configPath,
 				[]byte(testConfigContent),
-				constants.DefaultFilePermissions,
+				files.DefaultFilePermissions,
 			) //nolint:gosec // It's a test file.
 			require.NoError(t, err)
 
@@ -503,7 +471,7 @@ func TestFlagOverrides_InvalidValues(t *testing.T) {
 			err := os.WriteFile(
 				configPath,
 				[]byte(testBaseConfigContent),
-				constants.DefaultFilePermissions,
+				files.DefaultFilePermissions,
 			) //nolint:gosec // It's a test file.
 			require.NoError(t, err)
 
@@ -538,33 +506,16 @@ func TestBindFlagsToConfig_UnchangedFlags(t *testing.T) {
 	configPath := filepath.Join(tempDir, "test-config.yaml")
 
 	// Use specific config content for this test.
-	configContent := `
-auth_token: "config_token"
-quality: 2
-min_quality: 0
-output_path: "/config/output"
-download_lyrics: true
-download_speed_limit: "1MB"
-log_level: "info"
-track_filename_template: "{{.trackNumberPad}} - {{.trackTitle}}"
-album_folder_template: "{{.releaseYear}} - {{.albumArtist}} - {{.albumTitle}}"
-playlist_filename_template: "{{.trackNumberPad}} - {{.trackArtist}} - {{.trackTitle}}"
-replace_tracks: false
-replace_covers: false
-replace_lyrics: false
-create_folder_for_singles: false
-max_folder_name_length: 100
-retry_attempts_count: 3
-max_download_pause: "5s"
-min_retry_pause: "1s"
-max_retry_pause: "3s"
-max_concurrent_downloads: 1
-`
+	configContent := testConfigWithReplacements(
+		"quality: 1", "quality: 2",
+		"download_lyrics: false", "download_lyrics: true",
+		`download_speed_limit: "500KB"`, `download_speed_limit: "1MB"`,
+	)
 
 	err := os.WriteFile(
 		configPath,
 		[]byte(configContent),
-		constants.DefaultFilePermissions,
+		files.DefaultFilePermissions,
 	) //nolint:gosec // It's a test file.
 	require.NoError(t, err)
 
@@ -595,7 +546,7 @@ func TestBindFlagsToConfig_EmptyFlagSet(t *testing.T) {
 	t.Parallel()
 
 	cfg := &config.Config{
-		AuthToken:              "test_token",
+		ZvukAuthToken:          "test_token",
 		Quality:                2,
 		LogLevel:               "info",
 		RetryAttemptsCount:     3,

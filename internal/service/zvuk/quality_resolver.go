@@ -8,6 +8,7 @@ import (
 
 	"github.com/oshokin/zvuk-grabber/internal/client/zvuk"
 	"github.com/oshokin/zvuk-grabber/internal/logger"
+	"github.com/oshokin/zvuk-grabber/internal/media"
 )
 
 // QualityResolutionResult contains the result of quality resolution.
@@ -72,7 +73,7 @@ func (r *trackQualityResolver) ResolveQuality(
 	finalQuality := desiredQuality
 	if highestQuality < desiredQuality {
 		finalQuality = highestQuality
-		logger.Infof(ctx, "Track is only available in quality: %s", highestQuality)
+		logger.Infof(ctx, "Track is only available in quality: %s", highestQuality.Description())
 	}
 
 	// Check minimum quality threshold.
@@ -81,7 +82,7 @@ func (r *trackQualityResolver) ResolveQuality(
 	}
 
 	// Fetch stream metadata from API.
-	streamMetadata, err := r.zvukClient.GetStreamMetadata(ctx, trackID, finalQuality.AsStreamURLParameterValue())
+	streamMetadata, err := r.zvukClient.GetStreamMetadata(ctx, trackID, asZvukStreamURLParameterValue(finalQuality))
 	if err != nil {
 		return nil, fmt.Errorf("failed to get stream metadata: %w", err)
 	}
@@ -123,13 +124,18 @@ func (r *audiobookQualityResolver) ResolveQuality(
 	finalQuality := desiredQuality
 	if desiredQuality > highestAvailable {
 		finalQuality = highestAvailable
-		logger.Infof(ctx, "Chapter is only available in quality: %s", highestAvailable)
+		logger.Infof(ctx, "Chapter is only available in quality: %s", highestAvailable.Description())
 	}
 
 	// Select stream URL with fallback logic.
 	streamURL := selectChapterStreamURL(streamMetadata, finalQuality)
 	if streamURL == "" {
-		return nil, fmt.Errorf("%w: chapter '%s' at quality %s", ErrChapterNoStreamURL, trackID, finalQuality)
+		return nil, fmt.Errorf(
+			"%w: chapter '%s' at quality %s",
+			ErrChapterNoStreamURL,
+			trackID,
+			finalQuality.Description(),
+		)
 	}
 
 	return qualityResult(finalQuality, streamURL), nil
@@ -146,11 +152,22 @@ func skipBelowMinimumQuality(
 		return nil
 	}
 
-	logger.Warnf(ctx, "%s quality %s is below minimum threshold %s, skipping", subject, quality, minimum)
+	logger.Warnf(
+		ctx,
+		"%s quality %s is below minimum threshold %s, skipping",
+		subject,
+		quality.Description(),
+		minimum.Description(),
+	)
 
 	return &QualityResolutionResult{
 		ShouldSkip: true,
-		SkipReason: fmt.Errorf("%w: %s below %s", ErrQualityBelowThreshold, quality, minimum),
+		SkipReason: fmt.Errorf(
+			"%w: %s below %s",
+			ErrQualityBelowThreshold,
+			quality.Description(),
+			minimum.Description(),
+		),
 	}
 }
 
@@ -252,4 +269,18 @@ func (s *ServiceImpl) resolveTrackQuality(
 	}
 
 	return result, nil
+}
+
+// asZvukStreamURLParameterValue maps media.Quality to the Zvuk stream API quality string.
+func asZvukStreamURLParameterValue(quality media.Quality) string {
+	switch quality {
+	case media.QualityMP3Mid:
+		return media.QualityMP3MidString
+	case media.QualityMP3High:
+		return media.QualityMP3HighString
+	case media.QualityFLAC:
+		return media.QualityFLACString
+	default:
+		return media.QualityMP3MidString
+	}
 }

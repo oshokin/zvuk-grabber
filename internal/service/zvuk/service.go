@@ -12,6 +12,7 @@ import (
 
 	"github.com/oshokin/zvuk-grabber/internal/client/zvuk"
 	"github.com/oshokin/zvuk-grabber/internal/config"
+	"github.com/oshokin/zvuk-grabber/internal/files"
 	"github.com/oshokin/zvuk-grabber/internal/logger"
 )
 
@@ -53,10 +54,8 @@ type ServiceImpl struct {
 	stats *DownloadStatistics
 	// statsMutex protects concurrent access to statistics.
 	statsMutex sync.Mutex
-	// filePathLocks serializes writes to the same destination path.
-	filePathLocks map[string]*pathLock
-	// filePathLocksMutex protects concurrent access to filePathLocks.
-	filePathLocksMutex sync.Mutex
+	// pathLocks serializes writes to the same destination path.
+	pathLocks *files.PathLocks
 }
 
 // NewService creates a download service instance with dependency-injected components.
@@ -81,10 +80,17 @@ func NewService(
 		podcastHandler:        NewPodcastCollectionHandler(templateManager),
 		validator:             NewTrackValidator(cfg),
 		stats:                 new(DownloadStatistics),
-		filePathLocks:         make(map[string]*pathLock),
+		pathLocks:             files.NewPathLocks(),
 	}
 
 	return s
+}
+
+// outputPath returns the effective output folder for Zvuk downloads.
+//
+//nolint:funcorder // Keep output path helper close to constructor and config wiring.
+func (s *ServiceImpl) outputPath() string {
+	return s.cfg.ResolveOutputPath(config.ProviderZvuk)
 }
 
 // DownloadURLs orchestrates the full download pipeline, from URL processing to file creation.
@@ -96,14 +102,15 @@ func (s *ServiceImpl) DownloadURLs(ctx context.Context, urls []string) {
 	s.statsMutex.Unlock()
 
 	// Ensure the output directory exists (skip in dry-run mode).
+	outputPath := s.outputPath()
 	if !s.cfg.DryRun {
-		err := os.MkdirAll(s.cfg.OutputPath, defaultFolderPermissions)
+		err := os.MkdirAll(outputPath, defaultFolderPermissions)
 		if err != nil {
 			logger.Errorf(ctx, "Failed to create output path: %v", err)
 			return
 		}
 	} else {
-		logger.Infof(ctx, "[DRY-RUN] Would create output directory: %s", s.cfg.OutputPath)
+		logger.Infof(ctx, "[DRY-RUN] Would create output directory: %s", outputPath)
 	}
 
 	// Verify the user's subscription status before proceeding.
@@ -116,7 +123,7 @@ func (s *ServiceImpl) DownloadURLs(ctx context.Context, urls []string) {
 		return
 	}
 
-	logger.Info(ctx, "Starting download process")
+	logger.Info(ctx, "Starting Zvuk download process")
 
 	// Process albums and playlists first to maintain organizational structure.
 	standaloneItems := s.fetchAndDeduplicateStandaloneItems(ctx, downloadItemsByCategories)
@@ -129,7 +136,7 @@ func (s *ServiceImpl) DownloadURLs(ctx context.Context, urls []string) {
 		s.downloadTrackItems(ctx, downloadItemsByCategories.Tracks)
 	}
 
-	logger.Info(ctx, "Download process completed")
+	logger.Info(ctx, "Zvuk download process completed")
 
 	// Record end time for statistics.
 	s.statsMutex.Lock()

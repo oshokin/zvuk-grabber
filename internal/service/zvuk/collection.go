@@ -60,6 +60,7 @@ type registerCollectionCoreInput struct {
 
 // collectionHandler defines type-specific collection metadata extraction.
 type collectionHandler[T any] interface {
+	// folderHandler provides folder naming behavior for collections.
 	folderHandler
 	// GetCategory returns the download category for this handler.
 	GetCategory() DownloadCategory
@@ -277,7 +278,7 @@ func registerCollectionCore(
 	}
 
 	// Create the folder path for the item.
-	itemPath := filepath.Join(s.cfg.OutputPath, in.ItemFolderName)
+	itemPath := filepath.Join(s.outputPath(), in.ItemFolderName)
 
 	// Create the folder for the item unless in dry-run mode.
 	if !s.cfg.DryRun {

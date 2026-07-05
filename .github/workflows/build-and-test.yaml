@@ -43,6 +43,17 @@ jobs:
         with:
           # Fetch all commits and branches for complete history.
           fetch-depth: 0
+      - name: Ensure local config is absent
+        run: |
+          if [ -f .zvuk-grabber.yaml ]; then
+            echo "Error: .zvuk-grabber.yaml must not exist in repository root."
+            echo "Use .zvuk-grabber.example.yaml instead."
+            exit 1
+          fi
+          if git ls-files --error-unmatch .zvuk-grabber.yaml >/dev/null 2>&1; then
+            echo "Error: .zvuk-grabber.yaml must not be committed. Use .zvuk-grabber.example.yaml."
+            exit 1
+          fi
       # Run golangci-lint to check code quality, style, and potential bugs.
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v9

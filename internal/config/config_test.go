@@ -6,11 +6,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zapcore"
 
-	"github.com/oshokin/zvuk-grabber/internal/constants"
+	"github.com/oshokin/zvuk-grabber/internal/files"
 )
 
 // TestConfigStruct tests the Config struct fields.
@@ -18,9 +19,10 @@ func TestConfigStruct(t *testing.T) {
 	t.Parallel()
 
 	cfg := &Config{
-		AuthToken:                "test_token",
+		ZvukAuthToken:            "test_token",
 		Quality:                  2,
 		OutputPath:               "/tmp/downloads",
+		GroupByProvider:          true,
 		TrackFilenameTemplate:    "{{.trackNumberPad}} - {{.trackTitle}}",
 		AlbumFolderTemplate:      "{{.releaseYear}} - {{.albumArtist}} - {{.albumTitle}}",
 		PlaylistFilenameTemplate: "{{.trackNumberPad}} - {{.trackArtist}} - {{.trackTitle}}",
@@ -40,9 +42,10 @@ func TestConfigStruct(t *testing.T) {
 		MaxConcurrentDownloads:   1,
 	}
 
-	assert.Equal(t, "test_token", cfg.AuthToken)
+	assert.Equal(t, "test_token", cfg.ZvukAuthToken)
 	assert.Equal(t, uint8(2), cfg.Quality)
 	assert.Equal(t, "/tmp/downloads", cfg.OutputPath)
+	assert.True(t, cfg.GroupByProvider)
 	assert.Equal(t, "{{.trackNumberPad}} - {{.trackTitle}}", cfg.TrackFilenameTemplate)
 	assert.Equal(t, "{{.releaseYear}} - {{.albumArtist}} - {{.albumTitle}}", cfg.AlbumFolderTemplate)
 	assert.Equal(t, "{{.trackNumberPad}} - {{.trackArtist}} - {{.trackTitle}}", cfg.PlaylistFilenameTemplate)
@@ -67,6 +70,8 @@ func TestConstants(t *testing.T) {
 	t.Parallel()
 
 	assert.Equal(t, 1024*1024, DefaultMaxLogLength)
+	assert.Equal(t, "zvuk-grabber-downloads", DefaultOutputPath)
+	assert.True(t, DefaultGroupByProvider)
 	assert.Equal(t, 1, minQuality)
 	assert.Equal(t, 3, maxQuality)
 }
@@ -88,7 +93,7 @@ func TestLoadConfig(t *testing.T) {
 			name:           "valid config file",
 			configFilename: "valid_config.yaml",
 			configContent: `
-auth_token: "test_token"
+zvuk_auth_token: "test_token"
 quality: 2
 min_quality: 0
 output_path: "/tmp/downloads"
@@ -113,8 +118,7 @@ max_retry_pause: "3s"
 		{
 			name:           "non-existent file",
 			configFilename: "non_existent.yaml",
-			expectError:    true,
-			expectedError:  "failed to read config from file",
+			expectError:    false,
 		},
 		{
 			name:           "invalid yaml",
@@ -128,8 +132,7 @@ invalid: yaml: content: [unclosed
 		{
 			name:           "empty filename uses default",
 			configFilename: "",
-			expectError:    true,
-			expectedError:  "failed to read config from file",
+			expectError:    false,
 		},
 	}
 
@@ -144,7 +147,7 @@ invalid: yaml: content: [unclosed
 			switch {
 			case tt.configContent != "":
 				configPath = filepath.Join(tempDir, tt.configFilename)
-				err := os.WriteFile(configPath, []byte(tt.configContent), constants.DefaultFilePermissions)
+				err := os.WriteFile(configPath, []byte(tt.configContent), files.DefaultFilePermissions)
 
 				require.NoError(t, err)
 			case tt.configFilename != "":
@@ -163,8 +166,16 @@ invalid: yaml: content: [unclosed
 			} else {
 				require.NoError(t, err)
 				assert.NotNil(t, cfg)
-				assert.Equal(t, "test_token", cfg.AuthToken)
-				assert.Equal(t, uint8(2), cfg.Quality)
+
+				if tt.configContent != "" {
+					assert.Equal(t, "test_token", cfg.ZvukAuthToken)
+					assert.Equal(t, uint8(2), cfg.Quality)
+					assert.True(t, cfg.GroupByProvider)
+				} else {
+					assert.Equal(t, uint8(DefaultQuality), cfg.Quality)
+					assert.Equal(t, DefaultOutputPath, cfg.OutputPath)
+					assert.Equal(t, DefaultLogLevel, cfg.LogLevel)
+				}
 			}
 		})
 	}
@@ -181,175 +192,85 @@ func TestValidateConfig(t *testing.T) {
 		errorMsg    string
 	}{
 		{
-			name: "valid config",
-			config: &Config{
-				AuthToken:              "valid_token",
-				Quality:                2,
-				DownloadSpeedLimit:     "1MB",
-				LogLevel:               "info",
-				RetryAttemptsCount:     3,
-				MaxDownloadPause:       "5s",
-				MinRetryPause:          "1s",
-				MaxRetryPause:          "3s",
-				MaxConcurrentDownloads: 1,
-			},
+			name:        "valid config",
+			config:      validationConfig(),
 			expectError: false,
 		},
 		{
-			name: "empty auth token",
-			config: &Config{
-				AuthToken:              "",
-				Quality:                2,
-				DownloadSpeedLimit:     "1MB",
-				LogLevel:               "info",
-				RetryAttemptsCount:     3,
-				MaxDownloadPause:       "5s",
-				MinRetryPause:          "1s",
-				MaxRetryPause:          "3s",
-				MaxConcurrentDownloads: 1,
-			},
-			expectError: true,
-			errorMsg:    "authentication token cannot be empty",
+			name: "empty provider tokens are accepted at global config level",
+			config: validationConfig(func(cfg *Config) {
+				cfg.ZvukAuthToken = ""
+			}),
+			expectError: false,
 		},
 		{
-			name: "whitespace auth token",
-			config: &Config{
-				AuthToken:              "   ",
-				Quality:                2,
-				DownloadSpeedLimit:     "1MB",
-				LogLevel:               "info",
-				RetryAttemptsCount:     3,
-				MaxDownloadPause:       "5s",
-				MinRetryPause:          "1s",
-				MaxRetryPause:          "3s",
-				MaxConcurrentDownloads: 1,
-			},
-			expectError: true,
-			errorMsg:    "authentication token cannot be empty",
+			name: "whitespace provider tokens are accepted at global config level",
+			config: validationConfig(func(cfg *Config) {
+				cfg.ZvukAuthToken = "   "
+			}),
+			expectError: false,
 		},
 		{
 			name: "invalid quality - too low",
-			config: &Config{
-				AuthToken:              "valid_token",
-				Quality:                0,
-				DownloadSpeedLimit:     "1MB",
-				LogLevel:               "info",
-				RetryAttemptsCount:     3,
-				MaxDownloadPause:       "5s",
-				MinRetryPause:          "1s",
-				MaxRetryPause:          "3s",
-				MaxConcurrentDownloads: 1,
-			},
+			config: validationConfig(func(cfg *Config) {
+				cfg.Quality = 0
+			}),
 			expectError: true,
 			errorMsg:    "invalid quality: must be between",
 		},
 		{
 			name: "invalid quality - too high",
-			config: &Config{
-				AuthToken:              "valid_token",
-				Quality:                4,
-				DownloadSpeedLimit:     "1MB",
-				LogLevel:               "info",
-				RetryAttemptsCount:     3,
-				MaxDownloadPause:       "5s",
-				MinRetryPause:          "1s",
-				MaxRetryPause:          "3s",
-				MaxConcurrentDownloads: 1,
-			},
+			config: validationConfig(func(cfg *Config) {
+				cfg.Quality = 4
+			}),
 			expectError: true,
 			errorMsg:    "invalid quality: must be between",
 		},
 		{
 			name: "invalid log level",
-			config: &Config{
-				AuthToken:          "valid_token",
-				Quality:            2,
-				DownloadSpeedLimit: "1MB",
-				LogLevel:           "invalid",
-				RetryAttemptsCount: 3,
-				MaxDownloadPause:   "5s",
-				MinRetryPause:      "1s",
-				MaxRetryPause:      "3s",
-			},
+			config: validationConfig(func(cfg *Config) {
+				cfg.LogLevel = "invalid"
+			}),
 			expectError: true,
 			errorMsg:    "unknown log level:",
 		},
 		{
 			name: "invalid retry attempts count",
-			config: &Config{
-				AuthToken:          "valid_token",
-				Quality:            2,
-				DownloadSpeedLimit: "1MB",
-				LogLevel:           "info",
-				RetryAttemptsCount: 0,
-				MaxDownloadPause:   "5s",
-				MinRetryPause:      "1s",
-				MaxRetryPause:      "3s",
-			},
+			config: validationConfig(func(cfg *Config) {
+				cfg.RetryAttemptsCount = 0
+			}),
 			expectError: true,
 			errorMsg:    "retry attempts count must a positive integer",
 		},
 		{
 			name: "invalid max download pause",
-			config: &Config{
-				AuthToken:              "valid_token",
-				Quality:                2,
-				DownloadSpeedLimit:     "1MB",
-				LogLevel:               "info",
-				RetryAttemptsCount:     3,
-				MaxDownloadPause:       "invalid",
-				MinRetryPause:          "1s",
-				MaxRetryPause:          "3s",
-				MaxConcurrentDownloads: 1,
-			},
+			config: validationConfig(func(cfg *Config) {
+				cfg.MaxDownloadPause = "invalid"
+			}),
 			expectError: true,
 			errorMsg:    "failed to parse max download pause:",
 		},
 		{
 			name: "invalid min retry pause",
-			config: &Config{
-				AuthToken:              "valid_token",
-				Quality:                2,
-				DownloadSpeedLimit:     "1MB",
-				LogLevel:               "info",
-				RetryAttemptsCount:     3,
-				MaxDownloadPause:       "5s",
-				MinRetryPause:          "invalid",
-				MaxRetryPause:          "3s",
-				MaxConcurrentDownloads: 1,
-			},
+			config: validationConfig(func(cfg *Config) {
+				cfg.MinRetryPause = "invalid"
+			}),
 			expectError: true,
 			errorMsg:    "failed to parse min retry pause:",
 		},
 		{
 			name: "invalid max retry pause",
-			config: &Config{
-				AuthToken:              "valid_token",
-				Quality:                2,
-				DownloadSpeedLimit:     "1MB",
-				LogLevel:               "info",
-				RetryAttemptsCount:     3,
-				MaxDownloadPause:       "5s",
-				MinRetryPause:          "1s",
-				MaxRetryPause:          "invalid",
-				MaxConcurrentDownloads: 1,
-			},
+			config: validationConfig(func(cfg *Config) {
+				cfg.MaxRetryPause = "invalid"
+			}),
 			expectError: true,
 			errorMsg:    "failed to parse max retry pause:",
 		},
 		{
 			name: "invalid download speed limit",
-			config: &Config{
-				AuthToken:              "valid_token",
-				Quality:                2,
-				DownloadSpeedLimit:     "invalid",
-				LogLevel:               "info",
-				RetryAttemptsCount:     3,
-				MaxDownloadPause:       "5s",
-				MinRetryPause:          "1s",
-				MaxRetryPause:          "3s",
-				MaxConcurrentDownloads: 1,
-			},
+			config: validationConfig(func(cfg *Config) {
+				cfg.DownloadSpeedLimit = "invalid"
+			}),
 			expectError: true,
 			errorMsg:    "failed to parse download speed limit:",
 		},
@@ -419,17 +340,9 @@ func TestValidateConfig_DownloadSpeedLimit(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			config := &Config{
-				AuthToken:              "valid_token",
-				Quality:                2,
-				DownloadSpeedLimit:     tt.speedLimit,
-				LogLevel:               "info",
-				RetryAttemptsCount:     3,
-				MaxDownloadPause:       "5s",
-				MinRetryPause:          "1s",
-				MaxRetryPause:          "3s",
-				MaxConcurrentDownloads: 1,
-			}
+			config := validationConfig(func(config *Config) {
+				config.DownloadSpeedLimit = tt.speedLimit
+			})
 
 			err := ValidateConfig(config)
 
@@ -493,7 +406,7 @@ func TestConfigValidation_MinQuality(t *testing.T) {
 			t.Parallel()
 
 			cfg := &Config{
-				AuthToken:                "valid_token",
+				ZvukAuthToken:            "valid_token",
 				Quality:                  tt.quality,
 				MinQuality:               tt.minQuality,
 				OutputPath:               "/tmp",
@@ -618,7 +531,7 @@ func TestConfigValidation_DurationSettings(t *testing.T) {
 			t.Parallel()
 
 			cfg := &Config{
-				AuthToken:                "valid_token",
+				ZvukAuthToken:            "valid_token",
 				Quality:                  2,
 				MinQuality:               0,
 				MinDuration:              tt.minDuration,
@@ -759,7 +672,7 @@ func TestConfigValidation_PauseDurations(t *testing.T) {
 			t.Parallel()
 
 			cfg := &Config{
-				AuthToken:                "valid_token",
+				ZvukAuthToken:            "valid_token",
 				Quality:                  2,
 				MinQuality:               0,
 				OutputPath:               "/tmp",
@@ -797,4 +710,61 @@ func TestConfigValidation_PauseDurations(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestSaveConfigFields_CreatesFullDefaultConfigWhenMissing verifies SaveConfigFields seeds a full default config file.
+func TestSaveConfigFields_CreatesFullDefaultConfigWhenMissing(t *testing.T) {
+	tempDir := t.TempDir()
+	configPath := filepath.Join(tempDir, "generated.yaml")
+
+	viper.Reset()
+	viper.SetConfigFile(configPath)
+	t.Cleanup(viper.Reset)
+
+	cfg := &Config{
+		ZvukAuthToken:    "zvuk-token",
+		YandexMusicToken: "yandex-token",
+	}
+
+	err := SaveConfigFields(cfg, map[string]string{
+		"zvuk_auth_token": cfg.ZvukAuthToken,
+	})
+	require.NoError(t, err)
+
+	content, err := os.ReadFile(configPath)
+	require.NoError(t, err)
+
+	contentString := string(content)
+
+	assert.Contains(t, contentString, `zvuk_auth_token: "zvuk-token"`)
+	assert.Contains(t, contentString, `yandex_music_token: "yandex-token"`)
+	assert.Contains(t, contentString, "quality: 3")
+	assert.Contains(t, contentString, `log_level: "info"`)
+	assert.Contains(t, contentString, "retry_attempts_count: 5")
+	assert.Contains(t, contentString, "max_concurrent_downloads: 1")
+
+	info, err := os.Stat(configPath)
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0o600), info.Mode().Perm())
+}
+
+// validationConfig returns a valid baseline config for validation tests.
+func validationConfig(mutators ...func(*Config)) *Config {
+	cfg := &Config{
+		ZvukAuthToken:          "valid_token",
+		Quality:                2,
+		DownloadSpeedLimit:     "1MB",
+		LogLevel:               "info",
+		RetryAttemptsCount:     3,
+		MaxDownloadPause:       "5s",
+		MinRetryPause:          "1s",
+		MaxRetryPause:          "3s",
+		MaxConcurrentDownloads: 1,
+	}
+
+	for _, mutate := range mutators {
+		mutate(cfg)
+	}
+
+	return cfg
 }

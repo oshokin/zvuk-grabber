@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/oshokin/zvuk-grabber/internal/constants"
+	"github.com/oshokin/zvuk-grabber/internal/files"
 	"github.com/oshokin/zvuk-grabber/internal/logger"
 )
 
@@ -47,7 +47,7 @@ func (s *ServiceImpl) downloadAndSaveFile(
 	}
 
 	// Open the file with the chosen options.
-	file, err := os.OpenFile(filepath.Clean(destinationPath), fileOptions, constants.DefaultFilePermissions)
+	file, err := os.OpenFile(filepath.Clean(destinationPath), fileOptions, files.DefaultFilePermissions)
 	if err != nil {
 		// If the file already exists and we're not overwriting, log and skip.
 		if os.IsExist(err) && !overwrite {

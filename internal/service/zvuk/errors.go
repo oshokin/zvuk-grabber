@@ -73,21 +73,3 @@ func (s *ServiceImpl) handleTrackSkipped(
 		s.recordError(e)
 	}
 }
-
-// recordError records an error in the statistics with proper context.
-// Context cancellation errors are ignored as they are expected during graceful shutdown.
-func (s *ServiceImpl) recordError(e *DownloadError) {
-	if e == nil || e.Error == nil {
-		return
-	}
-
-	// Don't record context cancellation as an error - it's expected when user presses CTRL+C.
-	if errors.Is(e.Error, context.Canceled) {
-		return
-	}
-
-	s.statsMutex.Lock()
-	defer s.statsMutex.Unlock()
-
-	s.stats.Errors = append(s.stats.Errors, e)
-}

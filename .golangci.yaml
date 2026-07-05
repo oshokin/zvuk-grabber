@@ -54,6 +54,12 @@ linters:
 
   # All available settings of specific linters.
   settings:
+    # Cyclomatic complexity analysis to identify overly complex functions.
+    cyclop:
+      # The maximal cyclomatic complexity to report.
+      # Default is 10.
+      max-complexity: 25
+
     decorder:
       # If true, order of declarations is not checked at all.
       # Default: true (disabled)
@@ -62,18 +68,6 @@ linters:
       # If true, `init` func can be anywhere in file (does not have to be declared before all other functions).
       # Default: true (disabled)
       disable-init-func-first-check: false
-
-    # Forbid specific function calls and suggest alternatives.
-    forbidigo:
-      forbid:
-        - pattern: '^fmt\.Print(f|ln)\(' # Prohibit direct fmt.Print* usage.
-          msg: "Use logger.* helpers for diagnostics or fmt.Fprintf to cmd.OutOrStdout for user output"
-
-    # Cyclomatic complexity analysis to identify overly complex functions.
-    cyclop:
-      # The maximal cyclomatic complexity to report.
-      # Default is 10.
-      max-complexity: 25
 
     # Dependency guard rules to enforce proper package usage patterns.
     depguard:
@@ -126,6 +120,18 @@ linters:
     # Error handling lint configuration for Go 1.13+ error patterns.
     errorlint:
       comparison: false # Allow direct error comparisons (disable strict wrapping checks).
+
+    # Forbid specific function calls and suggest alternatives.
+    forbidigo:
+      forbid:
+        - pattern: '^fmt\.Print(f|ln)\(' # Prohibit direct fmt.Print* usage.
+          msg: "Use logger.* helpers for diagnostics or fmt.Fprintf to cmd.OutOrStdout for user output"
+
+    # Check function order and visibility.
+    funcorder:
+      # Checks that exported functions are placed before unexported functions.
+      # Default: false
+      function: true
 
     # Function length limits to maintain readability.
     funlen:

@@ -15,7 +15,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/oshokin/zvuk-grabber/internal/client/zvuk"
-	"github.com/oshokin/zvuk-grabber/internal/constants"
+	"github.com/oshokin/zvuk-grabber/internal/files"
 	"github.com/oshokin/zvuk-grabber/internal/logger"
 	"github.com/oshokin/zvuk-grabber/internal/utils"
 )
@@ -208,9 +208,11 @@ func (s *ServiceImpl) getTracksSortedByPosition(
 		return append([]int64(nil), trackIDs...)
 	}
 
-	// Create a slice for sorting with position info.
+	// trackWithPosition pairs a track ID with its playlist position for sorting.
 	type trackWithPosition struct {
-		id       int64
+		// id is the track identifier.
+		id int64
+		// position is the track order within the collection.
 		position int64
 	}
 
@@ -481,7 +483,7 @@ func (s *ServiceImpl) saveDescription(
 	}
 
 	// Write description in UTF-8 encoding.
-	err = os.WriteFile(downloadPath, []byte(description), constants.DefaultFilePermissions)
+	err = os.WriteFile(downloadPath, []byte(description), files.DefaultFilePermissions)
 	if err != nil {
 		logger.Errorf(ctx, "Failed to save %s description: %v", category.String(), err)
 		return "", ""

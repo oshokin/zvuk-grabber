@@ -20,13 +20,20 @@ const (
 	// ImagePNGMimeType is the MIME type for PNG images.
 	ImagePNGMimeType = "image/png"
 
-	textMimeTypePrefix         = "text/"
-	applicationJSONMimeType    = "application/json"
+	// textMimeTypePrefix is the MIME prefix used to detect text content types.
+	textMimeTypePrefix = "text/"
+	// applicationJSONMimeType is the MIME type for JSON payloads treated as text.
+	applicationJSONMimeType = "application/json"
+	// samlMetadataMimeTypePrefix is the MIME prefix for SAML metadata XML payloads.
 	samlMetadataMimeTypePrefix = "application/samlmetadata+xml"
 
+	// windowsReservedNameCON is the Windows reserved device name CON.
 	windowsReservedNameCON = "CON"
+	// windowsReservedNamePRN is the Windows reserved device name PRN.
 	windowsReservedNamePRN = "PRN"
+	// windowsReservedNameAUX is the Windows reserved device name AUX.
 	windowsReservedNameAUX = "AUX"
+	// windowsReservedNameNUL is the Windows reserved device name NUL.
 	windowsReservedNameNUL = "NUL"
 )
 

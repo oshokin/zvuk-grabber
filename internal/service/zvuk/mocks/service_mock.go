@@ -18,13 +18,17 @@ import (
 
 // MockService is a mock of Service interface.
 type MockService struct {
+	// ctrl is the GoMock controller for this mock.
 	ctrl     *gomock.Controller
+	// recorder records expected mock calls.
 	recorder *MockServiceMockRecorder
+	// isgomock is a marker type used by the gomock framework.
 	isgomock struct{}
 }
 
 // MockServiceMockRecorder is the mock recorder for MockService.
 type MockServiceMockRecorder struct {
+	// mock is the mock instance being recorded.
 	mock *MockService
 }
 

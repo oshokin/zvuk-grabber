@@ -18,13 +18,17 @@ import (
 
 // MockTemplateManager is a mock of TemplateManager interface.
 type MockTemplateManager struct {
+	// ctrl is the GoMock controller for this mock.
 	ctrl     *gomock.Controller
+	// recorder records expected mock calls.
 	recorder *MockTemplateManagerMockRecorder
+	// isgomock is a marker type used by the gomock framework.
 	isgomock struct{}
 }
 
 // MockTemplateManagerMockRecorder is the mock recorder for MockTemplateManager.
 type MockTemplateManagerMockRecorder struct {
+	// mock is the mock instance being recorded.
 	mock *MockTemplateManager
 }
 

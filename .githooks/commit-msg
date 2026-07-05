@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Git commit-msg hook to enforce semantic commit message format.
-# This script validates commit messages to ensure they follow conventional commit standards.
+# Git commit-msg hook for optional semantic commit messages.
+# Missing semantic prefix is allowed; CI/CD treats unprefixed commits as patch/fix.
 
 # Exit immediately on error, treat unset variables as errors, and fail on pipe errors.
 set -euo pipefail
@@ -13,31 +13,19 @@ msg_file="$1"
 subject=$(sed -n '1p' "$msg_file" | tr -d '\r')
 
 # Define the required commit message pattern using extended regex.
-# Messages must start with one of: fix:, feat:, or major: followed by a space.
-pattern='^(fix|feat|major): '
+# Accept either plain type (fix:) or optional scope form (feat(api):).
+pattern='^(fix|feat|major)(\([^)]+\))?: '
 
-# Check if the commit message subject matches the required pattern.
-# If it matches, exit successfully (allow the commit to proceed).
+# Keep semantic subjects unchanged.
 if printf '%s' "$subject" | grep -Eq "$pattern"; then
   exit 0
 fi
 
-# Display detailed error message to stderr explaining the required format.
-# This helps developers understand what went wrong and how to fix it.
-cat >&2 <<'ERR'
-Commit message must start with one of:
-  - "fix: "   for patches
-  - "feat: "  for new features (minor)
-  - "major: " for breaking changes (major)
+if [[ -z "${subject// }" ]]; then
+  echo "commit-msg: empty subject; allowing commit (git may still reject)." >&2
+  exit 0
+fi
 
-Example:
-  feat(server): add health probe
-
-Tip: use imperative mood (add, fix, remove), no trailing period.
-ERR
-
-# Show the actual commit message that was rejected for debugging purposes.
+echo "commit-msg: no semantic prefix detected; allowing commit. CI/CD will treat it as patch/fix." >&2
 echo "Got: $subject" >&2
-
-# Exit with error code 1 to reject the commit and prevent it from being created.
-exit 1
+exit 0

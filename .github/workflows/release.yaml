@@ -39,6 +39,15 @@ jobs:
         with:
           fetch-depth: 0
 
+      # Safety check: release artifacts must never include local token config.
+      - name: Ensure local config is absent
+        run: |
+          if [ -f .zvuk-grabber.yaml ]; then
+            echo "Error: .zvuk-grabber.yaml must not exist during release packaging."
+            echo "Use .zvuk-grabber.example.yaml in release archives."
+            exit 1
+          fi
+
       # Set up Go environment for building release binaries.
       - name: Set up Go
         uses: actions/setup-go@v6
@@ -55,11 +64,12 @@ jobs:
           git fetch --tags origin
           bash scripts/semver_next.sh --emit-gh-output
 
-      # Skip release if no commits found (should rarely happen).
+      # Skip release only when semver script explicitly disables release.
+      # Note: semver_next intentionally allows re-release/tag-push flow even with no new commits.
       - name: Skip if no commits
         if: steps.bump.outputs.has_release != '1'
         run: |
-          echo "No commits found since last tag — skipping release."
+          echo "No commits found since last tag - skipping release."
 
       # Configure Git user for automated tag creation.
       # Uses GitHub Actions bot identity for audit trail.

@@ -5,6 +5,8 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	"github.com/oshokin/zvuk-grabber/internal/media"
 )
 
 // DownloadCategory represents the type of content being downloaded.
@@ -105,7 +107,7 @@ type DownloadTrackResult struct {
 }
 
 // TrackQuality represents the audio quality level.
-type TrackQuality uint8
+type TrackQuality = media.Quality
 
 // audioCollection represents a collection of audio tracks with associated metadata.
 type audioCollection struct {
@@ -138,25 +140,35 @@ const (
 	defaultFolderPermissions os.FileMode = 0o755
 
 	// File extensions.
-	extensionMP3  = ".mp3"
-	extensionFLAC = ".flac"
-	extensionBin  = ".bin"
-	extensionJPG  = ".jpg"
-	extensionPNG  = ".png"
-	extensionTXT  = ".txt"
-	extensionLRC  = ".lrc"
+	extensionMP3 = ".mp3"
+	// extensionJPG is the file extension for JPEG cover images.
+	extensionJPG = ".jpg"
+	// extensionPNG is the file extension for PNG cover images.
+	extensionPNG = ".png"
+	// extensionTXT is the file extension for plain-text description files.
+	extensionTXT = ".txt"
+	// extensionLRC is the file extension for lyrics files.
+	extensionLRC = ".lrc"
 
 	// Default filenames and values.
-	defaultCoverFilename       = "cover"
+	defaultCoverFilename = "cover"
+	// defaultDescriptionFilename is the default base filename for collection descriptions.
 	defaultDescriptionFilename = "description"
-	defaultUnknownYear         = "0000"
-	trackNumberPaddingWidth    = 2
+	// defaultUnknownYear is the placeholder year when release year is unknown.
+	defaultUnknownYear = "0000"
+	// trackNumberPaddingWidth is the zero-padding width for track number tags.
+	trackNumberPaddingWidth = 2
 
-	downloadCategoryUnknownName  = "unknown"
-	downloadCategoryTrackName    = "track"
-	downloadCategoryAlbumName    = "album"
+	// downloadCategoryUnknownName is the lowercase name for unknown download category.
+	downloadCategoryUnknownName = "unknown"
+	// downloadCategoryTrackName is the lowercase name for track download category.
+	downloadCategoryTrackName = "track"
+	// downloadCategoryAlbumName is the lowercase name for album download category.
+	downloadCategoryAlbumName = "album"
+	// downloadCategoryPlaylistName is the lowercase name for playlist download category.
 	downloadCategoryPlaylistName = "playlist"
-	downloadCategoryArtistName   = "artist"
+	// downloadCategoryArtistName is the lowercase name for artist download category.
+	downloadCategoryArtistName = "artist"
 )
 
 const (
@@ -188,23 +200,23 @@ const (
 // Enum values for TrackQuality.
 const (
 	// TrackQualityUnknown represents an unknown or unspecified audio quality.
-	TrackQualityUnknown TrackQuality = iota
+	TrackQualityUnknown = media.QualityUnknown
 	// TrackQualityMP3Mid represents MP3 format at 128 Kbps.
-	TrackQualityMP3Mid
+	TrackQualityMP3Mid = media.QualityMP3Mid
 	// TrackQualityMP3High represents MP3 format at 320 Kbps.
-	TrackQualityMP3High
+	TrackQualityMP3High = media.QualityMP3High
 	// TrackQualityFLAC represents FLAC lossless format.
-	TrackQualityFLAC
+	TrackQualityFLAC = media.QualityFLAC
 )
 
 // Constants for repeated string literals.
 const (
 	// TrackQualityMP3MidString is the string representation for mid quality.
-	TrackQualityMP3MidString = "mid"
+	TrackQualityMP3MidString = media.QualityMP3MidString
 	// TrackQualityMP3HighString is the string representation for high quality.
-	TrackQualityMP3HighString = "high"
+	TrackQualityMP3HighString = media.QualityMP3HighString
 	// TrackQualityFLACString is the string representation for FLAC quality.
-	TrackQualityFLACString = "flac"
+	TrackQualityFLACString = media.QualityFLACString
 )
 
 // downloadCategoryNames maps DownloadCategory values to display strings.
@@ -280,71 +292,19 @@ func (sr SkipReason) String() string {
 }
 
 // String returns a human-readable representation of the DownloadItem.
-func (di DownloadItem) String() string {
+func (di *DownloadItem) String() string {
 	return fmt.Sprintf("category: %v, ID: %s", di.Category, di.ItemID)
 }
 
 // GetShortVersion converts a full DownloadItem into a ShortDownloadItem by stripping the URL.
-func (di DownloadItem) GetShortVersion() ShortDownloadItem {
+func (di *DownloadItem) GetShortVersion() ShortDownloadItem {
 	return ShortDownloadItem{
 		Category: di.Category,
 		ItemID:   di.ItemID,
 	}
 }
 
-// String returns the display value of the Quality enum.
-func (tq TrackQuality) String() string {
-	//nolint:exhaustive // All meaningful cases are explicitly handled; default covers unknown values.
-	switch tq {
-	case TrackQualityMP3Mid:
-		return "MP3, 128 Kbps (standard quality)"
-	case TrackQualityMP3High:
-		return "MP3, 320 Kbps (high quality)"
-	case TrackQualityFLAC:
-		return "FLAC, 16/24-bit (lossless quality)"
-	default:
-		return "unknown format"
-	}
-}
-
-// Extension returns the file extension for the Quality enum.
-func (tq TrackQuality) Extension() string {
-	//nolint:exhaustive // All meaningful cases are explicitly handled; default covers unknown values.
-	switch tq {
-	case TrackQualityMP3High, TrackQualityMP3Mid:
-		return extensionMP3
-	case TrackQualityFLAC:
-		return extensionFLAC
-	default:
-		return extensionBin
-	}
-}
-
-// AsStreamURLParameterValue returns the API parameter value for the TrackQuality.
-func (tq TrackQuality) AsStreamURLParameterValue() string {
-	//nolint:exhaustive // All meaningful cases are explicitly handled; default covers unknown values.
-	switch tq {
-	case TrackQualityMP3Mid:
-		return TrackQualityMP3MidString
-	case TrackQualityMP3High:
-		return TrackQualityMP3HighString
-	case TrackQualityFLAC:
-		return TrackQualityFLACString
-	default:
-		return ""
-	}
-}
-
 // ParseQuality converts a string to a Quality enum.
 func ParseQuality(s string) TrackQuality {
-	switch strings.ToLower(strings.TrimSpace(s)) {
-	case TrackQualityMP3MidString, "med":
-		return TrackQualityMP3Mid
-	case TrackQualityMP3HighString:
-		return TrackQualityMP3High
-	case TrackQualityFLACString:
-		return TrackQualityFLAC
-	default:
-		return TrackQualityUnknown
-	}
+	return media.ParseQuality(strings.ToLower(strings.TrimSpace(s)))
 }

@@ -11,8 +11,10 @@ import (
 )
 
 const (
+	// graphQLAuthHeader is the header name used to pass the Zvuk auth token in GraphQL requests.
 	graphQLAuthHeader = "X-Auth-Token"
 
+	// getAudiobookChaptersQuery loads audiobook metadata and chapter list from the GraphQL API.
 	getAudiobookChaptersQuery = `
 		query getBookChapters($ids: [ID!]!) {
 			getBooks(ids: $ids) {
@@ -62,7 +64,7 @@ const (
 
 // runGraphQL authenticates and executes a GraphQL request.
 func (c *ClientImpl) runGraphQL(ctx context.Context, request *graphql.Request) (map[string]any, error) {
-	request.Header.Add(graphQLAuthHeader, c.cfg.AuthToken)
+	request.Header.Add(graphQLAuthHeader, c.cfg.ZvukAuthToken)
 
 	var response map[string]any
 	if err := c.graphQLClient.Run(ctx, request, &response); err != nil {
@@ -186,8 +188,6 @@ func (c *ClientImpl) GetArtistReleaseIDs(ctx context.Context, artistID string, o
 }
 
 // getAudiobookViaGraphQL fetches a single audiobook with its tracks.
-//
-
 func (c *ClientImpl) getAudiobookViaGraphQL(
 	ctx context.Context,
 	audiobookID string,
@@ -232,8 +232,6 @@ func (c *ClientImpl) getAudiobookViaGraphQL(
 }
 
 // GetStreamQualities retrieves streaming metadata for audiobook chapters and podcasts episodes.
-//
-
 func (c *ClientImpl) GetStreamQualities(
 	ctx context.Context,
 	chapterIDs []string,
@@ -392,8 +390,6 @@ func (c *ClientImpl) getTracksViaGraphQL(ctx context.Context, trackIDs []string)
 }
 
 // getPodcastViaGraphQL fetches a single podcast with its episodes.
-//
-
 func (c *ClientImpl) getPodcastViaGraphQL(
 	ctx context.Context,
 	podcastID string,

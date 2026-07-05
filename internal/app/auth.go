@@ -5,45 +5,63 @@ import (
 
 	"github.com/oshokin/zvuk-grabber/internal/config"
 	"github.com/oshokin/zvuk-grabber/internal/logger"
-	"github.com/oshokin/zvuk-grabber/internal/service/auth"
+	yandexauth "github.com/oshokin/zvuk-grabber/internal/service/yandex/auth"
+	zvukauth "github.com/oshokin/zvuk-grabber/internal/service/zvuk/auth"
 )
 
-// ExecuteAuthLoginCommand executes the auth login command.
+// authLoginService extracts an auth token through an interactive login flow.
+type authLoginService interface {
+	// LoginAndExtractToken opens a browser, waits for login, and returns the extracted token.
+	LoginAndExtractToken(ctx context.Context) (string, error)
+}
+
+// ExecuteZvukAuthLoginCommand executes the Zvuk auth login command.
 // It opens a browser, waits for the user to log in, extracts the token,
 // and saves it to the configuration file.
-func ExecuteAuthLoginCommand(ctx context.Context, cfg *config.Config) {
-	logger.Info(ctx, "Starting authentication process")
-
-	// Create browser authentication service.
-	authService, err := auth.NewService(cfg)
+func ExecuteZvukAuthLoginCommand(ctx context.Context, cfg *config.Config) {
+	authService, err := zvukauth.NewService(cfg)
 	if err != nil {
-		logger.Fatalf(ctx, "Failed to initialize authentication service: %v", err)
+		logger.Fatalf(ctx, "Failed to initialize Zvuk authentication service: %v", err)
 		return
 	}
 
-	// Perform login and extract token.
+	executeAuthLogin(ctx, cfg, "Zvuk", "zvuk_auth_token", &cfg.ZvukAuthToken, authService)
+}
+
+// ExecuteYandexAuthLoginCommand executes the Yandex Music auth login command using go-rod.
+func ExecuteYandexAuthLoginCommand(ctx context.Context, cfg *config.Config) {
+	executeAuthLogin(
+		ctx,
+		cfg,
+		"Yandex Music",
+		"yandex_music_token",
+		&cfg.YandexMusicToken,
+		yandexauth.NewAuthService(cfg),
+	)
+}
+
+// executeAuthLogin runs the shared provider login flow and persists the extracted token.
+func executeAuthLogin(
+	ctx context.Context,
+	cfg *config.Config,
+	providerName string,
+	configKey string,
+	tokenTarget *string,
+	authService authLoginService,
+) {
+	logger.Infof(ctx, "Starting %s authentication process", providerName)
+
 	token, err := authService.LoginAndExtractToken(ctx)
 	if err != nil {
-		logger.Fatalf(ctx, "Authentication failed: %v", err)
+		logger.Fatalf(ctx, "%s authentication failed: %v", providerName, err)
 		return
 	}
 
-	// Update configuration with new token.
-	cfg.AuthToken = token
-
-	// Save configuration to file.
-	if err = config.SaveConfig(cfg); err != nil {
+	*tokenTarget = token
+	if err = config.SaveConfigFields(cfg, map[string]string{configKey: token}); err != nil {
 		logger.Fatalf(ctx, "Failed to save configuration: %v", err)
 		return
 	}
 
-	// Print success message.
-	logger.Info(ctx, "Configuration updated successfully!")
-	logger.Info(ctx, "Authentication complete! You can now download music.")
-	logger.Info(ctx, "")
-	logger.Info(ctx, "Try downloading an album:")
-	logger.Info(ctx, "zvuk-grabber https://zvuk.com/release/42393651")
-	logger.Info(ctx, "")
-	logger.Info(ctx, "Or a playlist:")
-	logger.Info(ctx, "zvuk-grabber https://zvuk.com/playlist/9037842")
+	logger.Infof(ctx, "%s authentication complete. Token saved to %s.", providerName, configKey)
 }

@@ -19,13 +19,17 @@ import (
 
 // MockURLProcessor is a mock of URLProcessor interface.
 type MockURLProcessor struct {
+	// ctrl is the GoMock controller for this mock.
 	ctrl     *gomock.Controller
+	// recorder records expected mock calls.
 	recorder *MockURLProcessorMockRecorder
+	// isgomock is a marker type used by the gomock framework.
 	isgomock struct{}
 }
 
 // MockURLProcessorMockRecorder is the mock recorder for MockURLProcessor.
 type MockURLProcessorMockRecorder struct {
+	// mock is the mock instance being recorded.
 	mock *MockURLProcessor
 }
 

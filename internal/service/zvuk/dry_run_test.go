@@ -86,11 +86,11 @@ func TestDownloadTracks_DryRunMode(t *testing.T) {
 		Return(streamMetadata, nil)
 
 	// Create fake audio data.
-	fakeAudioData := makeFakeAudioData(10 * 1024) // 10 MB.
+	audioData := makeFakeAudioData(10 * 1024) // 10 MB.
 
 	fetchTrackResult := &zvuk.FetchTrackResult{
-		Body:       io.NopCloser(bytes.NewReader(fakeAudioData)),
-		TotalBytes: int64(len(fakeAudioData)),
+		Body:       io.NopCloser(bytes.NewReader(audioData)),
+		TotalBytes: int64(len(audioData)),
 	}
 
 	mockClient.EXPECT().
@@ -139,7 +139,7 @@ func TestDownloadTracks_DryRunMode(t *testing.T) {
 
 	// Verify statistics show correct counts.
 	assert.Equal(t, int64(1), impl.stats.TracksDownloaded, "Should count track as 'would download'")
-	assert.Equal(t, int64(len(fakeAudioData)), impl.stats.TotalBytesDownloaded, "Should estimate file size")
+	assert.Equal(t, int64(len(audioData)), impl.stats.TotalBytesDownloaded, "Should estimate file size")
 	assert.Equal(t, int64(1), impl.stats.LyricsDownloaded, "Should count lyrics as 'would download'")
 	assert.True(t, impl.stats.IsDryRun, "Statistics should be marked as dry-run")
 
@@ -232,11 +232,11 @@ func TestDownloadTracks_DryRunSkipsExistingFiles(t *testing.T) {
 		GetStreamMetadata(gomock.Any(), trackIDString, TrackQualityFLACString).
 		Return(streamMetadata, nil)
 
-	fakeAudioData := []byte("test audio data")
+	audioData := []byte("test audio data")
 
 	fetchTrackResult := &zvuk.FetchTrackResult{
-		Body:       io.NopCloser(bytes.NewReader(fakeAudioData)),
-		TotalBytes: int64(len(fakeAudioData)),
+		Body:       io.NopCloser(bytes.NewReader(audioData)),
+		TotalBytes: int64(len(audioData)),
 	}
 
 	mockClient.EXPECT().

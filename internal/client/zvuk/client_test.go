@@ -174,6 +174,12 @@ func mockHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// writeJSONResponse writes a JSON response from a mock handler.
+func writeJSONResponse(w http.ResponseWriter, response any) {
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response) //nolint:errcheck,errchkjson // Test mock handler, error is not critical.
+}
+
 // handleGraphQLRequest handles GraphQL requests.
 func handleGraphQLRequest(w http.ResponseWriter, _ *http.Request) {
 	response := map[string]any{
@@ -187,8 +193,7 @@ func handleGraphQLRequest(w http.ResponseWriter, _ *http.Request) {
 		},
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response) //nolint:errcheck,errchkjson // Test mock handler, error is not critical.
+	writeJSONResponse(w, response)
 }
 
 // handleStreamRequest handles stream metadata requests.
@@ -199,8 +204,7 @@ func handleStreamRequest(w http.ResponseWriter, _ *http.Request, _ url.Values) {
 		},
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response) //nolint:errcheck,errchkjson // Test mock handler, error is not critical.
+	writeJSONResponse(w, response)
 }
 
 // handleLyricsRequest handles lyrics requests.
@@ -212,8 +216,7 @@ func handleLyricsRequest(w http.ResponseWriter, _ *http.Request, _ url.Values) {
 		},
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response) //nolint:errcheck,errchkjson // Test mock handler, error is not critical.
+	writeJSONResponse(w, response)
 }
 
 // handleProfileRequest handles user profile requests.
@@ -227,8 +230,7 @@ func handleProfileRequest(w http.ResponseWriter, _ *http.Request) {
 		},
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response) //nolint:errcheck,errchkjson // Test mock handler, error is not critical.
+	writeJSONResponse(w, response)
 }
 
 // handleTracksRequest handles track metadata requests.
@@ -244,8 +246,7 @@ func handleTracksRequest(w http.ResponseWriter, _ *http.Request, _ url.Values) {
 		},
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response) //nolint:errcheck,errchkjson // Test mock handler, error is not critical.
+	writeJSONResponse(w, response)
 }
 
 // handleReleasesRequest handles release metadata requests.
@@ -259,8 +260,7 @@ func handleReleasesRequest(w http.ResponseWriter, _ *http.Request, _ url.Values)
 		},
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response) //nolint:errcheck,errchkjson // Test mock handler, error is not critical.
+	writeJSONResponse(w, response)
 }
 
 // handlePlaylistsRequest handles playlist metadata requests.
@@ -274,8 +274,7 @@ func handlePlaylistsRequest(w http.ResponseWriter, _ *http.Request, _ url.Values
 		},
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response) //nolint:errcheck,errchkjson // Test mock handler, error is not critical.
+	writeJSONResponse(w, response)
 }
 
 // handleLabelsRequest handles label metadata requests.
@@ -288,8 +287,7 @@ func handleLabelsRequest(w http.ResponseWriter, _ *http.Request, _ url.Values) {
 		},
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response) //nolint:errcheck,errchkjson // Test mock handler, error is not critical.
+	writeJSONResponse(w, response)
 }
 
 // TestNewClient tests the NewClient function.
@@ -304,7 +302,7 @@ func TestNewClient(t *testing.T) {
 		{
 			name: "valid config",
 			config: &config.Config{
-				AuthToken:           "test_token",
+				ZvukAuthToken:       "test_token",
 				Quality:             2,
 				ZvukBaseURL:         "https://zvuk.com",
 				RetryAttemptsCount:  3,
@@ -316,7 +314,7 @@ func TestNewClient(t *testing.T) {
 		{
 			name: "invalid base URL",
 			config: &config.Config{
-				AuthToken:           "test_token",
+				ZvukAuthToken:       "test_token",
 				Quality:             2,
 				ZvukBaseURL:         "://invalid-url",
 				RetryAttemptsCount:  3,

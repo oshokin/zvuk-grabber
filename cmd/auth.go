@@ -6,47 +6,68 @@ import (
 	"github.com/oshokin/zvuk-grabber/internal/app"
 )
 
+// loginCommandUse is the subcommand name shared by provider login commands.
+const loginCommandUse = "login"
+
 var (
 	// authCmd is the root command for authentication management.
 	authCmd = &cobra.Command{
 		Use:   "auth",
 		Short: "Authentication management commands",
-		Long: `Manage authentication for Zvuk.
+		Long: `Manage provider authentication.
 
-Use 'auth login' to log in via browser and automatically extract your authentication token.`,
+Use explicit provider commands:
+  zvuk-grabber auth zvuk login
+  zvuk-grabber auth yandex login`,
 	}
 
-	// authLoginCmd opens a browser for login and extracts the authentication token.
-	authLoginCmd = &cobra.Command{
-		Use:   "login",
+	// authZvukCmd is the parent command for Zvuk authentication subcommands.
+	authZvukCmd = &cobra.Command{
+		Use:   "zvuk",
+		Short: "Zvuk authentication commands",
+	}
+
+	// authZvukLoginCmd opens a browser to log in to Zvuk and save the auth token.
+	authZvukLoginCmd = &cobra.Command{
+		Use:   loginCommandUse,
 		Short: "Login to Zvuk and extract authentication token",
-		Long: `Opens a browser window for you to log in to Zvuk.
+		Long: `Opens a browser window for Zvuk login.
 
-The login process:
-1. Browser opens at https://zvuk.com/login
-2. Accept cookies if prompted
-3. Enter your phone number (e.g., +71488251742)
-4. Click "Получить СМС-код" (Get SMS code)
-5. Enter the 5-digit SMS code you receive
-6. Wait for authentication to complete
-
-After successful login, the authentication token will be automatically
-extracted from your profile and saved to the configuration file.
-
-You can then use the token to download music:
-zvuk-grabber https://zvuk.com/album/123456`,
+After successful login, the auth cookie is extracted and saved to zvuk_auth_token.`,
 		PersistentPreRun: initConfig,
 		Run: func(cmd *cobra.Command, args []string) {
-			app.ExecuteAuthLoginCommand(cmd.Context(), appConfig)
+			app.ExecuteZvukAuthLoginCommand(cmd.Context(), appConfig)
+		},
+	}
+
+	// authYandexCmd is the parent command for Yandex Music authentication subcommands.
+	authYandexCmd = &cobra.Command{
+		Use:   "yandex",
+		Short: "Yandex Music authentication commands",
+	}
+
+	// authYandexLoginCmd opens a browser to log in to Yandex Music and save the OAuth token.
+	authYandexLoginCmd = &cobra.Command{
+		Use:   loginCommandUse,
+		Short: "Login to Yandex Music and extract OAuth token",
+		Long: `Opens a visible browser window at https://music.yandex.ru/.
+
+Log in to Yandex Music in that browser. The command watches the browser session
+with go-rod and saves the detected Yandex Music OAuth token to yandex_music_token.
+The token value is never printed to logs.`,
+		PersistentPreRun: initConfig,
+		Run: func(cmd *cobra.Command, args []string) {
+			app.ExecuteYandexAuthLoginCommand(cmd.Context(), appConfig)
 		},
 	}
 )
 
+// init registers auth commands with the root CLI command.
+//
 //nolint:gochecknoinits // Cobra requires the init function to set up commands.
 func init() {
-	// Add login subcommand to auth command.
-	authCmd.AddCommand(authLoginCmd)
-
-	// Add auth command to root command.
+	authZvukCmd.AddCommand(authZvukLoginCmd)
+	authYandexCmd.AddCommand(authYandexLoginCmd)
+	authCmd.AddCommand(authZvukCmd, authYandexCmd)
 	rootCmd.AddCommand(authCmd)
 }

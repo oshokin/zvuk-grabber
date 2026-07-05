@@ -134,19 +134,6 @@ func TestExtractDownloadItemsResponse(t *testing.T) {
 	assert.Equal(t, DownloadCategoryArtist, response.Artists[0].Category)
 }
 
-// TestImageMetadata tests the imageMetadata structure.
-func TestImageMetadata(t *testing.T) {
-	t.Parallel()
-
-	image := &imageMetadata{
-		data:     []byte("test image data"),
-		mimeType: "image/jpeg",
-	}
-
-	assert.Equal(t, []byte("test image data"), image.data)
-	assert.Equal(t, "image/jpeg", image.mimeType)
-}
-
 // TestWriteTagsRequest tests the WriteTagsRequest structure.
 func TestWriteTagsRequest(t *testing.T) {
 	t.Parallel()
@@ -159,16 +146,16 @@ func TestWriteTagsRequest(t *testing.T) {
 
 	request := &WriteTagsRequest{
 		TrackPath: "/path/to/file.mp3",
-		TrackTags: tags,
+		Tags:      tags,
 		CoverPath: "/path/to/cover.jpg",
 		Quality:   TrackQualityMP3Mid,
 	}
 
 	assert.Equal(t, "/path/to/file.mp3", request.TrackPath)
-	assert.Equal(t, tags, request.TrackTags)
-	assert.Equal(t, "Test Track", request.TrackTags["title"])
-	assert.Equal(t, "Test Artist", request.TrackTags["artist"])
-	assert.Equal(t, "Test Album", request.TrackTags["album"])
+	assert.Equal(t, tags, request.Tags)
+	assert.Equal(t, "Test Track", request.Tags["title"])
+	assert.Equal(t, "Test Artist", request.Tags["artist"])
+	assert.Equal(t, "Test Album", request.Tags["album"])
 	assert.Equal(t, "/path/to/cover.jpg", request.CoverPath)
 	assert.Equal(t, TrackQualityMP3Mid, request.Quality)
 }

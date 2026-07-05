@@ -13,7 +13,7 @@ import (
 	"github.com/oshokin/zvuk-grabber/internal/client/zvuk"
 	mock_zvuk_client "github.com/oshokin/zvuk-grabber/internal/client/zvuk/mocks"
 	"github.com/oshokin/zvuk-grabber/internal/config"
-	"github.com/oshokin/zvuk-grabber/internal/constants"
+	"github.com/oshokin/zvuk-grabber/internal/files"
 	"github.com/oshokin/zvuk-grabber/internal/logger"
 )
 
@@ -31,28 +31,28 @@ func TestDownloadTracks_AllFormatsWithCoverEmbedding(t *testing.T) {
 		{
 			name:              "FLAC format",
 			quality:           TrackQualityFLAC,
-			expectedExtension: constants.ExtensionFLAC,
+			expectedExtension: files.ExtensionFLAC,
 			highestQuality:    "flac",
 			streamURL:         "/streamfl?id=1001",
 		},
 		{
 			name:              "MP3 High format",
 			quality:           TrackQualityMP3High,
-			expectedExtension: constants.ExtensionMP3,
+			expectedExtension: files.ExtensionMP3,
 			highestQuality:    TrackQualityMP3HighString,
 			streamURL:         "/streamhq?id=1001",
 		},
 		{
 			name:              "MP3 Mid format",
 			quality:           TrackQualityMP3Mid,
-			expectedExtension: constants.ExtensionMP3,
+			expectedExtension: files.ExtensionMP3,
 			highestQuality:    TrackQualityMP3MidString,
 			streamURL:         "/stream?id=1001",
 		},
 		{
 			name:              "Unknown format (fallback to .bin)",
 			quality:           TrackQualityUnknown,
-			expectedExtension: constants.ExtensionBin,
+			expectedExtension: files.ExtensionBin,
 			highestQuality:    "",
 			streamURL:         "/unknown-stream/1001",
 		},
@@ -134,31 +134,31 @@ func TestDownloadTracks_AllFormatsWithCoverEmbedding(t *testing.T) {
 
 			// Create realistic audio data for the format based on actual track sizes.
 			// Real FLAC: ~37 MB for 4:28 track, MP3 320: ~10 MB, MP3 128: ~4 MB.
-			var fakeAudioData []byte
+			var audioData []byte
 
 			switch tc.quality {
 			case TrackQualityFLAC:
 				// Simulate FLAC file (~37 MB like the real Tipping Point track).
-				fakeAudioData = make([]byte, 37*1024*1024)
+				audioData = make([]byte, 37*1024*1024)
 			case TrackQualityMP3High:
 				// Simulate MP3 320 Kbps file.
-				fakeAudioData = make([]byte, 10*1024*1024)
+				audioData = make([]byte, 10*1024*1024)
 			case TrackQualityMP3Mid:
 				// Simulate MP3 128 Kbps file.
-				fakeAudioData = make([]byte, 4*1024*1024)
+				audioData = make([]byte, 4*1024*1024)
 			default:
 				// Unknown format.
-				fakeAudioData = []byte("unknown format binary data")
+				audioData = []byte("unknown format binary data")
 			}
 
 			// Fill with pseudo-random but deterministic data.
-			for i := range fakeAudioData {
-				fakeAudioData[i] = byte(i % 256)
+			for i := range audioData {
+				audioData[i] = byte(i % 256)
 			}
 
 			fetchTrackResult := &zvuk.FetchTrackResult{
-				Body:       io.NopCloser(bytes.NewReader(fakeAudioData)),
-				TotalBytes: int64(len(fakeAudioData)),
+				Body:       io.NopCloser(bytes.NewReader(audioData)),
+				TotalBytes: int64(len(audioData)),
 			}
 
 			mockClient.EXPECT().
@@ -183,7 +183,7 @@ func TestDownloadTracks_AllFormatsWithCoverEmbedding(t *testing.T) {
 			impl.downloadTracks(ctx, metadata)
 
 			// Verify that the file was created with the correct extension and content.
-			_, foundFile := findFileWithExtension(t, tempDir, tc.expectedExtension, fakeAudioData)
+			_, foundFile := findFileWithExtension(t, tempDir, tc.expectedExtension, audioData)
 			assert.True(t, foundFile, "File with extension %s should exist", tc.expectedExtension)
 		})
 	}
