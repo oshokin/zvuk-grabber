@@ -10,6 +10,7 @@ $ErrorActionPreference = "Stop"
 #   - else any starting with "feat:"            -> MINOR bump
 #   - else any starting with "fix:"             -> PATCH bump
 #   - else any other commits                    -> PATCH bump (default)
+# Prefixes may be scoped, e.g. feat(api): add endpoint.
 # If no tag exists, current version is 1.0.0 (initial release).
 # When bumping MINOR, reset PATCH to 0; when bumping MAJOR, reset MINOR/PATCH to 0.
 #
@@ -77,12 +78,13 @@ if ($subjects -is [string]) {
 
 # Determine the appropriate version bump based on commit message patterns.
 # Check for version bump type with precedence: major > feat > fix.
-# Default to patch for any commits (even non-semantic ones).
+# INTENTIONAL: default to patch even when no new commits are found.
+# This keeps manual re-release/tag-push flows possible without extra flags.
 $bump = "patch"
 
 # First pass: check for major version bump (breaking changes).
 foreach ($subject in $subjects) {
-    if ($subject -match '^major:') {
+    if ($subject -match '^major(\([^)]+\))?:') {
         $bump = "major"
         break  # Major takes highest precedence, stop searching.
     }
@@ -91,7 +93,7 @@ foreach ($subject in $subjects) {
 # Second pass: check for minor version bump (new features) if no major found.
 if ($bump -eq "patch") {
     foreach ($subject in $subjects) {
-        if ($subject -match '^feat:') {
+        if ($subject -match '^feat(\([^)]+\))?:') {
             $bump = "minor"
             break  # Minor found, stop searching.
         }
@@ -102,7 +104,7 @@ if ($bump -eq "patch") {
 # Note: We already default to patch, so this preserves explicit fix: commits.
 if ($bump -eq "patch") {
     foreach ($subject in $subjects) {
-        if ($subject -match '^fix:') {
+        if ($subject -match '^fix(\([^)]+\))?:') {
             $bump = "patch"
             break  # Explicit patch found, maintain patch.
         }

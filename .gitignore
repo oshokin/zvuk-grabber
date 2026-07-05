@@ -1,10 +1,25 @@
+# OS metadata.
 .DS_STORE
-.todo.md
+
+# IDE and local notes.
 /.idea
 /.vscode
+.todo.md
+
+# Build and dependencies.
 /bin
+/vendor
+
+# Temporary and test artifacts.
 /test
 /tmp
 /var
-/vendor
+
+# Download outputs.
+/zvuk-grabber-downloads
 /zvuk downloads
+
+# Local config and logs.
+.zvuk-grabber.yaml
+*.local.yaml
+dl_logs.txt

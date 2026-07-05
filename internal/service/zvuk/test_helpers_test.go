@@ -2,11 +2,13 @@ package zvuk
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"strconv"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -17,7 +19,7 @@ import (
 	"github.com/oshokin/zvuk-grabber/internal/client/zvuk"
 	mock_zvuk_client "github.com/oshokin/zvuk-grabber/internal/client/zvuk/mocks"
 	"github.com/oshokin/zvuk-grabber/internal/config"
-	"github.com/oshokin/zvuk-grabber/internal/constants"
+	"github.com/oshokin/zvuk-grabber/internal/files"
 	"github.com/oshokin/zvuk-grabber/internal/logger"
 )
 
@@ -93,6 +95,60 @@ func newTestDownloadSetup(t *testing.T, configOverrides ...func(*config.Config))
 // cleanup releases test resources.
 func (s *testDownloadSetup) cleanup() {
 	s.ctrl.Finish()
+}
+
+// withMaxConcurrentDownloads overrides the test download concurrency limit.
+func withMaxConcurrentDownloads(value int64) func(*config.Config) {
+	return func(cfg *config.Config) { cfg.MaxConcurrentDownloads = value }
+}
+
+// impl returns the concrete service implementation used by white-box tests.
+func (s *testDownloadSetup) impl(t *testing.T) *ServiceImpl {
+	t.Helper()
+
+	impl, ok := s.service.(*ServiceImpl)
+	require.True(t, ok, "Service should be of type *ServiceImpl")
+
+	return impl
+}
+
+// trackIDText converts a numeric track ID to the string form used by the API.
+func trackIDText(trackID int64) string {
+	return strconv.FormatInt(trackID, 10)
+}
+
+// expectSuccessfulTrackDownload configures the common happy-path stream metadata and fetch mocks.
+func expectSuccessfulTrackDownload(
+	mockClient *mock_zvuk_client.MockClient,
+	trackID int64,
+	streamURL string,
+	audioData []byte,
+	onMetadata func(trackID int64),
+) {
+	trackIDString := trackIDText(trackID)
+	streamMetadata := &zvuk.StreamMetadata{Stream: streamURL}
+
+	mockClient.EXPECT().
+		GetStreamMetadata(gomock.Any(), trackIDString, TrackQualityFLACString).
+		DoAndReturn(func(_ context.Context, _ string, _ string) (*zvuk.StreamMetadata, error) {
+			if onMetadata != nil {
+				onMetadata(trackID)
+			}
+
+			return streamMetadata, nil
+		})
+
+	setupMockFetchTrack(mockClient, streamURL, audioData)
+}
+
+// updateMaxInt32 atomically keeps the maximum observed int32 value.
+func updateMaxInt32(maxValue *atomic.Int32, value int32) {
+	for {
+		currentMax := maxValue.Load()
+		if value <= currentMax || maxValue.CompareAndSwap(currentMax, value) {
+			return
+		}
+	}
 }
 
 // newTestMetadata creates a metadata builder with auto-generated tracks and album.
@@ -267,7 +323,7 @@ func findAudioFiles(t *testing.T, dir string) []string {
 
 		ext := filepath.Ext(path)
 		if !info.IsDir() &&
-			(ext == constants.ExtensionMP3 || ext == constants.ExtensionFLAC || ext == constants.ExtensionBin) {
+			(ext == files.ExtensionMP3 || ext == files.ExtensionFLAC || ext == files.ExtensionBin) {
 			audioFiles = append(audioFiles, path)
 		}
 

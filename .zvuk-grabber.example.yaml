@@ -1,0 +1,29 @@
+zvuk_auth_token: ""
+yandex_music_token: ""
+quality: 3
+min_quality: 0
+min_duration: ""
+max_duration: ""
+output_path: "zvuk-grabber-downloads"
+group_by_provider: true
+track_filename_template: "{{.trackNumberPad}} - {{.trackTitle}}"
+album_folder_template: "{{.releaseYear}} - {{.albumArtist}} - {{.albumTitle}}"
+playlist_filename_template: "{{.trackNumberPad}} - {{.trackArtist}} - {{.trackTitle}}"
+audiobook_folder_template: "{{.publishYear}} - {{.audiobookAuthors}} - {{.audiobookTitle}}"
+audiobook_chapter_filename_template: "{{.trackNumberPad}} - {{.trackTitle}}"
+podcast_folder_template: "{{.podcastAuthors}} - {{.podcastTitle}}"
+podcast_episode_filename_template: "{{.episodePublicationDate}} - {{.trackTitle}}"
+download_lyrics: true
+replace_tracks: false
+replace_covers: false
+replace_descriptions: false
+replace_lyrics: false
+log_level: "info"
+download_speed_limit: ""
+create_folder_for_singles: false
+max_folder_name_length: 100
+retry_attempts_count: 5
+max_download_pause: "2s"
+min_retry_pause: "3s"
+max_retry_pause: "7s"
+max_concurrent_downloads: 1

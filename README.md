@@ -1,16 +1,16 @@
 # Zvuk Grabber 🎵
 
-[Zvuk (Звук)](https://zvuk.com/) grabber written in Go.\
-This tool allows you to download artists, albums, tracks, and playlists from Zvuk.
+Downloader for [Zvuk (Звук)](https://zvuk.com/) and [Yandex Music](https://music.yandex.ru/) written in Go.\
+It supports mixed provider URLs in one run (tracks, albums, playlists, artists, audiobooks, and podcasts).
 
 * * *
 
 ## Quick Start 🚀
 
-1. **Download the Latest Release**:  
+1. **Download the Latest Release**:
    Grab the pre-built binary for your OS from the [Releases page](https://github.com/oshokin/zvuk-grabber/releases).
 
-2. **Extract the Archive**:  
+2. **Extract the Archive**:
    Just extract the archive! It already has everything you need inside.
    - For macOS/Linux:
 
@@ -24,42 +24,46 @@ This tool allows you to download artists, albums, tracks, and playlists from Zvu
      unzip zvuk-grabber_1.0.0_windows_amd64.zip
      ```
 
-3. **Set Up Authentication Token**:  
+3. **Set Up Provider Tokens**:
+
+   You only need tokens for providers you actually download from.
 
    **Option 1: Automatic Browser Login (Recommended)**
 
-   Run the interactive login command:
+   Run provider-specific interactive login commands:
 
    ```bash
-   zvuk-grabber auth login
+   zvuk-grabber auth zvuk login
+   zvuk-grabber auth yandex login
    ```
 
    This will:
    - Open a browser window
-   - Let you log in manually (phone number + SMS code)
-   - Automatically extract and save your auth token
-   - Update your `.zvuk-grabber.yaml` configuration
+   - Let you log in manually
+   - Automatically extract and save the provider token
+   - Update your local `.zvuk-grabber.yaml` configuration (copy from `.zvuk-grabber.example.yaml`)
 
-   **Option 2: Manual Token Extraction**
+   **Option 2: Manual Token Setup**
 
-   Open the `.zvuk-grabber.yaml` file and set your `auth_token`.\
-   You can obtain it by logging into [Zvuk's API](https://zvuk.com/api/v2/tiny/profile) and locating the token in the JSON response using the JSON path `$.result.profile.token`.
+   Open `.zvuk-grabber.yaml` and set token fields manually:
+   - `zvuk_auth_token`: obtain it from [Zvuk API profile](https://zvuk.com/api/v2/tiny/profile), JSON path `$.result.profile.token`
+   - `yandex_music_token`: set your existing Yandex Music OAuth token
 
-4. **Run the Tool**:  
+4. **Run the Tool**:
    - **Linux/macOS**:
 
      ```bash
      chmod +x zvuk-grabber  # Make it executable
-     ./zvuk-grabber         # Let it rip!
+     ./zvuk-grabber https://zvuk.com/release/36599795 https://music.yandex.ru/album/2176030
      ```
 
    - **Windows**:
 
      ```bash
-     zvuk-grabber           # Run the executable
+     zvuk-grabber https://zvuk.com/release/36599795 https://music.yandex.ru/album/2176030
      ```
 
-5. **Enjoy Your Music!** 🎶  
+5. **Enjoy Your Music!** 🎶
    Start downloading your favorite tracks, albums, and playlists.
 
 * * *
@@ -70,7 +74,7 @@ This tool allows you to download artists, albums, tracks, and playlists from Zvu
 
 Pre-built binaries for **macOS**, **Windows**, and **Linux** (for both `arm64` and `amd64` architectures) are available on the [Releases page](https://github.com/oshokin/zvuk-grabber/releases).
 
-1. **Download the Correct Binary**:  
+1. **Download the Correct Binary**:
     Go to the [Releases page](https://github.com/oshokin/zvuk-grabber/releases) and download the appropriate binary for your operating system and architecture.\
     Replace `1.0.0` in the filenames below with the latest version number:
 
@@ -84,10 +88,10 @@ Pre-built binaries for **macOS**, **Windows**, and **Linux** (for both `arm64` a
       - `zvuk-grabber_1.0.0_linux_amd64.tar.gz` for 64-bit Linux (`amd64`).
       - `zvuk-grabber_1.0.0_linux_arm64.tar.gz` for ARM-based Linux (`arm64`).
 
-2. **Extract the Bundle**:  
+2. **Extract the Bundle**:
     Each bundle contains the following files:
     - `zvuk-grabber` (or `zvuk-grabber.exe` for Windows): The main executable.
-    - `.zvuk-grabber.yaml`: The configuration file.
+    - `.zvuk-grabber.example.yaml`: Example configuration template.
     - `LICENSE`: The license file.
     - `README.md`: The documentation.
 
@@ -98,45 +102,47 @@ Pre-built binaries for **macOS**, **Windows**, and **Linux** (for both `arm64` a
     unzip zvuk-grabber_1.0.0_windows_amd64.zip        # For Windows
     ```
 
-3. **Set Up Authentication Token**:  
+3. **Set Up Provider Tokens**:
 
     **Automatic (Recommended)**:
 
     ```bash
-    zvuk-grabber auth login
+    zvuk-grabber auth zvuk login
+    zvuk-grabber auth yandex login
     ```
 
-    **Manual**: Open the `.zvuk-grabber.yaml` file and set your authentication token in the `auth_token` field.\
-    You can obtain the token by logging into [Zvuk's API](https://zvuk.com/api/v2/tiny/profile) and locating the token using the JSON path `$.result.profile.token`.
+    **Manual**: Open `.zvuk-grabber.yaml` and set:
+    - `zvuk_auth_token` for Zvuk URLs
+    - `yandex_music_token` for Yandex Music URLs
 
-4. **Run the Binary**:  
-    - **Linux/macOS**:  
+4. **Run the Binary**:
+    - **Linux/macOS**:
       Make the binary executable and run it:
 
       ```bash
       chmod +x zvuk-grabber  # Make the file executable
-      ./zvuk-grabber         # Run the tool
+      ./zvuk-grabber https://zvuk.com/release/36599795 https://music.yandex.ru/album/2176030
       ```
 
-    - **Windows**:  
-      Simply run the executable:
+    - **Windows**:
+      Run the executable with one or more URLs:
 
       ```bash
-      zvuk-grabber
+      zvuk-grabber https://zvuk.com/release/36599795 https://music.yandex.ru/album/2176030
       ```
 
 ### Building from Source (Optional) 🛠️
 
 If you want to modify the code or build the binary yourself, you'll need the following prerequisites:
 
-1. **Install Go**:  
+1. **Install Go**:
     Download and install Go from the [official website](https://go.dev/dl/).
 
-2. **Install Task**:  
+2. **Install Task**:
     [Task](https://taskfile.dev/) is a task runner/build tool that simplifies the build process.\
     Install it by following the instructions on their [official website](https://taskfile.dev/installation/).
 
-3. **Clone the Repository**:  
+3. **Clone the Repository**:
     Clone the repository to your local machine:
 
     ```bash
@@ -144,7 +150,7 @@ If you want to modify the code or build the binary yourself, you'll need the fol
     cd zvuk-grabber
     ```
 
-4. **Build the Binary**:  
+4. **Build the Binary**:
     Use Task to build the binary:
 
     ```bash
@@ -157,7 +163,7 @@ If you want to modify the code or build the binary yourself, you'll need the fol
 
 ## Authentication 🔐
 
-### Browser-Based Login (The Easy Way)
+### Zvuk Browser-Based Login (The Easy Way)
 
 **I've wanted to automate the authentication cookie extraction for ages!** But as we all know, UI/UX automation is usually painful because we approach the website like a black box and poke it with a stick hoping to discover the right behavior and side effects. Like a blind chicken in the dark, basically.
 
@@ -168,7 +174,7 @@ If you want to modify the code or build the binary yourself, you'll need the fol
 Run this command and watch the magic happen:
 
 ```bash
-zvuk-grabber auth login
+zvuk-grabber auth zvuk login
 ```
 
 This will:
@@ -229,7 +235,7 @@ If the login process gets stuck or fails:
 2. **Run the command again**:
 
    ```bash
-   zvuk-grabber auth login
+   zvuk-grabber auth zvuk login
    ```
 
 3. **Create an issue** with the debug output
@@ -243,17 +249,34 @@ And if the moon phase is in the right wavelength of light and Mercury's retrogra
 - **Browser Compatibility**: Works best with Chrome/Chromium. Firefox might work but is untested.
 - **Cleanup Warnings**: You might see warnings about temp directory cleanup on Windows. This is normal and non-critical - Chrome takes time to release file locks.
 
-### Manual Token Extraction (The Old-School Way)
+### Yandex Music Browser-Based Login
 
-If the browser automation fails or you prefer doing things manually:
+Use provider-specific Yandex Music auth command:
 
-1. **Log in to Zvuk** in your browser
-2. **Navigate to** [https://zvuk.com/api/v2/tiny/profile](https://zvuk.com/api/v2/tiny/profile)
-3. **Find the token** in the JSON response at `$.result.profile.token`
-4. **Copy it** to `.zvuk-grabber.yaml`:
+```bash
+zvuk-grabber auth yandex login
+```
+
+This command opens a visible browser with go-rod, lets you log in manually, and
+saves the detected OAuth token to `yandex_music_token` in `.zvuk-grabber.yaml`.
+The token value is never printed to logs.
+
+### Manual Token Setup
+
+If browser automation fails or you prefer doing things manually:
+
+1. **Set `zvuk_auth_token`**:
+   - Log in to Zvuk in your browser
+   - Navigate to [https://zvuk.com/api/v2/tiny/profile](https://zvuk.com/api/v2/tiny/profile)
+   - Find the token in JSON response at `$.result.profile.token`
+
+2. **Set `yandex_music_token`** if you already have an OAuth token.
+
+3. **Save both fields** in `.zvuk-grabber.yaml`:
 
    ```yaml
-   auth_token: "your_token_here"
+   zvuk_auth_token: "your_token_here"
+   yandex_music_token: "your_token_here"
    ```
 
 * * *
@@ -262,14 +285,14 @@ If the browser automation fails or you prefer doing things manually:
 
 ### Downloading Content
 
-1. **Download Albums**:  
+1. **Download Albums**:
     To download one or more albums, provide the album URLs as arguments:
 
     ```bash
     zvuk-grabber https://zvuk.com/release/36599795 https://zvuk.com/release/37212880
     ```
 
-2. **Download Tracks**:  
+2. **Download Tracks**:
     To download individual tracks, provide the track URLs.\
     The tracks will be organized as if they were part of an album, with a folder and cover art:
 
@@ -277,40 +300,79 @@ If the browser automation fails or you prefer doing things manually:
     zvuk-grabber https://zvuk.com/track/67856297 https://zvuk.com/track/51397074 https://zvuk.com/track/63391919 https://zvuk.com/track/106773860 https://zvuk.com/track/114947212
     ```
 
-3. **Download Playlists**:  
+3. **Download Playlists**:
     To download a playlist, provide the playlist URL:
 
     ```bash
     zvuk-grabber https://zvuk.com/playlist/9037842
     ```
 
-4. **Download Artists**:  
+4. **Download Artists**:
     To download an artist's entire discography, provide the artist URL:
 
     ```bash
     zvuk-grabber https://zvuk.com/artist/3196437
     ```
 
-5. **Download Audiobooks**:  
+5. **Download Audiobooks**:
     To download audiobooks, provide the audiobook URL:
 
     ```bash
     zvuk-grabber https://zvuk.com/abook/37364537
     ```
 
-6. **Download Podcasts**:  
+6. **Download Podcasts**:
     To download podcasts, provide the podcast URL:
 
     ```bash
     zvuk-grabber https://zvuk.com/podcast/12891594
     ```
 
-7. **Using Text Files**:  
-    You can also provide text files containing URLs (one per line):
+7. **Using Text Files**:
+    You can also provide text files containing URLs (one per line).\
+    Empty lines and lines starting with `#` are ignored:
 
     ```bash
-    zvuk-grabber 1.txt 2.txt
+    zvuk-grabber urls.txt another-list.txt
     ```
+
+### Yandex Music URL Examples
+
+Supported hosts: `music.yandex.*` (for example, `music.yandex.ru`).
+
+1. **Download Yandex Tracks**:
+
+    ```bash
+    zvuk-grabber https://music.yandex.ru/album/2176030/track/17588871
+    ```
+
+2. **Download Yandex Albums**:
+
+    ```bash
+    zvuk-grabber https://music.yandex.ru/album/2176030
+    ```
+
+3. **Download Legacy Yandex Playlists** (`/users/.../playlists/...`):
+
+    ```bash
+    zvuk-grabber https://music.yandex.ru/users/yamusic-daily/playlists/1000
+    ```
+
+4. **Download UUID Yandex Playlists** (`/playlists/{uuid}`):
+
+    ```bash
+    zvuk-grabber https://music.yandex.ru/playlists/018f7f8a-90fb-7f72-89f1-cd5f6c8d4cb1
+    ```
+
+### Mixed Provider Example
+
+```bash
+zvuk-grabber \
+  https://zvuk.com/release/42393651 \
+  https://music.yandex.ru/album/2176030 \
+  https://music.yandex.ru/users/yamusic-daily/playlists/1000 \
+  https://zvuk.com/track/106773860
+```
 
 ### Command-Line Flags
 
@@ -335,12 +397,13 @@ zvuk-grabber [flags] {urls}
 - `-o, --output <path>` - Output directory for downloads
 - `-l, --lyrics` - Download lyrics if available
 - `-s, --speed-limit <speed>` - Download speed limit (e.g., `500KB`, `1MB`, `1.5MB`)
+- `-n, --dry-run` - Show what would be downloaded without writing files
 
 **Examples:**
 
 ```bash
 # Download album in FLAC format
-zvuk-grabber -f 3 https://zvuk.com/release/3393328
+zvuk-grabber -q 3 https://zvuk.com/release/3393328
 
 # Download with custom output directory and lyrics
 zvuk-grabber -o "/Music/Zvuk" -l https://zvuk.com/release/5895112
@@ -348,14 +411,18 @@ zvuk-grabber -o "/Music/Zvuk" -l https://zvuk.com/release/5895112
 # Download with speed limit
 zvuk-grabber -s 1MB https://zvuk.com/release/8045705
 
+# Preview mixed provider downloads (dry-run)
+zvuk-grabber -n https://zvuk.com/release/42393651 https://music.yandex.ru/album/2176030
+
 # Combine multiple flags
-zvuk-grabber -f 3 -o "/Music" -l -s 2MB https://zvuk.com/release/38858441
+zvuk-grabber -q 3 -o "/Music" -l -s 2MB https://zvuk.com/release/38858441
 ```
 
 ### Available Commands
 
 - `zvuk-grabber {urls}` - Download content from URLs
-- `zvuk-grabber auth login` - Interactive browser-based authentication
+- `zvuk-grabber auth zvuk login` - Interactive browser-based authentication
+- `zvuk-grabber auth yandex login` - Interactive Yandex Music browser authentication
 - `zvuk-grabber version` - Show version information
 - `zvuk-grabber help` - Show help information
 
@@ -363,28 +430,50 @@ zvuk-grabber -f 3 -o "/Music" -l -s 2MB https://zvuk.com/release/38858441
 
 ## Configuration ⚙️
 
-The default configuration is already set in the `.zvuk-grabber.yaml` file.\
-You only need to modify it if you want to customize the behavior.\
+Use `.zvuk-grabber.example.yaml` as the default template and copy it to `.zvuk-grabber.yaml`.\
+You only need to modify fields you care about.\
 Key options include:
 
 ### Authentication
 
-- **`auth_token`**: Your Zvuk API authentication token.\
-    **Easiest way**: Run `zvuk-grabber auth login` to automatically extract it.\
-    **Manual way**: Log in to [Zvuk's API](https://zvuk.com/api/v2/tiny/profile) and locate the token using the JSON path `$.result.profile.token`.  
+- **`zvuk_auth_token`**: Your Zvuk API authentication token.\
+    **Easiest way**: Run `zvuk-grabber auth zvuk login` to automatically extract it.\
+    **Manual way**: Log in to [Zvuk's API](https://zvuk.com/api/v2/tiny/profile) and locate the token using the JSON path `$.result.profile.token`.
     Example:
 
     ```yaml
-    auth_token: "a3f8e7b2c5d946f1a0b9e8d7c6f5e4a2"
+    zvuk_auth_token: "your_token_here"
     ```
+
+- **`yandex_music_token`**: Your Yandex Music OAuth token.\
+    **Easiest way**: Run `zvuk-grabber auth yandex login` to extract and save it automatically.\
+    Example:
+
+    ```yaml
+    yandex_music_token: "your_token_here"
+    ```
+
+**⚠️ Breaking change for existing users**
+
+Older configs used `auth_token`. Current versions require `zvuk_auth_token` and do not provide automatic fallback from `auth_token`.
+
+If you updated and got a token-missing error, migrate your config key manually:
+
+```yaml
+# old (no longer used)
+auth_token: "..."
+
+# new
+zvuk_auth_token: "..."
+```
 
 ### Audio Quality
 
 - **`quality`**: Preferred audio quality for downloaded files.\
     Available options:
-  - `1` = MP3, 128 Kbps (standard quality)
-  - `2` = MP3, 320 Kbps (high quality)
-  - `3` = FLAC, 16/24-bit (lossless quality)
+  - `1` = MP3 lower/basic
+  - `2` = Best MP3
+  - `3` = FLAC first, with MP3 fallback when FLAC is unavailable
     Example:
 
     ```yaml
@@ -394,11 +483,11 @@ Key options include:
 - **`min_quality`**: Minimum acceptable quality (tracks below this will be skipped).\
     Available options:
   - `0` = No filtering (accept any quality) - default
-  - `1` = Skip tracks only available in MP3 128 Kbps or lower
-  - `2` = Skip tracks only available in MP3 320 Kbps or lower (FLAC only)
-  - `3` = Skip tracks only available in FLAC or lower (impossible - FLAC is max)
+  - `1` = Allow MP3 basic and above
+  - `2` = Require best MP3 or FLAC
+  - `3` = Require FLAC only
 
-    **Example 1** - Download FLAC preferred, but accept MP3 320 minimum:
+    **Example 1** - Try FLAC first, accept best MP3 fallback:
 
     ```yaml
     quality: 3
@@ -412,11 +501,17 @@ Key options include:
     min_quality: 3
     ```
 
-    **Note**: `min_quality` must be less than or equal to `quality`.
+    **Notes**: `min_quality` must be less than or equal to `quality`.\
+    For FLAC-only mode use:
+
+    ```yaml
+    quality: 3
+    min_quality: 3
+    ```
 
 - **`min_duration`**: Minimum acceptable track duration (tracks shorter than this will be skipped).\
     Use duration strings like `30s`, `1m`, `1m30s`.\
-    Empty string = no filtering (default).
+    Empty string = no filtering (default). Works for both Zvuk and Yandex Music.
 
     **Example uses**:
   - Skip intros/interludes/skits (common in hip-hop albums)
@@ -429,7 +524,7 @@ Key options include:
 
 - **`max_duration`**: Maximum acceptable track duration (tracks longer than this will be skipped).\
     Use duration strings like `10m`, `15m`, `1h`.\
-    Empty string = no filtering (default).
+    Empty string = no filtering (default). Works for both Zvuk and Yandex Music.
 
     **Example uses**:
   - Skip DJ mixes and extended live versions
@@ -451,12 +546,21 @@ Key options include:
 
 ### Output Settings
 
-- **`output_path`**: Directory where downloaded files will be saved.\
-    You can specify either a relative path (e.g., `"zvuk downloads"`) or an absolute path (e.g., `"C:/Music"`).\
+- **`output_path`**: Base directory where downloaded files will be saved.\
+    You can specify either a relative path (e.g., `"zvuk-grabber-downloads"`) or an absolute path (e.g., `"C:/Music"`).\
     Example:
 
     ```yaml
-    output_path: "zvuk downloads"
+    output_path: "zvuk-grabber-downloads"
+    ```
+
+- **`group_by_provider`**: Whether to place downloads into provider subfolders under `output_path`.\
+    When enabled (default), files are written into `output_path/zvuk` and `output_path/yandex`.\
+    Disable it if you prefer one shared library folder.\
+    Example:
+
+    ```yaml
+    group_by_provider: true
     ```
 
 - **`create_folder_for_singles`**: Whether to create a separate folder for single tracks (tracks not part of an album).\
@@ -639,6 +743,7 @@ Key options include:
 ### Download Behavior
 
 - **`download_lyrics`**: Whether to download lyrics for tracks (if available).\
+    Applies to both Zvuk and Yandex Music. Yandex Music saves sidecar `.lrc` files and embeds the same text into audio tags when lyrics are available.\
     Example:
 
     ```yaml
@@ -660,6 +765,7 @@ Key options include:
     ```
 
 - **`replace_descriptions`**: Whether to overwrite existing description files (for audiobooks and podcasts).\
+    Applies to both Zvuk and Yandex Music.\
     Example:
 
     ```yaml
@@ -667,6 +773,7 @@ Key options include:
     ```
 
 - **`replace_lyrics`**: Whether to overwrite existing lyric files.\
+    Applies to both Zvuk and Yandex Music.\
     Example:
 
     ```yaml
@@ -675,6 +782,7 @@ Key options include:
 
 - **`download_speed_limit`**: Limit download speed (e.g., `"1MB"` for 1 MB/s).\
     Set to empty or `0` for unlimited speed.\
+    Applies to both Zvuk and Yandex Music downloads.\
     Example:
 
     ```yaml
@@ -682,6 +790,11 @@ Key options include:
     ```
 
 ### Retry and Pause Settings
+
+`retry_attempts_count`, `min_retry_pause`, `max_retry_pause`, and
+`max_download_pause` apply to both Zvuk and Yandex Music downloads. Yandex Music
+uses the retry settings for provider metadata, audio/cover/lyrics network calls,
+and uses `max_download_pause` between track jobs.
 
 - **`retry_attempts_count`**: Number of retry attempts before giving up on a failed download.\
     Example:
@@ -776,8 +889,13 @@ Having trouble? Follow these steps:
    Attach the logs when reporting issues.
 
 3. **Check Your Token**:\
-    Ensure your `auth_token` is valid and properly set in the `.zvuk-grabber.yaml` file.\
-    If it's not working, run `zvuk-grabber auth login` to get a fresh token.
+    Ensure provider tokens are valid in `.zvuk-grabber.yaml`:\
+    - `zvuk_auth_token` for Zvuk URLs
+    - `yandex_music_token` for Yandex Music URLs\
+    If your config is from an older version, rename `auth_token` -> `zvuk_auth_token`.\
+    If needed, refresh them with:
+    - `zvuk-grabber auth zvuk login`
+    - `zvuk-grabber auth yandex login`
 
 4. **Check Your Internet Connection**:\
     A stable connection is essential. If downloads are failing, wait a moment and try again.
@@ -811,5 +929,3 @@ If you're waiting for a fix, feel free to open an issue or create a PR.
 - Zvuk’s brand and name are trademarks of their respective owners.
 
 - Zvuk Grabber is not affiliated, sponsored, or endorsed by Zvuk.
-
-* * *

@@ -11,12 +11,20 @@ import (
 )
 
 var (
+	// global is the package-wide sugared logger used by helper functions.
+	//
 	//nolint:gochecknoglobals // Logger is used all over the project, so it's okay.
 	global *zap.SugaredLogger
+	// defaultLevel stores the atomic log level for the global logger.
+	//
 	//nolint:gochecknoglobals // If the logging level is not set, the application will have no logs.
 	defaultLevel = zap.NewAtomicLevelAt(zap.InfoLevel)
+	// fatalHandler is an optional test override for fatal exit behavior.
+	//
 	//nolint:gochecknoglobals // Test helper to override fatal behavior.
 	fatalHandler func(int)
+	// fatalHandlerMutex protects fatalHandler reads and writes.
+	//
 	//nolint:gochecknoglobals // Should be able to override fatal handler in tests.
 	fatalHandlerMutex sync.Mutex
 )

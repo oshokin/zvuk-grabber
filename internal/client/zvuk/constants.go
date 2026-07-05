@@ -1,9 +1,10 @@
 package zvuk
 
 const (
-	// API Quality parameters.
+	// defaultStreamQuality is the default stream quality sent to the GraphQL API.
 	defaultStreamQuality = "hifi"
-	defaultEncodeType    = "wv"
+	// defaultEncodeType is the default stream encoding type sent to the GraphQL API.
+	defaultEncodeType = "wv"
 )
 
 const (

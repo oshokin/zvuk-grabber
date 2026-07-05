@@ -12,15 +12,16 @@ import (
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/yaml.v3"
 
-	"github.com/oshokin/zvuk-grabber/internal/constants"
 	"github.com/oshokin/zvuk-grabber/internal/logger"
 	"github.com/oshokin/zvuk-grabber/internal/utils"
 )
 
 // Config holds all configuration settings.
 type Config struct {
-	// AuthToken is the authentication token for API access.
-	AuthToken string `mapstructure:"auth_token"`
+	// ZvukAuthToken is the authentication token for Zvuk API access.
+	ZvukAuthToken string `mapstructure:"zvuk_auth_token"`
+	// YandexMusicToken is the OAuth token for Yandex Music API access.
+	YandexMusicToken string `mapstructure:"yandex_music_token"`
 	// Quality specifies the preferred audio quality (1=MP3 128k, 2=MP3 320k, 3=FLAC).
 	Quality uint8 `mapstructure:"quality"`
 	// MinQuality specifies the minimum acceptable quality (1=MP3 128k, 2=MP3 320k, 3=FLAC).
@@ -34,6 +35,8 @@ type Config struct {
 	MaxDuration string `mapstructure:"max_duration"`
 	// OutputPath is the directory path where downloaded files will be saved.
 	OutputPath string `mapstructure:"output_path"`
+	// GroupByProvider controls whether provider subfolders are created under output_path.
+	GroupByProvider bool `mapstructure:"group_by_provider"`
 	// TrackFilenameTemplate is the template for naming individual track files.
 	TrackFilenameTemplate string `mapstructure:"track_filename_template"`
 	// AlbumFolderTemplate is the template for naming album folders.
@@ -103,6 +106,50 @@ const (
 	// DefaultConfigFilename is the default name of the configuration file.
 	DefaultConfigFilename = ".zvuk-grabber.yaml"
 
+	// DefaultQuality is the preferred download quality (3=FLAC with MP3 fallback).
+	DefaultQuality = 3
+	// DefaultMinQuality disables quality filtering by default.
+	DefaultMinQuality = 0
+	// DefaultMinDuration disables minimum duration filtering.
+	DefaultMinDuration = ""
+	// DefaultMaxDuration disables maximum duration filtering.
+	DefaultMaxDuration = ""
+
+	// DefaultOutputPath is the base directory where downloads are saved.
+	DefaultOutputPath = "zvuk-grabber-downloads"
+
+	// DefaultGroupByProvider controls provider subfolder grouping under output_path.
+	DefaultGroupByProvider = true
+
+	// DefaultDownloadLyrics enables lyrics downloading when available.
+	DefaultDownloadLyrics = true
+	// DefaultReplaceTracks keeps existing track files by default.
+	DefaultReplaceTracks = false
+	// DefaultReplaceCovers keeps existing covers by default.
+	DefaultReplaceCovers = false
+	// DefaultReplaceDescriptions keeps existing descriptions by default.
+	DefaultReplaceDescriptions = false
+	// DefaultReplaceLyrics keeps existing lyrics by default.
+	DefaultReplaceLyrics = false
+	// DefaultLogLevel defines default logging verbosity.
+	DefaultLogLevel = "info"
+	// DefaultDownloadSpeedLimit means unlimited speed.
+	DefaultDownloadSpeedLimit = ""
+	// DefaultCreateFolderForSingles keeps singles in root by default.
+	DefaultCreateFolderForSingles = false
+	// DefaultMaxFolderNameLength limits generated folder names.
+	DefaultMaxFolderNameLength int64 = 100
+	// DefaultRetryAttemptsCount is the default retry count.
+	DefaultRetryAttemptsCount int64 = 5
+	// DefaultMaxDownloadPause controls pause between downloads.
+	DefaultMaxDownloadPause = "2s"
+	// DefaultMinRetryPause controls minimum retry pause.
+	DefaultMinRetryPause = "3s"
+	// DefaultMaxRetryPause controls maximum retry pause.
+	DefaultMaxRetryPause = "7s"
+	// DefaultMaxConcurrentDownloads defaults to safe sequential mode.
+	DefaultMaxConcurrentDownloads int64 = 1
+
 	// DefaultTrackFilenameTemplate is the default template for naming downloaded track files.
 	DefaultTrackFilenameTemplate = "{{.trackNumberPad}} - {{.trackTitle}}"
 
@@ -131,12 +178,25 @@ const (
 	minQuality = 1
 	// maxQuality is the maximum valid quality value.
 	maxQuality = 3
+
+	// configKeyZvukAuthToken is the YAML config key for the Zvuk authentication token.
+	//
+	//nolint:gosec // These are YAML keys, not credentials.
+	configKeyZvukAuthToken = "zvuk_auth_token"
+	// configKeyYandexMusicToken is the YAML config key for the Yandex Music OAuth token.
+	//
+	//nolint:gosec // These are YAML keys, not credentials.
+	configKeyYandexMusicToken = "yandex_music_token"
+	// yamlStringTag is the YAML scalar tag used when writing quoted string values.
+	yamlStringTag = "!!str"
 )
 
 // Static error definitions for better error handling.
 var (
-	// ErrEmptyAuthToken indicates that the authentication token is missing.
-	ErrEmptyAuthToken = errors.New("authentication token cannot be empty")
+	// ErrEmptyZvukAuthToken indicates that the Zvuk authentication token is missing.
+	ErrEmptyZvukAuthToken = errors.New("zvuk_auth_token cannot be empty")
+	// ErrEmptyYandexMusicToken indicates that the Yandex Music authentication token is missing.
+	ErrEmptyYandexMusicToken = errors.New("yandex_music_token cannot be empty")
 	// ErrInvalidQuality indicates that the quality setting is invalid.
 	ErrInvalidQuality = errors.New("invalid quality")
 	// ErrInvalidMinQuality indicates that the minimum quality setting is invalid.
@@ -163,16 +223,90 @@ var (
 	ErrInvalidConcurrentDownloads = errors.New("max concurrent downloads must be a positive integer")
 )
 
+// DefaultConfig returns a fully-populated config with safe defaults and empty tokens.
+func DefaultConfig() *Config {
+	return &Config{
+		ZvukAuthToken:                    "",
+		YandexMusicToken:                 "",
+		Quality:                          DefaultQuality,
+		MinQuality:                       DefaultMinQuality,
+		MinDuration:                      DefaultMinDuration,
+		MaxDuration:                      DefaultMaxDuration,
+		OutputPath:                       DefaultOutputPath,
+		GroupByProvider:                  DefaultGroupByProvider,
+		TrackFilenameTemplate:            DefaultTrackFilenameTemplate,
+		AlbumFolderTemplate:              DefaultAlbumFolderTemplate,
+		PlaylistFilenameTemplate:         DefaultPlaylistFilenameTemplate,
+		AudiobookFolderTemplate:          DefaultAudiobookFolderTemplate,
+		AudiobookChapterFilenameTemplate: DefaultAudiobookChapterFilenameTemplate,
+		PodcastFolderTemplate:            DefaultPodcastFolderTemplate,
+		PodcastEpisodeFilenameTemplate:   DefaultPodcastEpisodeFilenameTemplate,
+		DownloadLyrics:                   DefaultDownloadLyrics,
+		ReplaceTracks:                    DefaultReplaceTracks,
+		ReplaceCovers:                    DefaultReplaceCovers,
+		ReplaceDescriptions:              DefaultReplaceDescriptions,
+		ReplaceLyrics:                    DefaultReplaceLyrics,
+		LogLevel:                         DefaultLogLevel,
+		DownloadSpeedLimit:               DefaultDownloadSpeedLimit,
+		CreateFolderForSingles:           DefaultCreateFolderForSingles,
+		MaxFolderNameLength:              DefaultMaxFolderNameLength,
+		RetryAttemptsCount:               DefaultRetryAttemptsCount,
+		MaxDownloadPause:                 DefaultMaxDownloadPause,
+		MinRetryPause:                    DefaultMinRetryPause,
+		MaxRetryPause:                    DefaultMaxRetryPause,
+		MaxConcurrentDownloads:           DefaultMaxConcurrentDownloads,
+	}
+}
+
+// applyViperDefaults registers default configuration values with viper.
+func applyViperDefaults() {
+	defaults := DefaultConfig()
+	viper.SetDefault(configKeyZvukAuthToken, defaults.ZvukAuthToken)
+	viper.SetDefault(configKeyYandexMusicToken, defaults.YandexMusicToken)
+	viper.SetDefault("quality", defaults.Quality)
+	viper.SetDefault("min_quality", defaults.MinQuality)
+	viper.SetDefault("min_duration", defaults.MinDuration)
+	viper.SetDefault("max_duration", defaults.MaxDuration)
+	viper.SetDefault("output_path", defaults.OutputPath)
+	viper.SetDefault("group_by_provider", defaults.GroupByProvider)
+	viper.SetDefault("track_filename_template", defaults.TrackFilenameTemplate)
+	viper.SetDefault("album_folder_template", defaults.AlbumFolderTemplate)
+	viper.SetDefault("playlist_filename_template", defaults.PlaylistFilenameTemplate)
+	viper.SetDefault("audiobook_folder_template", defaults.AudiobookFolderTemplate)
+	viper.SetDefault("audiobook_chapter_filename_template", defaults.AudiobookChapterFilenameTemplate)
+	viper.SetDefault("podcast_folder_template", defaults.PodcastFolderTemplate)
+	viper.SetDefault("podcast_episode_filename_template", defaults.PodcastEpisodeFilenameTemplate)
+	viper.SetDefault("download_lyrics", defaults.DownloadLyrics)
+	viper.SetDefault("replace_tracks", defaults.ReplaceTracks)
+	viper.SetDefault("replace_covers", defaults.ReplaceCovers)
+	viper.SetDefault("replace_descriptions", defaults.ReplaceDescriptions)
+	viper.SetDefault("replace_lyrics", defaults.ReplaceLyrics)
+	viper.SetDefault("log_level", defaults.LogLevel)
+	viper.SetDefault("download_speed_limit", defaults.DownloadSpeedLimit)
+	viper.SetDefault("create_folder_for_singles", defaults.CreateFolderForSingles)
+	viper.SetDefault("max_folder_name_length", defaults.MaxFolderNameLength)
+	viper.SetDefault("retry_attempts_count", defaults.RetryAttemptsCount)
+	viper.SetDefault("max_download_pause", defaults.MaxDownloadPause)
+	viper.SetDefault("min_retry_pause", defaults.MinRetryPause)
+	viper.SetDefault("max_retry_pause", defaults.MaxRetryPause)
+	viper.SetDefault("max_concurrent_downloads", defaults.MaxConcurrentDownloads)
+}
+
 // LoadConfig loads configuration settings from a YAML file.
 func LoadConfig(configFilename string) (*Config, error) {
 	if configFilename == "" {
 		configFilename = DefaultConfigFilename
 	}
 
+	viper.Reset()
 	viper.SetConfigFile(configFilename)
+	applyViperDefaults()
 
 	if err := viper.ReadInConfig(); err != nil {
-		return nil, fmt.Errorf("failed to read config from file: %w", err)
+		var configFileNotFoundError viper.ConfigFileNotFoundError
+		if !errors.As(err, &configFileNotFoundError) && !os.IsNotExist(err) {
+			return nil, fmt.Errorf("failed to read config from file: %w", err)
+		}
 	}
 
 	var cfg Config
@@ -221,12 +355,10 @@ func ValidateConfig(cfg *Config) error {
 		err                      error
 	)
 
-	authToken := strings.TrimSpace(cfg.AuthToken)
-	if authToken == "" {
-		return ErrEmptyAuthToken
-	}
-
 	cfg.ZvukBaseURL = ZvukBaseURL
+	if strings.TrimSpace(cfg.OutputPath) == "" {
+		cfg.OutputPath = DefaultOutputPath
+	}
 
 	if !isValidQuality(cfg.Quality) {
 		return fmt.Errorf("%w: must be between %d and %d", ErrInvalidQuality, minQuality, maxQuality)
@@ -307,12 +439,20 @@ func ValidateConfig(cfg *Config) error {
 
 // SaveConfig saves the configuration to the file while preserving the original format and order.
 func SaveConfig(cfg *Config) error {
+	return SaveConfigFields(cfg, map[string]string{
+		configKeyZvukAuthToken:    cfg.ZvukAuthToken,
+		configKeyYandexMusicToken: cfg.YandexMusicToken,
+	})
+}
+
+// SaveConfigFields saves selected sensitive fields while preserving YAML order where possible.
+func SaveConfigFields(cfg *Config, fields map[string]string) error {
 	configFile := getConfigFilePath()
 
 	// Read the original file content.
 	originalContent, err := os.ReadFile(configFile)
 	if err != nil {
-		return handleMissingConfigFile(configFile, cfg.AuthToken, err)
+		return handleMissingConfigFile(configFile, cfg, err)
 	}
 
 	// Parse YAML while preserving order using yaml.Node.
@@ -321,8 +461,7 @@ func SaveConfig(cfg *Config) error {
 		return fmt.Errorf("failed to parse YAML: %w", err)
 	}
 
-	// Update the auth_token value in the node tree.
-	updateAuthTokenInNode(&node, cfg.AuthToken)
+	updateFieldsInNode(&node, fields)
 
 	// Marshal back to YAML (preserves order).
 	newContent, err := yaml.Marshal(&node)
@@ -330,8 +469,8 @@ func SaveConfig(cfg *Config) error {
 		return fmt.Errorf("failed to marshal YAML: %w", err)
 	}
 
-	// Write the file back with preserved order.
-	if err = os.WriteFile(configFile, newContent, constants.DefaultFilePermissions); err != nil {
+	// Config contains access tokens, so keep it private to the current user.
+	if err = os.WriteFile(configFile, newContent, 0o600); err != nil {
 		return fmt.Errorf("failed to write config file: %w", err)
 	}
 
@@ -349,45 +488,138 @@ func getConfigFilePath() string {
 }
 
 // handleMissingConfigFile creates a new config file if it doesn't exist.
-func handleMissingConfigFile(configFile, authToken string, err error) error {
+func handleMissingConfigFile(configFile string, cfg *Config, err error) error {
 	if !os.IsNotExist(err) {
 		return fmt.Errorf("failed to read config file: %w", err)
 	}
 
-	// File doesn't exist, create it with viper.
-	viper.Set("auth_token", authToken)
+	defaultCfg := DefaultConfig()
+	if cfg != nil {
+		defaultCfg.ZvukAuthToken = cfg.ZvukAuthToken
+		defaultCfg.YandexMusicToken = cfg.YandexMusicToken
+	}
 
-	if err = viper.SafeWriteConfigAs(configFile); err != nil {
+	content := renderConfigContent(defaultCfg)
+
+	if err = os.WriteFile(configFile, content, 0o600); err != nil {
 		return fmt.Errorf("failed to create config file: %w", err)
 	}
 
 	return nil
 }
 
-// updateAuthTokenInNode updates the auth_token value in the YAML node tree.
-func updateAuthTokenInNode(node *yaml.Node, authToken string) {
+// renderConfigContent renders the default YAML configuration file contents.
+func renderConfigContent(cfg *Config) []byte {
+	if cfg == nil {
+		cfg = DefaultConfig()
+	}
+
+	return fmt.Appendf(nil, `zvuk_auth_token: %q
+yandex_music_token: %q
+quality: %d
+min_quality: %d
+min_duration: %q
+max_duration: %q
+output_path: %q
+group_by_provider: %t
+track_filename_template: %q
+album_folder_template: %q
+playlist_filename_template: %q
+audiobook_folder_template: %q
+audiobook_chapter_filename_template: %q
+podcast_folder_template: %q
+podcast_episode_filename_template: %q
+download_lyrics: %t
+replace_tracks: %t
+replace_covers: %t
+replace_descriptions: %t
+replace_lyrics: %t
+log_level: %q
+download_speed_limit: %q
+create_folder_for_singles: %t
+max_folder_name_length: %d
+retry_attempts_count: %d
+max_download_pause: %q
+min_retry_pause: %q
+max_retry_pause: %q
+max_concurrent_downloads: %d
+`,
+		cfg.ZvukAuthToken,
+		cfg.YandexMusicToken,
+		cfg.Quality,
+		cfg.MinQuality,
+		cfg.MinDuration,
+		cfg.MaxDuration,
+		cfg.OutputPath,
+		cfg.GroupByProvider,
+		cfg.TrackFilenameTemplate,
+		cfg.AlbumFolderTemplate,
+		cfg.PlaylistFilenameTemplate,
+		cfg.AudiobookFolderTemplate,
+		cfg.AudiobookChapterFilenameTemplate,
+		cfg.PodcastFolderTemplate,
+		cfg.PodcastEpisodeFilenameTemplate,
+		cfg.DownloadLyrics,
+		cfg.ReplaceTracks,
+		cfg.ReplaceCovers,
+		cfg.ReplaceDescriptions,
+		cfg.ReplaceLyrics,
+		cfg.LogLevel,
+		cfg.DownloadSpeedLimit,
+		cfg.CreateFolderForSingles,
+		cfg.MaxFolderNameLength,
+		cfg.RetryAttemptsCount,
+		cfg.MaxDownloadPause,
+		cfg.MinRetryPause,
+		cfg.MaxRetryPause,
+		cfg.MaxConcurrentDownloads,
+	)
+}
+
+// updateFieldsInNode updates or appends scalar string values in the YAML node tree.
+func updateFieldsInNode(node *yaml.Node, fields map[string]string) {
 	// The root node is a document node, content[0] is the actual map.
 	if len(node.Content) == 0 || node.Content[0].Kind != yaml.MappingNode {
 		return
 	}
 
 	mapNode := node.Content[0]
+	seen := make(map[string]struct{}, len(fields))
 
 	// Iterate through key-value pairs (stored as alternating nodes).
 	for i := 0; i < len(mapNode.Content); i += 2 {
 		keyNode := mapNode.Content[i]
 		valueNode := mapNode.Content[i+1]
 
-		if keyNode.Value == "auth_token" {
-			// Update the value while preserving style.
-			valueNode.Value = authToken
-
-			// Ensure it's quoted if it contains special characters.
-			if valueNode.Style == 0 {
-				valueNode.Style = yaml.DoubleQuotedStyle
-			}
-
-			break
+		value, ok := fields[keyNode.Value]
+		if !ok {
+			continue
 		}
+
+		valueNode.Value = value
+
+		valueNode.Tag = yamlStringTag
+		if valueNode.Style == 0 {
+			valueNode.Style = yaml.DoubleQuotedStyle
+		}
+
+		seen[keyNode.Value] = struct{}{}
+	}
+
+	for key, value := range fields {
+		if _, ok := seen[key]; ok {
+			continue
+		}
+
+		mapNode.Content = append(mapNode.Content, &yaml.Node{
+			Kind:  yaml.ScalarNode,
+			Tag:   yamlStringTag,
+			Value: key,
+		}, &yaml.Node{
+			Kind:  yaml.ScalarNode,
+			Tag:   yamlStringTag,
+			Value: value,
+			Style: yaml.DoubleQuotedStyle,
+		})
 	}
 }

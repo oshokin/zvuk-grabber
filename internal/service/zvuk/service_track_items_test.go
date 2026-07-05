@@ -3,6 +3,8 @@ package zvuk
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -85,4 +87,46 @@ func TestDownloadTrackItems_SkipsTracksCoveredByRegisteredCollections(t *testing
 	assert.Equal(t, int64(1), impl.stats.TracksSkipped)
 	assert.Equal(t, int64(1), impl.stats.TracksSkippedExists)
 	assert.Empty(t, impl.stats.Errors)
+}
+
+// TestFinalizeCollectionAssets_TrackModeFinalizesRegisteredCollectionCover verifies
+// standalone-track flow finalizes cover assets from registered collections.
+func TestFinalizeCollectionAssets_TrackModeFinalizesRegisteredCollectionCover(t *testing.T) {
+	t.Parallel()
+
+	setup := newTestDownloadSetup(t)
+	defer setup.cleanup()
+
+	impl := setup.impl(t)
+
+	embeddableCoverPath := filepath.Join(setup.tempDir, "cover_test-uuid.jpg")
+	finalCoverPath := filepath.Join(setup.tempDir, "cover.jpg")
+
+	err := os.WriteFile(embeddableCoverPath, []byte("fake image data"), 0o644)
+	require.NoError(t, err)
+
+	impl.audioCollectionsMutex.Lock()
+	impl.audioCollections[ShortDownloadItem{
+		Category: DownloadCategoryAlbum,
+		ItemID:   "39588100",
+	}] = &audioCollection{
+		category:            DownloadCategoryAlbum,
+		id:                  "39588100",
+		title:               "Woke",
+		embeddableCoverPath: embeddableCoverPath,
+		coverPath:           finalCoverPath,
+		tracksCount:         1,
+	}
+	impl.audioCollectionsMutex.Unlock()
+
+	impl.finalizeCollectionAssets(context.Background(), &downloadTracksMetadata{
+		category: DownloadCategoryTrack,
+	})
+
+	assert.NoFileExists(t, embeddableCoverPath, "Embeddable cover should be renamed in track mode")
+	assert.FileExists(t, finalCoverPath, "Final cover should be created in track mode")
+
+	content, err := os.ReadFile(finalCoverPath)
+	require.NoError(t, err)
+	assert.Equal(t, "fake image data", string(content))
 }

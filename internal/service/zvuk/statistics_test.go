@@ -10,114 +10,79 @@ import (
 	"github.com/oshokin/zvuk-grabber/internal/config"
 )
 
-// TestDownloadStatistics_InitialState verifies default statistics counters are zero.
+// newStatisticsService builds a ServiceImpl test instance with optional configuration.
+func newStatisticsService(t *testing.T, cfg *config.Config) *ServiceImpl {
+	t.Helper()
+
+	if cfg == nil {
+		cfg = new(config.Config)
+	}
+
+	service := NewService(cfg, nil, nil, nil, nil)
+
+	impl, ok := service.(*ServiceImpl)
+	if !ok {
+		t.Fatalf("Service should be of type *ServiceImpl")
+	}
+
+	return impl
+}
+
+// TestDownloadStatistics_InitialState verifies download statistics start at zero.
 func TestDownloadStatistics_InitialState(t *testing.T) {
 	t.Parallel()
 
-	service := NewService(
-		new(config.Config),
-		nil,
-		nil,
-		nil,
-		nil,
-	)
-
-	impl, ok := service.(*ServiceImpl)
-	assert.True(t, ok, "Service should be of type *ServiceImpl")
-	assert.NotNil(t, impl.stats, "Statistics should be initialized")
-	assert.Equal(t, int64(0), impl.stats.TotalTracksProcessed, "Initial tracks processed should be 0")
-	assert.Equal(t, int64(0), impl.stats.TracksDownloaded, "Initial tracks downloaded should be 0")
-	assert.Equal(t, int64(0), impl.stats.TracksSkipped, "Initial tracks skipped should be 0")
-	assert.Equal(t, int64(0), impl.stats.TracksFailed, "Initial tracks failed should be 0")
+	impl := newStatisticsService(t, nil)
+	assert.NotNil(t, impl.stats)
+	assert.Equal(t, int64(0), impl.stats.TotalTracksProcessed)
+	assert.Equal(t, int64(0), impl.stats.TracksDownloaded)
+	assert.Equal(t, int64(0), impl.stats.TracksSkipped)
+	assert.Equal(t, int64(0), impl.stats.TracksFailed)
 }
 
-// TestDownloadStatistics_IncrementTrackDownloaded verifies the downloaded track counter increments.
+// TestDownloadStatistics_IncrementTrackDownloaded verifies downloaded track and byte counters increment correctly.
 func TestDownloadStatistics_IncrementTrackDownloaded(t *testing.T) {
 	t.Parallel()
 
-	service := NewService(
-		new(config.Config),
-		nil,
-		nil,
-		nil,
-		nil,
-	)
-
-	impl, ok := service.(*ServiceImpl)
-	assert.True(t, ok, "Service should be of type *ServiceImpl")
-
-	// Increment downloaded tracks.
+	impl := newStatisticsService(t, nil)
 	impl.incrementTrackDownloaded(1024)
 	impl.incrementTrackDownloaded(2048)
 
-	assert.Equal(t, int64(2), impl.stats.TotalTracksProcessed, "Should have 2 tracks processed")
-	assert.Equal(t, int64(2), impl.stats.TracksDownloaded, "Should have 2 tracks downloaded")
-	assert.Equal(t, int64(3072), impl.stats.TotalBytesDownloaded, "Should have 3072 bytes downloaded")
+	assert.Equal(t, int64(2), impl.stats.TotalTracksProcessed)
+	assert.Equal(t, int64(2), impl.stats.TracksDownloaded)
+	assert.Equal(t, int64(3072), impl.stats.TotalBytesDownloaded)
 }
 
-// TestDownloadStatistics_IncrementTrackSkipped verifies the skipped track counter increments.
+// TestDownloadStatistics_IncrementTrackSkipped verifies skipped track counters increment by reason.
 func TestDownloadStatistics_IncrementTrackSkipped(t *testing.T) {
 	t.Parallel()
 
-	service := NewService(
-		new(config.Config),
-		nil,
-		nil,
-		nil,
-		nil,
-	)
-
-	impl, ok := service.(*ServiceImpl)
-	assert.True(t, ok, "Service should be of type *ServiceImpl")
-
-	// Increment skipped tracks.
+	impl := newStatisticsService(t, nil)
 	impl.incrementTrackSkipped(SkipReasonExists)
 	impl.incrementTrackSkipped(SkipReasonQuality)
 
-	assert.Equal(t, int64(2), impl.stats.TotalTracksProcessed, "Should have 2 tracks processed")
-	assert.Equal(t, int64(2), impl.stats.TracksSkipped, "Should have 2 tracks skipped")
-	assert.Equal(t, int64(1), impl.stats.TracksSkippedExists, "Should have 1 track skipped (exists)")
-	assert.Equal(t, int64(1), impl.stats.TracksSkippedQuality, "Should have 1 track skipped (quality)")
+	assert.Equal(t, int64(2), impl.stats.TotalTracksProcessed)
+	assert.Equal(t, int64(2), impl.stats.TracksSkipped)
+	assert.Equal(t, int64(1), impl.stats.TracksSkippedExists)
+	assert.Equal(t, int64(1), impl.stats.TracksSkippedQuality)
 }
 
-// TestDownloadStatistics_IncrementTrackFailed verifies the failed track counter increments.
+// TestDownloadStatistics_IncrementTrackFailed verifies failed track counters increment correctly.
 func TestDownloadStatistics_IncrementTrackFailed(t *testing.T) {
 	t.Parallel()
 
-	service := NewService(
-		new(config.Config),
-		nil,
-		nil,
-		nil,
-		nil,
-	)
-
-	impl, ok := service.(*ServiceImpl)
-	assert.True(t, ok, "Service should be of type *ServiceImpl")
-
-	// Increment failed tracks.
+	impl := newStatisticsService(t, nil)
 	impl.incrementTrackFailed()
 
-	assert.Equal(t, int64(1), impl.stats.TotalTracksProcessed, "Should have 1 track processed")
-	assert.Equal(t, int64(1), impl.stats.TracksFailed, "Should have 1 track failed")
+	assert.Equal(t, int64(1), impl.stats.TotalTracksProcessed)
+	assert.Equal(t, int64(1), impl.stats.TracksFailed)
 }
 
-// TestDownloadStatistics_MixedResults verifies counters with mixed download outcomes.
+// TestDownloadStatistics_MixedResults verifies mixed download, skip, and asset counters stay consistent.
 func TestDownloadStatistics_MixedResults(t *testing.T) {
 	t.Parallel()
 
-	service := NewService(
-		new(config.Config),
-		nil,
-		nil,
-		nil,
-		nil,
-	)
-
-	impl, ok := service.(*ServiceImpl)
-	assert.True(t, ok, "Service should be of type *ServiceImpl")
-
-	// Simulate mixed download results.
+	impl := newStatisticsService(t, nil)
 	impl.incrementTrackDownloaded(1000)
 	impl.incrementTrackDownloaded(2000)
 	impl.incrementTrackSkipped(SkipReasonDuration)
@@ -127,89 +92,47 @@ func TestDownloadStatistics_MixedResults(t *testing.T) {
 	impl.incrementCoverDownloaded()
 	impl.incrementCoverSkipped()
 
-	assert.Equal(t, int64(4), impl.stats.TotalTracksProcessed, "Should have 4 tracks processed")
-	assert.Equal(t, int64(2), impl.stats.TracksDownloaded, "Should have 2 tracks downloaded")
-	assert.Equal(t, int64(1), impl.stats.TracksSkipped, "Should have 1 track skipped")
-	assert.Equal(t, int64(1), impl.stats.TracksFailed, "Should have 1 track failed")
-	assert.Equal(t, int64(3000), impl.stats.TotalBytesDownloaded, "Should have 3000 bytes downloaded")
-	assert.Equal(t, int64(1), impl.stats.LyricsDownloaded, "Should have 1 lyrics downloaded")
-	assert.Equal(t, int64(1), impl.stats.LyricsSkipped, "Should have 1 lyrics skipped")
-	assert.Equal(t, int64(1), impl.stats.CoversDownloaded, "Should have 1 cover downloaded")
-	assert.Equal(t, int64(1), impl.stats.CoversSkipped, "Should have 1 cover skipped")
+	assert.Equal(t, int64(4), impl.stats.TotalTracksProcessed)
+	assert.Equal(t, int64(2), impl.stats.TracksDownloaded)
+	assert.Equal(t, int64(1), impl.stats.TracksSkipped)
+	assert.Equal(t, int64(1), impl.stats.TracksFailed)
+	assert.Equal(t, int64(3000), impl.stats.TotalBytesDownloaded)
+	assert.Equal(t, int64(1), impl.stats.LyricsDownloaded)
+	assert.Equal(t, int64(1), impl.stats.LyricsSkipped)
+	assert.Equal(t, int64(1), impl.stats.CoversDownloaded)
+	assert.Equal(t, int64(1), impl.stats.CoversSkipped)
 }
 
-// TestPrintDownloadSummary_NoTracksProcessed verifies summary output when no tracks were processed.
+// TestPrintDownloadSummary_NoTracksProcessed verifies the summary is omitted when no work was done.
 func TestPrintDownloadSummary_NoTracksProcessed(t *testing.T) {
 	t.Parallel()
 
-	service := NewService(
-		new(config.Config),
-		nil,
-		nil,
-		nil,
-		nil,
-	)
-
-	impl, ok := service.(*ServiceImpl)
-	assert.True(t, ok, "Service should be of type *ServiceImpl")
-
-	// Should not panic when no tracks processed.
-	ctx := context.Background()
-	impl.PrintDownloadSummary(ctx)
-
-	// Verify no changes to stats.
-	assert.Equal(t, int64(0), impl.stats.TotalTracksProcessed, "Should still have 0 tracks processed")
+	impl := newStatisticsService(t, nil)
+	impl.PrintDownloadSummary(context.Background())
+	assert.Equal(t, int64(0), impl.stats.TotalTracksProcessed)
 }
 
-// TestPrintDownloadSummary_WithResults verifies summary output with download results.
+// TestPrintDownloadSummary_WithResults verifies the summary renders when tracks and assets were processed.
 func TestPrintDownloadSummary_WithResults(t *testing.T) {
 	t.Parallel()
 
-	service := NewService(
-		new(config.Config),
-		nil,
-		nil,
-		nil,
-		nil,
-	)
-
-	impl, ok := service.(*ServiceImpl)
-	assert.True(t, ok, "Service should be of type *ServiceImpl")
-
-	// Simulate some downloads.
-	impl.incrementTrackDownloaded(36860019) // ~37 MB (from the example).
+	impl := newStatisticsService(t, nil)
+	impl.incrementTrackDownloaded(36860019)
 	impl.incrementLyricsDownloaded()
 	impl.incrementCoverDownloaded()
+	impl.PrintDownloadSummary(context.Background())
 
-	// Should not panic when printing summary.
-	ctx := context.Background()
-	impl.PrintDownloadSummary(ctx)
-
-	// Verify stats are correct.
-	assert.Equal(t, int64(1), impl.stats.TotalTracksProcessed, "Should have 1 track processed")
-	assert.Equal(t, int64(1), impl.stats.TracksDownloaded, "Should have 1 track downloaded")
-	assert.Equal(t, int64(36860019), impl.stats.TotalBytesDownloaded, "Should have correct bytes")
+	assert.Equal(t, int64(1), impl.stats.TotalTracksProcessed)
+	assert.Equal(t, int64(1), impl.stats.TracksDownloaded)
+	assert.Equal(t, int64(36860019), impl.stats.TotalBytesDownloaded)
 }
 
-// TestDownloadStatistics_ConcurrentAccess verifies thread-safe statistics updates.
+// TestDownloadStatistics_ConcurrentAccess verifies statistics remain correct under concurrent updates.
 func TestDownloadStatistics_ConcurrentAccess(t *testing.T) {
 	t.Parallel()
 
-	service := NewService(
-		&config.Config{
-			MaxConcurrentDownloads: 5,
-		},
-		nil,
-		nil,
-		nil,
-		nil,
-	)
-
-	impl, ok := service.(*ServiceImpl)
-	assert.True(t, ok, "Service should be of type *ServiceImpl")
-
-	// Simulate concurrent downloads.
-	done := make(chan bool)
+	impl := newStatisticsService(t, &config.Config{MaxConcurrentDownloads: 5})
+	done := make(chan struct{}, 10)
 
 	for range 10 {
 		go func() {
@@ -217,72 +140,44 @@ func TestDownloadStatistics_ConcurrentAccess(t *testing.T) {
 			impl.incrementLyricsDownloaded()
 			impl.incrementCoverDownloaded()
 
-			done <- true
+			done <- struct{}{}
 		}()
 	}
 
-	// Wait for all goroutines to finish.
 	for range 10 {
 		<-done
 	}
 
-	// Verify all increments were recorded.
-	assert.Equal(t, int64(10), impl.stats.TotalTracksProcessed, "Should have 10 tracks processed")
-	assert.Equal(t, int64(10), impl.stats.TracksDownloaded, "Should have 10 tracks downloaded")
-	assert.Equal(t, int64(10000), impl.stats.TotalBytesDownloaded, "Should have 10000 bytes downloaded")
-	assert.Equal(t, int64(10), impl.stats.LyricsDownloaded, "Should have 10 lyrics downloaded")
-	assert.Equal(t, int64(10), impl.stats.CoversDownloaded, "Should have 10 covers downloaded")
+	assert.Equal(t, int64(10), impl.stats.TotalTracksProcessed)
+	assert.Equal(t, int64(10), impl.stats.TracksDownloaded)
+	assert.Equal(t, int64(10000), impl.stats.TotalBytesDownloaded)
+	assert.Equal(t, int64(10), impl.stats.LyricsDownloaded)
+	assert.Equal(t, int64(10), impl.stats.CoversDownloaded)
 }
 
-// TestPrintDownloadSummary_WithInterruption verifies summary output after a canceled download.
+// TestPrintDownloadSummary_WithInterruption verifies interrupted sessions are reflected in the summary.
 func TestPrintDownloadSummary_WithInterruption(t *testing.T) {
 	t.Parallel()
 
-	service := NewService(
-		new(config.Config),
-		nil,
-		nil,
-		nil,
-		nil,
-	)
-
-	impl, ok := service.(*ServiceImpl)
-	assert.True(t, ok, "Service should be of type *ServiceImpl")
-
-	// Simulate partial download before interruption.
-	impl.incrementTrackDownloaded(10000000) // 10 MB.
-	impl.incrementTrackDownloaded(5000000)  // 5 MB.
+	impl := newStatisticsService(t, nil)
+	impl.incrementTrackDownloaded(10000000)
+	impl.incrementTrackDownloaded(5000000)
 	impl.incrementCoverDownloaded()
 
-	// Create a canceled context to simulate CTRL+C.
 	ctx, cancel := context.WithCancel(context.Background())
-	cancel() // Immediately cancel to simulate interruption.
-
-	// Should not panic when printing summary with interrupted context.
+	cancel()
 	impl.PrintDownloadSummary(ctx)
 
-	// Verify stats are correct.
-	assert.Equal(t, int64(2), impl.stats.TotalTracksProcessed, "Should have 2 tracks processed")
-	assert.Equal(t, int64(2), impl.stats.TracksDownloaded, "Should have 2 tracks downloaded")
-	assert.Equal(t, int64(15000000), impl.stats.TotalBytesDownloaded, "Should have 15 MB downloaded")
+	assert.Equal(t, int64(2), impl.stats.TotalTracksProcessed)
+	assert.Equal(t, int64(2), impl.stats.TracksDownloaded)
+	assert.Equal(t, int64(15000000), impl.stats.TotalBytesDownloaded)
 }
 
-// TestDownloadStatistics_ErrorTracking verifies errors are accumulated in statistics.
+// TestDownloadStatistics_ErrorTracking verifies structured errors are stored and included in the summary.
 func TestDownloadStatistics_ErrorTracking(t *testing.T) {
 	t.Parallel()
 
-	service := NewService(
-		new(config.Config),
-		nil,
-		nil,
-		nil,
-		nil,
-	)
-
-	impl, ok := service.(*ServiceImpl)
-	assert.True(t, ok, "Service should be of type *ServiceImpl")
-
-	// Simulate various errors during download.
+	impl := newStatisticsService(t, nil)
 	impl.recordError(&DownloadError{
 		Category:       DownloadCategoryTrack,
 		ItemID:         "12345",
@@ -293,7 +188,6 @@ func TestDownloadStatistics_ErrorTracking(t *testing.T) {
 		ParentTitle:    "Parent Album",
 		Error:          assert.AnError,
 	})
-
 	impl.recordError(&DownloadError{
 		Category:  DownloadCategoryAlbum,
 		ItemID:    "67890",
@@ -302,7 +196,6 @@ func TestDownloadStatistics_ErrorTracking(t *testing.T) {
 		Phase:     "fetching album data",
 		Error:     assert.AnError,
 	})
-
 	impl.recordError(&DownloadError{
 		Category:  DownloadCategoryPlaylist,
 		ItemID:    "11111",
@@ -311,133 +204,64 @@ func TestDownloadStatistics_ErrorTracking(t *testing.T) {
 		Phase:     "fetching playlist metadata",
 		Error:     assert.AnError,
 	})
-
 	impl.incrementTrackFailed()
 	impl.incrementTrackDownloaded(1000)
 
-	// Verify errors were recorded.
-	assert.Len(t, impl.stats.Errors, 3, "Should have 3 errors recorded")
+	assert.Len(t, impl.stats.Errors, 3)
 	assert.Equal(t, "12345", impl.stats.Errors[0].ItemID)
 	assert.Equal(t, "Test Track 1", impl.stats.Errors[0].ItemTitle)
 	assert.Equal(t, "downloading file", impl.stats.Errors[0].Phase)
 	assert.Equal(t, DownloadCategoryTrack, impl.stats.Errors[0].Category)
-
-	// Print summary with errors (should not panic).
-	ctx := context.Background()
-	impl.PrintDownloadSummary(ctx)
+	impl.PrintDownloadSummary(context.Background())
 }
 
-// TestPrintDownloadSummary_WithDuration tests that duration and speed are displayed correctly.
+// TestPrintDownloadSummary_WithDuration verifies duration and speed are computed from session timestamps.
 func TestPrintDownloadSummary_WithDuration(t *testing.T) {
 	t.Parallel()
 
-	service := NewService(
-		new(config.Config),
-		nil,
-		nil,
-		nil,
-		nil,
-	)
-
-	impl, ok := service.(*ServiceImpl)
-	assert.True(t, ok, "Service should be of type *ServiceImpl")
-
-	// Record actual start time.
-	impl.stats.StartTime = time.Now()
-
-	// Simulate some download work with controlled timing.
+	impl := newStatisticsService(t, nil)
+	start := time.Date(2026, 6, 19, 12, 0, 0, 0, time.UTC)
 	totalBytes := int64(100 * 1024 * 1024)
+	impl.stats.StartTime = start
 	impl.incrementTrackDownloaded(totalBytes)
-
-	// Sleep to ensure measurable duration (at least 100ms for test reliability).
-	time.Sleep(150 * time.Millisecond)
-
 	impl.incrementTrackDownloaded(totalBytes)
+	impl.stats.EndTime = start.Add(150 * time.Millisecond)
 
-	// Record actual end time.
-	impl.stats.EndTime = time.Now()
-
-	// Calculate actual duration.
 	actualDuration := impl.stats.EndTime.Sub(impl.stats.StartTime)
-
-	// Verify stats.
 	assert.Equal(t, int64(2), impl.stats.TracksDownloaded)
 	assert.Equal(t, totalBytes*2, impl.stats.TotalBytesDownloaded)
-
-	// Print summary (should show duration and average speed).
-	ctx := context.Background()
-	impl.PrintDownloadSummary(ctx)
-
-	// Verify duration is at least what we slept for.
-	assert.GreaterOrEqual(t, actualDuration, 150*time.Millisecond,
-		"Duration should be at least the sleep time")
-
-	// Verify average speed calculation is reasonable.
-	if actualDuration > 0 {
-		expectedSpeed := float64(totalBytes*2) / actualDuration.Seconds()
-		assert.Greater(t, expectedSpeed, float64(0), "Average speed should be positive")
-		// Speed should be huge since we downloaded 200MB in ~150ms.
-		assert.Greater(t, expectedSpeed, float64(1024*1024), "Speed should be > 1 MB/s in test")
-	}
+	impl.PrintDownloadSummary(context.Background())
+	assert.Equal(t, 150*time.Millisecond, actualDuration)
+	assert.Greater(t, float64(totalBytes*2)/actualDuration.Seconds(), float64(1024*1024))
 }
 
-// TestFormatDuration tests the formatDuration helper function.
+// TestFormatDuration verifies human-readable duration formatting for common intervals.
 func TestFormatDuration(t *testing.T) {
 	t.Parallel()
 
-	testCases := []struct {
+	cases := []struct {
 		name     string
 		duration time.Duration
 		expected string
 	}{
-		{
-			name:     "milliseconds",
-			duration: 500 * time.Millisecond,
-			expected: "500ms",
-		},
-		{
-			name:     "seconds only",
-			duration: 45 * time.Second,
-			expected: "45s",
-		},
-		{
-			name:     "minutes and seconds",
-			duration: 2*time.Minute + 30*time.Second,
-			expected: "2m 30s",
-		},
-		{
-			name:     "exactly 1 minute",
-			duration: 1 * time.Minute,
-			expected: "1m 0s",
-		},
+		{name: "milliseconds", duration: 500 * time.Millisecond, expected: "500ms"},
+		{name: "seconds only", duration: 45 * time.Second, expected: "45s"},
+		{name: "minutes and seconds", duration: 2*time.Minute + 30*time.Second, expected: "2m 30s"},
+		{name: "exactly 1 minute", duration: time.Minute, expected: "1m 0s"},
 		{
 			name:     "hours, minutes, and seconds",
-			duration: 1*time.Hour + 15*time.Minute + 30*time.Second,
+			duration: time.Hour + 15*time.Minute + 30*time.Second,
 			expected: "1h 15m 30s",
 		},
-		{
-			name:     "multiple hours",
-			duration: 3*time.Hour + 45*time.Minute + 12*time.Second,
-			expected: "3h 45m 12s",
-		},
-		{
-			name:     "exactly 1 hour",
-			duration: 1 * time.Hour,
-			expected: "1h 0m 0s",
-		},
-		{
-			name:     "very short duration",
-			duration: 1 * time.Millisecond,
-			expected: "1ms",
-		},
+		{name: "multiple hours", duration: 3*time.Hour + 45*time.Minute + 12*time.Second, expected: "3h 45m 12s"},
+		{name: "exactly 1 hour", duration: time.Hour, expected: "1h 0m 0s"},
+		{name: "very short duration", duration: time.Millisecond, expected: "1ms"},
 	}
 
-	for _, tc := range testCases {
+	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-
-			result := formatDuration(tc.duration)
-			assert.Equal(t, tc.expected, result)
+			assert.Equal(t, tc.expected, formatDuration(tc.duration))
 		})
 	}
 }

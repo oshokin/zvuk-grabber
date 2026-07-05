@@ -34,13 +34,13 @@ var (
 	//nolint:gochecknoglobals,lll // Cobra command requires a global definition for proper command-line parsing and execution.
 	rootCmd = &cobra.Command{
 		Use:   "zvuk-grabber [flags] {urls}",
-		Short: "Download tracks, albums, playlists, or an entire artist's catalog.",
+		Short: "Download tracks, albums and playlists from Zvuk and Yandex Music.",
 		Long: `Zvuk Grabber is a CLI tool for downloading audio content from specified URLs.
-It supports downloading:
-- Individual tracks
-- Full albums
-- Playlists
-- Complete catalogs of an artist
+It supports mixed Zvuk and Yandex Music links in one invocation.
+
+Supported examples:
+- Zvuk tracks, releases, playlists, artists, audiobooks and podcasts
+- Yandex Music tracks, albums, legacy playlists and UUID playlists
 
 The application provides flexible naming templates, quality selection, and download speed limits.`,
 		Args:             cobra.MinimumNArgs(1),
@@ -57,6 +57,8 @@ The application provides flexible naming templates, quality selection, and downl
 	}
 )
 
+// init registers root flags, the version command, and default run behavior.
+//
 //nolint:gochecknoinits // Cobra requires the init function to set up flags before the command is executed.
 func init() {
 	// Add version command.
@@ -158,6 +160,8 @@ func initConfig(cmd *cobra.Command, _ []string) {
 	logger.SetLevel(appConfig.ParsedLogLevel)
 }
 
+// bindFlagsToConfig applies changed CLI flags to cfg and validates the configuration.
+//
 //nolint:gocognit // This function handles all flag overrides, high complexity is expected.
 func bindFlagsToConfig(flags *pflag.FlagSet, cfg *config.Config) error {
 	var err error
@@ -217,10 +221,15 @@ func bindFlagsToConfig(flags *pflag.FlagSet, cfg *config.Config) error {
 
 // dumpConfig dumps the configuration as JSON for E2E testing.
 func dumpConfig(cfg *config.Config) {
+	// ConfigDump is the JSON shape written by --dump-config for E2E tests.
 	type ConfigDump struct {
-		Quality            uint8  `json:"quality"`
-		OutputPath         string `json:"output_path"`
-		DownloadLyrics     bool   `json:"download_lyrics"`
+		// Quality is the configured audio quality preset.
+		Quality uint8 `json:"quality"`
+		// OutputPath is the resolved download destination directory.
+		OutputPath string `json:"output_path"`
+		// DownloadLyrics reflects whether lyric files are enabled.
+		DownloadLyrics bool `json:"download_lyrics"`
+		// DownloadSpeedLimit is the configured transfer rate cap.
 		DownloadSpeedLimit string `json:"download_speed_limit"`
 	}
 

@@ -8,6 +8,7 @@ import (
 	"io"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -633,93 +634,99 @@ func TestDownloadURLs_NonASCIIFilename(t *testing.T) {
 func TestDownloadURLs_SpeedLimiting(t *testing.T) {
 	t.Parallel()
 
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+	synctest.Test(t, func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
 
-	cfg := &config.Config{
-		OutputPath:               t.TempDir(),
-		Quality:                  1,
-		ParsedDownloadSpeedLimit: 512 * 1024, // 512 KB/s because we're not animals.
-		ParsedMaxDownloadPause:   1 * time.Nanosecond,
-		MaxConcurrentDownloads:   1,
-		TrackFilenameTemplate:    "{{.trackNumberPad}} - {{.trackTitle}}",
-		AlbumFolderTemplate:      "{{.releaseYear}} - {{.albumArtist}} - {{.albumTitle}}",
-	}
+		cfg := &config.Config{
+			OutputPath:               t.TempDir(),
+			Quality:                  1,
+			ParsedDownloadSpeedLimit: 512 * 1024, // 512 KB/s because we're not animals.
+			ParsedMaxDownloadPause:   1 * time.Nanosecond,
+			MaxConcurrentDownloads:   1,
+			TrackFilenameTemplate:    "{{.trackNumberPad}} - {{.trackTitle}}",
+			AlbumFolderTemplate:      "{{.releaseYear}} - {{.albumArtist}} - {{.albumTitle}}",
+		}
 
-	mockClient := mock_zvuk_client.NewMockClient(ctrl)
-	mockURLProcessor := NewURLProcessor()
-	mockTemplateManager := NewTemplateManager(context.Background(), cfg)
-	mockTagProcessor := NewTagProcessor()
+		mockClient := mock_zvuk_client.NewMockClient(ctrl)
+		mockURLProcessor := NewURLProcessor()
+		mockTemplateManager := NewTemplateManager(context.Background(), cfg)
+		mockTagProcessor := NewTagProcessor()
 
-	trackID := "1488"
-	albumID := "2517"
-	labelID := "404"
-	urls := []string{"https://zvuk.com/track/" + trackID}
-	trackIDs := []string{trackID}
-	albumIDs := []string{albumID}
-	labelIDs := []string{labelID}
+		trackID := "1488"
+		albumID := "2517"
+		labelID := "404"
+		urls := []string{"https://zvuk.com/track/" + trackID}
+		trackIDs := []string{trackID}
+		albumIDs := []string{albumID}
+		labelIDs := []string{labelID}
 
-	// Setup expectations for throttled downloads because bandwidth costs money apparently.
-	getUserProfileResponse := &zvuk.UserProfile{
-		Subscription: &zvuk.UserSubscription{Title: "Premium But Still Slow"},
-	}
+		// Setup expectations for throttled downloads because bandwidth costs money apparently.
+		getUserProfileResponse := &zvuk.UserProfile{
+			Subscription: &zvuk.UserSubscription{Title: "Premium But Still Slow"},
+		}
 
-	getTracksMetadataResponse := map[string]*zvuk.Track{
-		trackID: {ID: 1488, Title: "Waiting For The Download Bar", ReleaseID: 2517, Position: 1},
-	}
-
-	getAlbumsMetadataResponse := &zvuk.GetAlbumsMetadataResponse{
-		Releases: map[string]*zvuk.Release{
-			albumID: {
-				ID:          2517,
-				Title:       "The Art of Patience",
-				Date:        9001000000000,
-				ArtistNames: []string{"Dial-Up Memories"},
-				LabelID:     404,
-			},
-		},
-		Tracks: map[string]*zvuk.Track{
+		getTracksMetadataResponse := map[string]*zvuk.Track{
 			trackID: {ID: 1488, Title: "Waiting For The Download Bar", ReleaseID: 2517, Position: 1},
-		},
-	}
+		}
 
-	getLabelsMetadataResponse := map[string]*zvuk.Label{
-		labelID: {Title: "Error Not Found Records"},
-	}
+		getAlbumsMetadataResponse := &zvuk.GetAlbumsMetadataResponse{
+			Releases: map[string]*zvuk.Release{
+				albumID: {
+					ID:          2517,
+					Title:       "The Art of Patience",
+					Date:        9001000000000,
+					ArtistNames: []string{"Dial-Up Memories"},
+					LabelID:     404,
+				},
+			},
+			Tracks: map[string]*zvuk.Track{
+				trackID: {ID: 1488, Title: "Waiting For The Download Bar", ReleaseID: 2517, Position: 1},
+			},
+		}
 
-	getStreamMetadataResponse := &zvuk.StreamMetadata{
-		Stream: "/stream/" + trackID,
-	}
+		getLabelsMetadataResponse := map[string]*zvuk.Label{
+			labelID: {Title: "Error Not Found Records"},
+		}
 
-	mockClient.EXPECT().GetUserProfile(gomock.Any()).Return(getUserProfileResponse, nil)
-	mockClient.EXPECT().GetTracksMetadata(gomock.Any(), trackIDs).Return(getTracksMetadataResponse, nil)
-	mockClient.EXPECT().GetAlbumsMetadata(gomock.Any(), albumIDs, gomock.Any()).Return(getAlbumsMetadataResponse, nil)
-	mockClient.EXPECT().GetLabelsMetadata(gomock.Any(), labelIDs).Return(getLabelsMetadataResponse, nil)
-	mockClient.EXPECT().GetStreamMetadata(gomock.Any(), trackID, gomock.Any()).Return(getStreamMetadataResponse, nil)
+		getStreamMetadataResponse := &zvuk.StreamMetadata{
+			Stream: "/stream/" + trackID,
+		}
 
-	// Large content to test limiting, like downloading on rural internet.
-	mockTrackContent := make([]byte, 1024*1024) // 1MB that feels like 1GB.
-	slowReader := &slowReadCloser{Reader: bytes.NewReader(mockTrackContent), delay: 100 * time.Millisecond}
+		mockClient.EXPECT().GetUserProfile(gomock.Any()).Return(getUserProfileResponse, nil)
+		mockClient.EXPECT().GetTracksMetadata(gomock.Any(), trackIDs).Return(getTracksMetadataResponse, nil)
+		mockClient.EXPECT().
+			GetAlbumsMetadata(gomock.Any(), albumIDs, gomock.Any()).
+			Return(getAlbumsMetadataResponse, nil)
+		mockClient.EXPECT().GetLabelsMetadata(gomock.Any(), labelIDs).Return(getLabelsMetadataResponse, nil)
+		mockClient.EXPECT().
+			GetStreamMetadata(gomock.Any(), trackID, gomock.Any()).
+			Return(getStreamMetadataResponse, nil)
 
-	fetchTrackResult := &zvuk.FetchTrackResult{
-		Body:       slowReader,
-		TotalBytes: int64(len(mockTrackContent)),
-	}
+		// Large content to test limiting, like downloading on rural internet.
+		mockTrackContent := make([]byte, 1024*1024) // 1MB that feels like 1GB.
+		slowReader := &slowReadCloser{Reader: bytes.NewReader(mockTrackContent), delay: 100 * time.Millisecond}
 
-	mockClient.EXPECT().
-		FetchTrack(gomock.Any(), "/stream/"+trackID).
-		Return(fetchTrackResult, nil)
+		fetchTrackResult := &zvuk.FetchTrackResult{
+			Body:       slowReader,
+			TotalBytes: int64(len(mockTrackContent)),
+		}
 
-	service := NewService(cfg, mockClient, mockURLProcessor, mockTemplateManager, mockTagProcessor)
+		mockClient.EXPECT().
+			FetchTrack(gomock.Any(), "/stream/"+trackID).
+			Return(fetchTrackResult, nil)
 
-	ctx := context.Background()
-	start := time.Now()
+		service := NewService(cfg, mockClient, mockURLProcessor, mockTemplateManager, mockTagProcessor)
 
-	service.DownloadURLs(ctx, urls)
+		ctx := context.Background()
+		start := time.Now()
 
-	duration := time.Since(start)
+		service.DownloadURLs(ctx, urls)
 
-	// At 512KB/s, 1MB should take ~2s, assuming the universe cooperates.
-	// Note: Actual timing may vary because mocks are fast, but the throttling logic should still execute.
-	assert.GreaterOrEqual(t, duration, 1*time.Second, "Download should show some evidence of throttling")
+		duration := time.Since(start)
+
+		// At 512KB/s, 1MB should take ~2s, assuming the universe cooperates.
+		// Note: Actual timing may vary because mocks are fast, but the throttling logic should still execute.
+		assert.GreaterOrEqual(t, duration, 1*time.Second, "Download should show some evidence of throttling")
+	})
 }

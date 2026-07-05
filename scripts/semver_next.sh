@@ -10,6 +10,7 @@ set -euo pipefail
 #   - else any starting with "feat:"            -> MINOR bump
 #   - else any starting with "fix:"             -> PATCH bump
 #   - else any other commits                    -> PATCH bump (default)
+# Prefixes may be scoped, e.g. feat(api): add endpoint.
 # If no tag exists, current version is 1.0.0 (initial release).
 # When bumping MINOR, reset PATCH to 0; when bumping MAJOR, reset MINOR/PATCH to 0.
 #
@@ -60,17 +61,14 @@ else
   mapfile -t subjects < <(git log --format=%s --all)
 fi
 
-# Determine the appropriate version bump based on commit message patterns.
-# Enable case-insensitive matching for commit message analysis.
-shopt -s nocasematch
-
 # Check for version bump type with precedence: major > feat > fix.
-# Default to patch for any commits (even non-semantic ones).
+# INTENTIONAL: default to patch even when no new commits are found.
+# This keeps manual re-release/tag-push flows possible without extra flags.
 bump="patch"
 
 # First pass: check for major version bump (breaking changes).
 for s in "${subjects[@]}"; do
-  if [[ $s =~ ^major: ]]; then 
+  if printf '%s' "$s" | grep -Eiq '^major(:|\([^)]+\):)'; then
     bump="major"
     break  # Major takes highest precedence, stop searching.
   fi
@@ -79,7 +77,7 @@ done
 # Second pass: check for minor version bump (new features) if no major found.
 if [[ $bump == "patch" ]]; then
   for s in "${subjects[@]}"; do
-    if [[ $s =~ ^feat: ]]; then 
+    if printf '%s' "$s" | grep -Eiq '^feat(:|\([^)]+\):)'; then
       bump="minor"
       break  # Minor found, stop searching.
     fi
@@ -90,15 +88,12 @@ fi
 # Note: We already default to patch, so this preserves explicit fix: commits.
 if [[ $bump == "patch" ]]; then
   for s in "${subjects[@]}"; do
-    if [[ $s =~ ^fix: ]]; then 
+    if printf '%s' "$s" | grep -Eiq '^fix(:|\([^)]+\):)'; then
       bump="patch"
       break  # Explicit patch found, maintain patch.
     fi
   done
 fi
-
-# Disable case-insensitive matching after commit analysis.
-shopt -u nocasematch
 
 # Parse the current version into major, minor, and patch components.
 # IFS (Internal Field Separator) splits on dots, read assigns to variables.

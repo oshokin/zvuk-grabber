@@ -2,3 +2,5 @@
 .githooks/* text eol=lf
 scripts/*.sh text eol=lf
 scripts/*.ps1 text eol=crlf
+*.yaml text eol=lf
+.gitignore text eol=lf

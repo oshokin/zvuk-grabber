@@ -132,7 +132,7 @@ tasks:
           chmod +x .githooks/commit-msg
         {{end}}
         echo "Git hooks configured successfully!"
-        echo "Commit messages must now start with: fix:, feat:, or major:"
+        echo "Semantic prefixes are optional; CI/CD treats unprefixed commits as patch/fix."
 
   remove-githooks:
     desc: "Disable Git hooks for this repository"

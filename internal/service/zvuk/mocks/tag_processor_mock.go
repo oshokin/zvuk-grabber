@@ -19,13 +19,17 @@ import (
 
 // MockTagProcessor is a mock of TagProcessor interface.
 type MockTagProcessor struct {
+	// ctrl is the GoMock controller for this mock.
 	ctrl     *gomock.Controller
+	// recorder records expected mock calls.
 	recorder *MockTagProcessorMockRecorder
+	// isgomock is a marker type used by the gomock framework.
 	isgomock struct{}
 }
 
 // MockTagProcessorMockRecorder is the mock recorder for MockTagProcessor.
 type MockTagProcessorMockRecorder struct {
+	// mock is the mock instance being recorded.
 	mock *MockTagProcessor
 }
 

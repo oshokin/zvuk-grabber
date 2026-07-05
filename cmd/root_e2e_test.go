@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/oshokin/zvuk-grabber/internal/constants"
+	"github.com/oshokin/zvuk-grabber/internal/files"
 )
 
 // ConfigDump represents the config dump structure.
@@ -31,6 +31,29 @@ type ConfigDump struct {
 const (
 	// testBinaryName is the name of the test binary for E2E tests.
 	testBinaryName = "zvuk-grabber-test"
+
+	// testE2EBaseConfigContent is the baseline YAML fixture used by root E2E tests.
+	testE2EBaseConfigContent = `
+zvuk_auth_token: "test_token_123"
+quality: 1
+output_path: "/tmp/test-output"
+download_lyrics: false
+download_speed_limit: "500KB"
+log_level: "info"
+track_filename_template: "{{.trackNumberPad}} - {{.trackTitle}}"
+album_folder_template: "{{.releaseYear}} - {{.albumArtist}} - {{.albumTitle}}"
+playlist_filename_template: "{{.trackNumberPad}} - {{.trackArtist}} - {{.trackTitle}}"
+replace_tracks: false
+replace_covers: false
+replace_lyrics: false
+create_folder_for_singles: false
+max_folder_name_length: 100
+retry_attempts_count: 3
+max_download_pause: "5s"
+min_retry_pause: "1s"
+max_retry_pause: "3s"
+max_concurrent_downloads: 1
+`
 )
 
 var (
@@ -103,27 +126,7 @@ func TestMain(m *testing.M) {
 func TestE2E_FlagOverrides_Format(t *testing.T) {
 	t.Parallel()
 
-	baseConfig := `
-auth_token: "test_token_123"
-quality: 1
-output_path: "/tmp/test-output"
-download_lyrics: false
-download_speed_limit: "500KB"
-log_level: "info"
-track_filename_template: "{{.trackNumberPad}} - {{.trackTitle}}"
-album_folder_template: "{{.releaseYear}} - {{.albumArtist}} - {{.albumTitle}}"
-playlist_filename_template: "{{.trackNumberPad}} - {{.trackArtist}} - {{.trackTitle}}"
-replace_tracks: false
-replace_covers: false
-replace_lyrics: false
-create_folder_for_singles: false
-max_folder_name_length: 100
-retry_attempts_count: 3
-max_download_pause: "5s"
-min_retry_pause: "1s"
-max_retry_pause: "3s"
-max_concurrent_downloads: 1
-`
+	baseConfig := testE2EBaseConfigContent
 
 	tests := []struct {
 		name           string
@@ -154,7 +157,7 @@ max_concurrent_downloads: 1
 			// Create temp directory and config file.
 			tempDir := t.TempDir()
 			configPath := filepath.Join(tempDir, "test-config.yaml")
-			err := os.WriteFile(configPath, []byte(baseConfig), constants.DefaultFilePermissions)
+			err := os.WriteFile(configPath, []byte(baseConfig), files.DefaultFilePermissions)
 			require.NoError(t, err)
 
 			// Run and get config dump.
@@ -172,27 +175,12 @@ max_concurrent_downloads: 1
 func TestE2E_FlagOverrides_AllFlags(t *testing.T) {
 	t.Parallel()
 
-	baseConfig := `
-auth_token: "test_token_123"
-quality: 1
-output_path: "/config/output"
-download_lyrics: false
-download_speed_limit: "500KB"
-log_level: "debug"
-track_filename_template: "{{.trackNumberPad}} - {{.trackTitle}}"
-album_folder_template: "{{.releaseYear}} - {{.albumArtist}} - {{.albumTitle}}"
-playlist_filename_template: "{{.trackNumberPad}} - {{.trackArtist}} - {{.trackTitle}}"
-replace_tracks: false
-replace_covers: false
-replace_lyrics: false
-create_folder_for_singles: false
-max_folder_name_length: 100
-retry_attempts_count: 3
-max_download_pause: "5s"
-min_retry_pause: "1s"
-max_retry_pause: "3s"
-max_concurrent_downloads: 1
-`
+	baseConfig := strings.ReplaceAll(
+		testE2EBaseConfigContent,
+		`output_path: "/tmp/test-output"`,
+		`output_path: "/config/output"`,
+	)
+	baseConfig = strings.ReplaceAll(baseConfig, `log_level: "info"`, `log_level: "debug"`)
 
 	tests := []struct {
 		name             string
@@ -267,7 +255,7 @@ max_concurrent_downloads: 1
 			// Create temp directory and config file.
 			tempDir := t.TempDir()
 			configPath := filepath.Join(tempDir, "test-config.yaml")
-			err := os.WriteFile(configPath, []byte(baseConfig), constants.DefaultFilePermissions)
+			err := os.WriteFile(configPath, []byte(baseConfig), files.DefaultFilePermissions)
 			require.NoError(t, err)
 
 			// Run and get config dump.
@@ -291,27 +279,7 @@ max_concurrent_downloads: 1
 func TestE2E_FlagOverrides_InvalidValues(t *testing.T) {
 	t.Parallel()
 
-	baseConfig := `
-auth_token: "test_token_123"
-quality: 1
-output_path: "/tmp/test-output"
-download_lyrics: false
-download_speed_limit: "500KB"
-log_level: "info"
-track_filename_template: "{{.trackNumberPad}} - {{.trackTitle}}"
-album_folder_template: "{{.releaseYear}} - {{.albumArtist}} - {{.albumTitle}}"
-playlist_filename_template: "{{.trackNumberPad}} - {{.trackArtist}} - {{.trackTitle}}"
-replace_tracks: false
-replace_covers: false
-replace_lyrics: false
-create_folder_for_singles: false
-max_folder_name_length: 100
-retry_attempts_count: 3
-max_download_pause: "5s"
-min_retry_pause: "1s"
-max_retry_pause: "3s"
-max_concurrent_downloads: 1
-`
+	baseConfig := testE2EBaseConfigContent
 
 	tests := []struct {
 		name             string
@@ -342,7 +310,7 @@ max_concurrent_downloads: 1
 			// Create temp directory and config file.
 			tempDir := t.TempDir()
 			configPath := filepath.Join(tempDir, "test-config.yaml")
-			err := os.WriteFile(configPath, []byte(baseConfig), constants.DefaultFilePermissions)
+			err := os.WriteFile(configPath, []byte(baseConfig), files.DefaultFilePermissions)
 			require.NoError(t, err)
 
 			// Prepare arguments.

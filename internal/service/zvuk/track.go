@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"maps"
 	"os"
 	"path/filepath"
@@ -13,11 +12,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/schollz/progressbar/v3"
 	"go.uber.org/zap"
 
 	"github.com/oshokin/zvuk-grabber/internal/client/zvuk"
-	"github.com/oshokin/zvuk-grabber/internal/constants"
+	"github.com/oshokin/zvuk-grabber/internal/files"
 	"github.com/oshokin/zvuk-grabber/internal/logger"
 	"github.com/oshokin/zvuk-grabber/internal/utils"
 )
@@ -240,12 +238,45 @@ queueTracks:
 
 // finalizeCollectionAssets finalizes cover and description files after all tracks complete.
 func (s *ServiceImpl) finalizeCollectionAssets(ctx context.Context, metadata *downloadTracksMetadata) {
-	if metadata == nil || metadata.audioCollection == nil {
+	if metadata == nil {
 		return
 	}
 
-	s.finalizeCover(ctx, metadata.audioCollection.tracksCount, metadata.audioCollection)
-	s.finalizeDescription(ctx, metadata.audioCollection, metadata.audioCollection.tracksCount)
+	if metadata.audioCollection != nil {
+		s.finalizeCover(ctx, metadata.audioCollection.tracksCount, metadata.audioCollection)
+		s.finalizeDescription(ctx, metadata.audioCollection, metadata.audioCollection.tracksCount)
+
+		return
+	}
+
+	// Standalone track downloads create/update album collections lazily per track.
+	// Finalize all registered collections so temporary assets (e.g. cover_<uuid>.jpg)
+	// are renamed to stable filenames at the end of the batch.
+	if metadata.category != DownloadCategoryTrack {
+		return
+	}
+
+	for _, collection := range s.snapshotAudioCollections() {
+		s.finalizeCover(ctx, collection.tracksCount, collection)
+		s.finalizeDescription(ctx, collection, collection.tracksCount)
+	}
+}
+
+// snapshotAudioCollections returns a lock-safe snapshot of registered collections.
+func (s *ServiceImpl) snapshotAudioCollections() []*audioCollection {
+	s.audioCollectionsMutex.Lock()
+	defer s.audioCollectionsMutex.Unlock()
+
+	collections := make([]*audioCollection, 0, len(s.audioCollections))
+	for _, collection := range s.audioCollections {
+		if collection == nil {
+			continue
+		}
+
+		collections = append(collections, collection)
+	}
+
+	return collections
 }
 
 // downloadSingleTrack downloads one track by index and ID within the given metadata context.
@@ -521,7 +552,7 @@ func (s *ServiceImpl) prepareTrackFiles(
 	}
 
 	if basePath == "" {
-		basePath = s.cfg.OutputPath
+		basePath = s.outputPath()
 	}
 
 	if basePath == "" {
@@ -567,7 +598,7 @@ func (s *ServiceImpl) downloadAndFinalizeTrack(
 		task.audioCollection.tracksCount,
 		task.track.Title,
 		task.trackIDString,
-		task.quality.String(),
+		task.quality.Description(),
 	)
 
 	// Download track.
@@ -615,12 +646,15 @@ func (s *ServiceImpl) writeTrackMetadata(
 	}
 
 	writeTagsRequest := &WriteTagsRequest{
-		TrackPath:                  tempPath,
-		CoverPath:                  coverPath,
-		Quality:                    t.quality,
-		TrackTags:                  trackTags,
-		TrackLyrics:                trackLyrics,
-		IsCoverEmbeddedToTrackTags: t.metadata.category != DownloadCategoryPlaylist,
+		TrackPath:  tempPath,
+		CoverPath:  coverPath,
+		Quality:    t.quality,
+		Tags:       trackTags,
+		EmbedCover: t.metadata.category != DownloadCategoryPlaylist,
+	}
+	if trackLyrics != nil {
+		writeTagsRequest.Lyrics = strings.TrimSpace(trackLyrics.Lyrics)
+		writeTagsRequest.LyricsType = strings.TrimSpace(trackLyrics.Type)
 	}
 
 	// Skip in dry-run mode.
@@ -704,8 +738,6 @@ func (s *ServiceImpl) skipExistingTrack(ctx context.Context, trackPath string) b
 }
 
 // downloadAndSaveTrack downloads and saves a track to a file.
-//
-//nolint:funlen,gocognit // Function orchestrates complex download workflow with multiple sequential steps.
 func (s *ServiceImpl) downloadAndSaveTrack(
 	ctx context.Context,
 	trackURL string,
@@ -748,7 +780,7 @@ func (s *ServiceImpl) downloadAndSaveTrack(
 	}
 
 	tempFilePath := tmpFile.Name()
-	if chmodErr := tmpFile.Chmod(constants.DefaultFilePermissions); chmodErr != nil {
+	if chmodErr := tmpFile.Chmod(files.DefaultFilePermissions); chmodErr != nil {
 		_ = tmpFile.Close()
 		_ = os.Remove(tempFilePath)
 
@@ -778,63 +810,18 @@ func (s *ServiceImpl) downloadAndSaveTrack(
 		}
 	}()
 
-	// Initialize progress tracker.
-	// Progress bars are disabled when downloading concurrently to avoid terminal output conflicts.
-	var writer io.Writer
-
-	if logger.Level() <= zap.InfoLevel && s.cfg.MaxConcurrentDownloads == 1 {
-		bar := progressbar.DefaultBytes(
-			fetchResult.TotalBytes,
-			"Downloading",
-		)
-
-		writer = io.MultiWriter(f, bar)
-	} else {
-		writer = f
-	}
-
-	// Download logic.
-	var (
-		bytesWritten int64
-		err          error
-	)
-
-	if s.cfg.ParsedDownloadSpeedLimit == 0 {
-		bytesWritten, err = io.Copy(writer, fetchResult.Body)
-	} else {
-		for {
-			var n int64
-
-			n, err = io.CopyN(writer, fetchResult.Body, s.cfg.ParsedDownloadSpeedLimit)
-			bytesWritten += n
-
-			if errors.Is(err, io.EOF) {
-				err = nil
-
-				break
-			}
-
-			if err != nil {
-				break
-			}
-
-			// Throttle to respect speed limit.
-			time.Sleep(time.Second)
-		}
-	}
-
+	bytesWritten, err := files.CopyStream(ctx, f, fetchResult.Body, &files.CopyStreamOptions{
+		ExpectedBytes:       fetchResult.TotalBytes,
+		SpeedLimitBytes:     s.cfg.ParsedDownloadSpeedLimit,
+		ShowProgress:        logger.Level() <= zap.InfoLevel && s.cfg.MaxConcurrentDownloads == 1,
+		ProgressDescription: "Downloading",
+	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to write file: %w", err)
-	}
+		if errors.Is(err, files.ErrIncompleteCopy) {
+			return nil, fmt.Errorf("%w: %w", ErrIncompleteDownload, err)
+		}
 
-	// Verify that we downloaded the expected number of bytes.
-	if bytesWritten != fetchResult.TotalBytes {
-		return nil, fmt.Errorf(
-			"%w: wrote %d bytes, expected %d bytes",
-			ErrIncompleteDownload,
-			bytesWritten,
-			fetchResult.TotalBytes,
-		)
+		return nil, fmt.Errorf("failed to write file: %w", err)
 	}
 
 	// Mark download as successful to prevent cleanup by defer.
@@ -940,7 +927,7 @@ func (s *ServiceImpl) writeLyrics(ctx context.Context, lyrics, destinationPath s
 		_ = os.Remove(tmpPath)
 	}()
 
-	if chmodErr := os.Chmod(tmpPath, constants.DefaultFilePermissions); chmodErr != nil {
+	if chmodErr := os.Chmod(tmpPath, files.DefaultFilePermissions); chmodErr != nil {
 		return false, chmodErr
 	}
 

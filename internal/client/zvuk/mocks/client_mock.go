@@ -20,13 +20,17 @@ import (
 
 // MockClient is a mock of Client interface.
 type MockClient struct {
+	// ctrl is the GoMock controller for this mock.
 	ctrl     *gomock.Controller
+	// recorder records expected mock calls.
 	recorder *MockClientMockRecorder
+	// isgomock is a marker type used by the gomock framework.
 	isgomock struct{}
 }
 
 // MockClientMockRecorder is the mock recorder for MockClient.
 type MockClientMockRecorder struct {
+	// mock is the mock instance being recorded.
 	mock *MockClient
 }
 
