@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -745,7 +746,14 @@ func TestSaveConfigFields_CreatesFullDefaultConfigWhenMissing(t *testing.T) {
 
 	info, err := os.Stat(configPath)
 	require.NoError(t, err)
-	assert.Equal(t, os.FileMode(0o600), info.Mode().Perm())
+
+	// Windows does not fully support POSIX file permissions and may report
+	// broader bits (for example 0666) even when writing with 0600.
+	if runtime.GOOS != "windows" {
+		assert.Equal(t, os.FileMode(0o600), info.Mode().Perm())
+	} else {
+		assert.NotZero(t, info.Mode().Perm())
+	}
 }
 
 // validationConfig returns a valid baseline config for validation tests.
