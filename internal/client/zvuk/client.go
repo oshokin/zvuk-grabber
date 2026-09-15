@@ -496,6 +496,8 @@ func (c *ClientImpl) GetPlaylistsMetadata(
 				return nil, fetchErr
 			}
 
+			c.hydratePlaylistTrackIDs(ctx, metadata.Playlists)
+
 			return metadata.Playlists, nil
 		},
 	)
@@ -638,6 +640,34 @@ func (c *ClientImpl) GetUserProfile(ctx context.Context) (*UserProfile, error) {
 	}
 
 	return result.Data.Result, nil
+}
+
+// hydratePlaylistTrackIDs replaces REST track_ids with GraphQL playlistTracks order.
+// REST playlist payloads can include stale IDs and omit tracks that the website still shows.
+func (c *ClientImpl) hydratePlaylistTrackIDs(ctx context.Context, playlists map[string]*Playlist) {
+	for id, playlist := range playlists {
+		if playlist == nil {
+			continue
+		}
+
+		trackIDs, err := c.getPlaylistTrackIDsViaGraphQL(ctx, id)
+		if err != nil {
+			logger.Warnf(
+				ctx,
+				"Failed to fetch playlist '%s' tracks via GraphQL, using REST order: %v",
+				id,
+				err,
+			)
+
+			continue
+		}
+
+		if len(trackIDs) == 0 {
+			continue
+		}
+
+		playlist.TrackIDs = trackIDs
+	}
 }
 
 // openDownloadResponse creates a GET request and validates the response status.

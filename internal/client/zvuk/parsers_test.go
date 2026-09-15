@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // TestValueOrZero verifies type assertion and zero-value fallback behavior.
@@ -36,4 +37,42 @@ func TestParseGraphQLChildTracksReturnsEmptyResultForUnexpectedFieldType(t *test
 
 	assert.Empty(t, tracks)
 	assert.Empty(t, trackIDs)
+}
+
+// TestParsePlaylistTrackIDsSkipsNilAndInvalidEntries verifies website-style playlist numbering.
+func TestParsePlaylistTrackIDsSkipsNilAndInvalidEntries(t *testing.T) {
+	t.Parallel()
+
+	trackIDs := parsePlaylistTrackIDs([]any{
+		map[string]any{"id": "64870395"},
+		nil,
+		map[string]any{"id": ""},
+		"not a track",
+		map[string]any{"id": "143304072"},
+	})
+
+	assert.Equal(t, []int64{64870395, 143304072}, trackIDs)
+}
+
+// TestCollectPaginatedPlaylistTrackIDsUsesRawPageLength verifies pagination keeps going
+// when a full page contains skipped (nil) entries.
+func TestCollectPaginatedPlaylistTrackIDsUsesRawPageLength(t *testing.T) {
+	t.Parallel()
+
+	pages := map[int][]any{
+		0: {
+			map[string]any{"id": "1"},
+			nil,
+		},
+		2: {
+			map[string]any{"id": "2"},
+		},
+	}
+
+	trackIDs, err := collectPaginatedPlaylistTrackIDs(2, 10, func(offset int) ([]any, error) {
+		return pages[offset], nil
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, []int64{1, 2}, trackIDs)
 }

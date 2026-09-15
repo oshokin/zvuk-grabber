@@ -90,6 +90,29 @@ func TestRetryValue_NoRetryOnInvalidSignError(t *testing.T) {
 	assert.Contains(t, err.Error(), "after 1 attempt(s)")
 }
 
+// TestRetryValue_NoRetryOnNoLyricsFound verifies lyrics 404 is treated as terminal, like the website.
+func TestRetryValue_NoRetryOnNoLyricsFound(t *testing.T) {
+	t.Parallel()
+
+	service := &ServiceImpl{
+		cfg: &config.Config{
+			RetryAttemptsCount: 5,
+		},
+	}
+
+	missingLyricsErr := &model.ErrorResponse{}
+	missingLyricsErr.APIError.Name = "No lyrics found for track"
+
+	calls := 0
+	_, err := retryValue(t.Context(), service, "fetching Yandex lyrics", func() (string, error) {
+		calls++
+		return "", missingLyricsErr
+	})
+	require.Error(t, err)
+	assert.Equal(t, 1, calls)
+	assert.Contains(t, err.Error(), "after 1 attempt(s)")
+}
+
 // TestRetryValue_RetriesTransientError verifies transient failures are retried until success.
 func TestRetryValue_RetriesTransientError(t *testing.T) {
 	t.Parallel()

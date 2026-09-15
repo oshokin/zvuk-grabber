@@ -235,6 +235,27 @@ func parseMapStrings(data any, key string, skipEmpty bool) []string {
 	return result
 }
 
+// parsePlaylistTrackIDs extracts track IDs from a playlistTracks GraphQL page.
+// Nil or incomplete entries are skipped so numbering matches the website list.
+func parsePlaylistTrackIDs(items []any) []int64 {
+	trackIDs := make([]int64, 0, len(items))
+
+	for _, item := range items {
+		if item == nil {
+			continue
+		}
+
+		_, parsedID, err := parseTrackID(mapValueFromAny(item))
+		if err != nil || parsedID == 0 {
+			continue
+		}
+
+		trackIDs = append(trackIDs, parsedID)
+	}
+
+	return trackIDs
+}
+
 // parseTrackID parses and validates the track ID from GraphQL data.
 func parseTrackID(data map[string]any) (string, int64, error) {
 	trackIDRaw, ok := stringField(data, "id")

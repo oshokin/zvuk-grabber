@@ -165,6 +165,10 @@ func isRetryableYandexError(err error) bool {
 	}
 
 	if apiErr, ok := errors.AsType[*model.ErrorResponse](err); ok {
+		if apiErr.IsNotFound() {
+			return false
+		}
+
 		if strings.EqualFold(apiErr.APIError.Name, "validate") ||
 			strings.EqualFold(apiErr.ResultError.Name, "validate") ||
 			strings.EqualFold(apiErr.APIError.Name, "invalid sign") ||
@@ -174,7 +178,9 @@ func isRetryableYandexError(err error) bool {
 	}
 
 	lowerErr := strings.ToLower(err.Error())
-	if strings.Contains(lowerErr, "track lyrics not found") || strings.Contains(lowerErr, "lyrics text is empty") {
+	if strings.Contains(lowerErr, "track lyrics not found") ||
+		strings.Contains(lowerErr, "lyrics text is empty") ||
+		strings.Contains(lowerErr, "no lyrics found") {
 		return false
 	}
 

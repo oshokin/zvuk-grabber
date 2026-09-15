@@ -25,6 +25,8 @@ type Track struct {
 	Filename string `json:"filename"`
 	// ID is the track identifier.
 	ID *FlexibleID `json:"id"`
+	// LyricsAvailable reports whether the API advertises lyrics for this track.
+	LyricsAvailable bool `json:"lyricsAvailable"`
 	// MetaData holds extended track metadata.
 	MetaData MetaData `json:"metaData,omitzero"`
 	// Title is the track title without version suffix.

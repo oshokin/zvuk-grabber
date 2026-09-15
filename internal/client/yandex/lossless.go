@@ -85,36 +85,55 @@ type downloadInfoPayload struct {
 	Bitrate int `json:"bitrate"`
 }
 
-// defaultSignKey is the HMAC key used to sign lossless file-info requests.
-const defaultSignKey = "7tvSmFbyf5hJnIHhCimDDD"
+const (
+	// defaultSignKey is the HMAC key used to sign lossless file-info requests.
+	defaultSignKey = "7tvSmFbyf5hJnIHhCimDDD"
+	// transportEncRaw is the encrypted raw transport used by the current Yandex web player.
+	transportEncRaw = "encraw"
+	// transportRaw is the legacy unencrypted lossless transport.
+	transportRaw = "raw"
+)
 
 var (
 	// ErrNoFLACDownloadInfo is returned when the API provides no FLAC download info.
 	ErrNoFLACDownloadInfo = errors.New("no flac download info available")
 	// ErrNoDownloadURLs is returned when download info contains no URLs.
 	ErrNoDownloadURLs = errors.New("no lossless download urls available")
+	// errLosslessNotFLAC is returned when decrypted lossless bytes are not FLAC.
+	errLosslessNotFLAC = errors.New("lossless response is not a FLAC stream")
+	// errFLACMP4MissingBoxes is returned when flac-mp4 lacks dfLa or mdat.
+	errFLACMP4MissingBoxes = errors.New("flac-mp4 payload is missing dfLa or mdat")
 )
 
 // BuildFileInfoURL builds a signed get-file-info endpoint URL for a track.
-func BuildFileInfoURL(baseURL, trackID string, timestamp int64) string {
+func BuildFileInfoURL(baseURL, trackID, transport string, timestamp int64) string {
+	if transport == "" {
+		transport = transportEncRaw
+	}
+
 	values := url.Values{}
 	values.Set("ts", strconv.FormatInt(timestamp, 10))
 	values.Set("trackId", trackID)
 	values.Set("quality", "lossless")
 	values.Set("codecs", strings.Join(supportedCodecs(), ","))
-	values.Set("transports", "raw")
-	values.Set("sign", SignRequest(timestamp, trackID))
+	values.Set("transports", transport)
+	values.Set("sign", SignRequest(timestamp, trackID, transport))
 
 	return strings.TrimRight(baseURL, "/") + "/get-file-info?" + values.Encode()
 }
 
 // SignRequest computes the HMAC signature for a lossless file-info request.
-func SignRequest(timestamp int64, trackID string) string {
+func SignRequest(timestamp int64, trackID, transport string) string {
+	if transport == "" {
+		transport = transportEncRaw
+	}
+
 	signData := fmt.Sprintf(
-		"%d%slossless%sraw",
+		"%d%slossless%s%s",
 		timestamp,
 		trackID,
 		strings.Join(supportedCodecs(), ""),
+		transport,
 	)
 	mac := hmac.New(sha256.New, []byte(defaultSignKey))
 	mac.Write([]byte(signData))
@@ -194,33 +213,18 @@ func (d *losslessDownloader) GetDownloadInfo(
 		return nil, errors.New("lossless downloader is not configured")
 	}
 
-	endpoint := BuildFileInfoURL(d.baseURL, trackID, d.now().Unix())
+	var errs []error
 
-	body, err := d.httpClient.GetWithContextAndHeaders(reqCtx, endpoint, buildFileInfoHeaders(userUID))
-	if err != nil {
-		return nil, err
+	for _, transport := range losslessTransports() {
+		info, err := d.getDownloadInfo(reqCtx, trackID, userUID, transport)
+		if err == nil {
+			return info, nil
+		}
+
+		errs = append(errs, err)
 	}
 
-	info, err := ParseDownloadInfo(body)
-	if err != nil {
-		return nil, err
-	}
-
-	if !isSupportedLosslessCodec(info.Codec) {
-		codec := media.ParseCodec(info.Codec)
-
-		return nil, fmt.Errorf(
-			"%w: expected FLAC lossless, got %s",
-			ErrNoFLACDownloadInfo,
-			codec.Description(),
-		)
-	}
-
-	if len(info.URLs) == 0 {
-		return nil, ErrNoDownloadURLs
-	}
-
-	return info, nil
+	return nil, errors.Join(errs...)
 }
 
 // DownloadAudio downloads and optionally decrypts lossless audio from the given info.
@@ -270,6 +274,42 @@ func (d *losslessDownloader) DownloadAudio(
 	return nil, errors.Join(errs...)
 }
 
+// getDownloadInfo fetches lossless metadata using a single transport.
+func (d *losslessDownloader) getDownloadInfo(
+	reqCtx *httptransport.RequestLogContext,
+	trackID string,
+	userUID int,
+	transport string,
+) (*DownloadInfo, error) {
+	endpoint := BuildFileInfoURL(d.baseURL, trackID, transport, d.now().Unix())
+
+	body, err := d.httpClient.GetWithContextAndHeaders(reqCtx, endpoint, buildFileInfoHeaders(userUID))
+	if err != nil {
+		return nil, err
+	}
+
+	info, err := ParseDownloadInfo(body)
+	if err != nil {
+		return nil, err
+	}
+
+	if !isSupportedLosslessCodec(info.Codec) {
+		codec := media.ParseCodec(info.Codec)
+
+		return nil, fmt.Errorf(
+			"%w: expected FLAC lossless, got %s",
+			ErrNoFLACDownloadInfo,
+			codec.Description(),
+		)
+	}
+
+	if len(info.URLs) == 0 {
+		return nil, ErrNoDownloadURLs
+	}
+
+	return info, nil
+}
+
 // supportedCodecs returns codec names accepted by the lossless file-info endpoint.
 func supportedCodecs() []string {
 	return []string{
@@ -302,4 +342,9 @@ func buildFileInfoHeaders(userUID int) map[string]string {
 // isSupportedLosslessCodec reports whether the codec is in the FLAC family.
 func isSupportedLosslessCodec(codec string) bool {
 	return media.ParseCodec(codec).IsFLACFamily()
+}
+
+// losslessTransports returns file-info transports in preference order.
+func losslessTransports() []string {
+	return []string{transportEncRaw, transportRaw}
 }

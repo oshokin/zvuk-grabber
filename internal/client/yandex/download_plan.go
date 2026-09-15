@@ -2,9 +2,7 @@
 package yandex
 
 import (
-	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -85,7 +83,7 @@ func (c *Client) DownloadFLACBytes(ctx context.Context, trackID string) ([]byte,
 	}
 
 	codec := media.ParseCodec(info.Codec)
-	if !codec.IsPlainFLAC() {
+	if !codec.IsFLACFamily() {
 		return nil, fmt.Errorf("expected FLAC lossless, got %s", codec.Description())
 	}
 
@@ -97,11 +95,7 @@ func (c *Client) DownloadFLACBytes(ctx context.Context, trackID string) ([]byte,
 		return nil, err
 	}
 
-	if !bytes.HasPrefix(data, []byte("fLaC")) {
-		return nil, errors.New("lossless response is not a FLAC stream")
-	}
-
-	return data, nil
+	return normalizeLosslessFLAC(data)
 }
 
 // pickBitrate selects the best MP3 download option for the preferred quality tier.

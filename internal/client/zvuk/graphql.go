@@ -60,6 +60,20 @@ const (
 			position
 		}
 	`
+
+	// getPlaylistTracksQuery loads playlist tracks in website order via GraphQL pagination.
+	getPlaylistTracksQuery = `
+		query getPlaylistTracks($id: ID!, $limit: Int = 30, $offset: Int = 0) {
+			playlistTracks(id: $id, limit: $limit, offset: $offset) {
+				id
+			}
+		}
+	`
+
+	// playlistTracksPageSize matches the Zvuk website playlistTracks page size.
+	playlistTracksPageSize = 30
+	// playlistTracksMaxPages caps pagination to avoid infinite loops on a broken offset.
+	playlistTracksMaxPages = 1000
 )
 
 // runGraphQL authenticates and executes a GraphQL request.
@@ -306,6 +320,74 @@ func (c *ClientImpl) GetStreamQualities(
 	}
 
 	return result, nil
+}
+
+// getPlaylistTrackIDsViaGraphQL fetches playlist track IDs in the same order as the website.
+func (c *ClientImpl) getPlaylistTrackIDsViaGraphQL(ctx context.Context, playlistID string) ([]int64, error) {
+	return collectPaginatedPlaylistTrackIDs(
+		playlistTracksPageSize,
+		playlistTracksMaxPages,
+		func(offset int) ([]any, error) {
+			return c.fetchPlaylistTracksPage(ctx, playlistID, playlistTracksPageSize, offset)
+		},
+	)
+}
+
+// fetchPlaylistTracksPage loads one playlistTracks GraphQL page.
+func (c *ClientImpl) fetchPlaylistTracksPage(
+	ctx context.Context,
+	playlistID string,
+	limit int,
+	offset int,
+) ([]any, error) {
+	graphqlRequest := graphql.NewRequest(getPlaylistTracksQuery)
+	graphqlRequest.Var("id", playlistID)
+	graphqlRequest.Var("limit", limit)
+	graphqlRequest.Var("offset", offset)
+
+	graphQLResponse, err := c.runGraphQL(ctx, graphqlRequest)
+	if err != nil {
+		return nil, err
+	}
+
+	items, ok := graphQLResponse["playlistTracks"].([]any)
+	if !ok {
+		if graphQLResponse["playlistTracks"] == nil {
+			return []any{}, nil
+		}
+
+		return nil, ErrUnexpectedPlaylistTracksFormat
+	}
+
+	return items, nil
+}
+
+// collectPaginatedPlaylistTrackIDs walks playlistTracks pages until a short or empty page.
+func collectPaginatedPlaylistTrackIDs(
+	pageSize int,
+	maxPages int,
+	fetchPage func(offset int) ([]any, error),
+) ([]int64, error) {
+	if pageSize <= 0 || maxPages <= 0 {
+		return []int64{}, nil
+	}
+
+	trackIDs := make([]int64, 0)
+
+	for page := range maxPages {
+		items, err := fetchPage(page * pageSize)
+		if err != nil {
+			return nil, err
+		}
+
+		trackIDs = append(trackIDs, parsePlaylistTrackIDs(items)...)
+
+		if len(items) < pageSize {
+			break
+		}
+	}
+
+	return trackIDs, nil
 }
 
 // getTracksViaGraphQL fetches tracks metadata from GraphQL API.

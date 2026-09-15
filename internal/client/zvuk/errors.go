@@ -27,6 +27,8 @@ var (
 	ErrUnexpectedMediaContentsFormat = errors.New("unexpected mediaContents response format")
 	// ErrUnexpectedTracksResponseFormat is returned when getTracks response has unexpected format.
 	ErrUnexpectedTracksResponseFormat = errors.New("unexpected tracks response format")
+	// ErrUnexpectedPlaylistTracksFormat is returned when playlistTracks response has unexpected format.
+	ErrUnexpectedPlaylistTracksFormat = errors.New("unexpected playlist tracks response format")
 	// ErrPodcastNotFound is returned when podcast is not found in GraphQL response.
 	ErrPodcastNotFound = errors.New("podcast not found or unexpected response format")
 	// ErrUnexpectedPodcastFormat is returned when podcast response has unexpected format.

@@ -1,5 +1,7 @@
 package model
 
+import "strings"
+
 // ErrorResponse represents a Yandex Music API error payload.
 //
 //nolint:errname // Type name follows external API payload naming.
@@ -51,4 +53,28 @@ func (e *ErrorResponse) Error() string {
 	}
 
 	return e.ResultError.Name
+}
+
+// ErrorName returns the API error code from the payload.
+func (e *ErrorResponse) ErrorName() string {
+	if e == nil {
+		return ""
+	}
+
+	if e.APIError.Name != "" {
+		return e.APIError.Name
+	}
+
+	return e.ResultError.Name
+}
+
+// IsNotFound reports whether the payload is a terminal not-found / missing-lyrics error.
+func (e *ErrorResponse) IsNotFound() bool {
+	if e == nil {
+		return false
+	}
+
+	haystack := strings.ToLower(strings.TrimSpace(e.ErrorName() + " " + e.Error()))
+
+	return strings.Contains(haystack, "not found") || strings.Contains(haystack, "no lyrics")
 }
