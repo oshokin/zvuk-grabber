@@ -23,7 +23,7 @@ func (s *ServiceImpl) buildTargetPath(
 	extension := quality.Extension()
 
 	filename := s.buildTrackFilename(ctx, job, tags)
-	filename = collapseNameSeparators(utils.SanitizeFilename(filename)) + extension
+	filename = utils.SanitizeTemplateName(filename) + extension
 
 	createFolderForSingles := s.cfg != nil && s.cfg.CreateFolderForSingles
 	singleWithoutFolder := isSingleWithoutFolder(job, createFolderForSingles)
@@ -52,7 +52,7 @@ func (s *ServiceImpl) buildTargetPath(
 	}
 
 	if strings.TrimSpace(folder) != "" {
-		folder = collapseNameSeparators(utils.SanitizeFilename(folder))
+		folder = utils.SanitizeTemplateName(folder)
 	}
 
 	if strings.TrimSpace(folder) == "" {
@@ -128,13 +128,6 @@ func (s *ServiceImpl) buildTags(job *trackJob) map[string]string {
 	}
 
 	episodePublicationDate := trackPublicationDate(job.track)
-	if episodePublicationDate == "" {
-		episodePublicationDate = releaseDate
-	}
-
-	if episodePublicationDate == "" {
-		episodePublicationDate = releaseYear
-	}
 
 	return map[string]string{
 		media.TagType:                     job.kind,
@@ -373,25 +366,9 @@ func normalizeDateString(raw string) string {
 	return raw
 }
 
-// collapseNameSeparators drops empty, unknown-year, and duplicate template segments.
+// collapseNameSeparators drops empty, placeholder, duplicate, and prefix-overlapped template segments.
 func collapseNameSeparators(name string) string {
-	parts := strings.Split(name, " - ")
-	cleaned := make([]string, 0, len(parts))
-
-	for _, part := range parts {
-		part = strings.TrimSpace(part)
-		if part == "" || part == unknownReleaseYear {
-			continue
-		}
-
-		if len(cleaned) > 0 && cleaned[len(cleaned)-1] == part {
-			continue
-		}
-
-		cleaned = append(cleaned, part)
-	}
-
-	return strings.Join(cleaned, " - ")
+	return utils.CollapseTemplateName(name)
 }
 
 // trackIndexFromAlbum returns the album track index or the provided fallback.

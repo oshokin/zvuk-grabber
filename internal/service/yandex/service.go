@@ -160,8 +160,6 @@ const (
 	collectionPlaylist = "playlist"
 	// collectionTrack is the tag type for single-track downloads.
 	collectionTrack = "track"
-	// unknownReleaseYear is the fallback release year when metadata is missing.
-	unknownReleaseYear = "0000"
 	// albumTypeAudiobook is the Yandex album type value for audiobooks.
 	albumTypeAudiobook = "audiobook"
 	// albumTypePodcast is the Yandex album type value for podcasts.

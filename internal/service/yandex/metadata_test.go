@@ -19,6 +19,11 @@ func TestCollapseNameSeparators(t *testing.T) {
 	assert.Equal(t, "Совсем другое дело", collapseNameSeparators("Совсем другое дело - Совсем другое дело"))
 	assert.Equal(t, "01 - Title", collapseNameSeparators("01 - Title"))
 	assert.Equal(t, "Title", collapseNameSeparators("0000 - Title"))
+	assert.Equal(
+		t,
+		"Татьяна Столяр. «Я есть жир»",
+		collapseNameSeparators("Татьяна Столяр - Татьяна Столяр. «Я есть жир»"),
+	)
 }
 
 func TestCollectionReleaseYear_UsesAlbumYear(t *testing.T) {
@@ -142,7 +147,7 @@ func TestBuildTargetPath_OmitsMissingAudiobookYear(t *testing.T) {
 		filepath.Join(
 			"downloads",
 			"yandex",
-			"Татьяна Столяр - Татьяна Столяр. «Я есть жир»",
+			"Татьяна Столяр. «Я есть жир»",
 			"01 - Татьяна Столяр. «Я есть жир». Часть 1.mp3",
 		),
 		path,
@@ -194,4 +199,50 @@ func TestBuildTargetPath_UsesPodcastPubDateInFilename(t *testing.T) {
 		),
 		path,
 	)
+}
+
+func TestBuildTargetPath_PodcastOmitsMissingPublicationDate(t *testing.T) {
+	t.Parallel()
+
+	cfg := &config.Config{
+		OutputPath:                     "downloads",
+		GroupByProvider:                true,
+		PodcastFolderTemplate:          config.DefaultPodcastFolderTemplate,
+		PodcastEpisodeFilenameTemplate: config.DefaultPodcastEpisodeFilenameTemplate,
+		MaxFolderNameLength:            100,
+		CreateFolderForSingles:         true,
+	}
+	service := &ServiceImpl{
+		cfg:             cfg,
+		templateManager: media.NewTemplateManager(t.Context(), cfg),
+	}
+
+	job := &trackJob{
+		kind:            collectionPodcast,
+		collectionTitle: "Совсем другое дело",
+		trackNumber:     1,
+		trackCount:      4,
+		track: &model.Track{
+			ID:    model.NewFlexibleID("155140084"),
+			Title: "Безумная идея или бизнес-проект? Трейлер",
+		},
+		album: &model.Album{
+			ID:    model.NewFlexibleID("43686140"),
+			Title: "Совсем другое дело",
+			Type:  "podcast",
+		},
+	}
+
+	path := service.buildTargetPath(t.Context(), job, service.buildTags(job), media.QualityMP3Mid)
+	assert.Equal(
+		t,
+		filepath.Join(
+			"downloads",
+			"yandex",
+			"Совсем другое дело",
+			"Безумная идея или бизнес-проект_ Трейлер.mp3",
+		),
+		path,
+	)
+	assert.NotContains(t, path, "0000")
 }

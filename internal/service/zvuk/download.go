@@ -283,7 +283,7 @@ func (s *ServiceImpl) getFolderNameAfterTemplateExecution(
 
 	// Sanitize each component individually to prevent path traversal attacks.
 	// Keep empty components to maintain path structure (e.g., "a//b" becomes "a/b").
-	sanitizedComponents := utils.Map(components, utils.SanitizeFilename)
+	sanitizedComponents := utils.Map(components, utils.SanitizeTemplateName)
 
 	// Join with OS-specific separators and normalize path.
 	joinedPath := filepath.Join(sanitizedComponents...)

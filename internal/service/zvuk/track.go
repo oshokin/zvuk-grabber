@@ -534,7 +534,7 @@ func (s *ServiceImpl) prepareTrackFiles(
 	}
 
 	task.trackFilename = utils.SetFileExtension(
-		utils.SanitizeFilename(task.trackFilename),
+		utils.SanitizeTemplateName(task.trackFilename),
 		task.quality.Extension(),
 		false,
 	)
