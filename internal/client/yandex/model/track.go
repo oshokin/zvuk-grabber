@@ -29,6 +29,8 @@ type Track struct {
 	LyricsAvailable bool `json:"lyricsAvailable"`
 	// MetaData holds extended track metadata.
 	MetaData MetaData `json:"metaData,omitzero"`
+	// PubDate is the episode or chapter publication date, typically YYYY-MM-DD.
+	PubDate string `json:"pubDate,omitempty"`
 	// Title is the track title without version suffix.
 	Title string `json:"title"`
 	// Version is the track version or remix label.

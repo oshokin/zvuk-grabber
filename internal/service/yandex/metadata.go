@@ -23,7 +23,7 @@ func (s *ServiceImpl) buildTargetPath(
 	extension := quality.Extension()
 
 	filename := s.buildTrackFilename(ctx, job, tags)
-	filename = utils.SanitizeFilename(filename) + extension
+	filename = collapseNameSeparators(utils.SanitizeFilename(filename)) + extension
 
 	createFolderForSingles := s.cfg != nil && s.cfg.CreateFolderForSingles
 	singleWithoutFolder := isSingleWithoutFolder(job, createFolderForSingles)
@@ -51,11 +51,14 @@ func (s *ServiceImpl) buildTargetPath(
 		}
 	}
 
+	if strings.TrimSpace(folder) != "" {
+		folder = collapseNameSeparators(utils.SanitizeFilename(folder))
+	}
+
 	if strings.TrimSpace(folder) == "" {
 		return filepath.Join(s.outputPath(), filename)
 	}
 
-	folder = utils.SanitizeFilename(folder)
 	if s.cfg.MaxFolderNameLength > 0 && int64(len([]rune(folder))) > s.cfg.MaxFolderNameLength {
 		folder = string([]rune(folder)[:s.cfg.MaxFolderNameLength])
 	}
@@ -100,12 +103,8 @@ func (s *ServiceImpl) buildTags(job *trackJob) map[string]string {
 		trackCount = trackCountFromAlbum(album, 1)
 	}
 
-	releaseDate := albumReleaseDate(album)
-
-	releaseYear := albumReleaseYear(album)
-	if releaseYear == "" {
-		releaseYear = unknownReleaseYear
-	}
+	releaseDate := collectionReleaseDate(album, job.track)
+	releaseYear := collectionReleaseYear(album, job.track)
 
 	trackArtist := job.track.ArtistsString()
 
@@ -128,11 +127,11 @@ func (s *ServiceImpl) buildTags(job *trackJob) map[string]string {
 		podcastAuthors = trackArtist
 	}
 
-	if strings.TrimSpace(podcastAuthors) == "" {
-		podcastAuthors = podcastTitle
+	episodePublicationDate := trackPublicationDate(job.track)
+	if episodePublicationDate == "" {
+		episodePublicationDate = releaseDate
 	}
 
-	episodePublicationDate := strings.TrimSpace(releaseDate)
 	if episodePublicationDate == "" {
 		episodePublicationDate = releaseYear
 	}
@@ -291,30 +290,108 @@ func albumArtists(album *model.Album) string {
 	return strings.Join(artists, ", ")
 }
 
-// albumReleaseDate returns the album release date string or an empty string.
-func albumReleaseDate(album *model.Album) string {
-	if album == nil {
-		return ""
+// collectionReleaseDate returns the best available collection or track publication date.
+func collectionReleaseDate(album *model.Album, track *model.Track) string {
+	if album != nil {
+		if date := normalizeDateString(album.ReleaseDate); date != "" {
+			return date
+		}
 	}
 
-	return album.ReleaseDate
+	if date := trackPublicationDate(track); date != "" {
+		return date
+	}
+
+	return earliestAlbumPublicationDate(album)
 }
 
-// albumReleaseYear extracts the release year from album year or release date.
-func albumReleaseYear(album *model.Album) string {
-	if album == nil {
-		return ""
-	}
-
-	if album.Year > 0 {
+// collectionReleaseYear extracts the release year from album, track, or publication date metadata.
+func collectionReleaseYear(album *model.Album, track *model.Track) string {
+	if album != nil && album.Year > 0 {
 		return strconv.Itoa(album.Year)
 	}
 
-	if len(album.ReleaseDate) >= 4 {
-		return album.ReleaseDate[:4]
+	if track != nil && track.MetaData.Year > 0 {
+		return strconv.Itoa(track.MetaData.Year)
+	}
+
+	if date := collectionReleaseDate(album, track); len(date) >= 4 {
+		return date[:4]
 	}
 
 	return ""
+}
+
+// trackPublicationDate returns a normalized publication date from track metadata.
+func trackPublicationDate(track *model.Track) string {
+	if track == nil {
+		return ""
+	}
+
+	return normalizeDateString(track.PubDate)
+}
+
+// earliestAlbumPublicationDate returns the earliest track pubDate in an album.
+func earliestAlbumPublicationDate(album *model.Album) string {
+	if album == nil {
+		return ""
+	}
+
+	earliest := ""
+
+	for _, volume := range album.Volumes {
+		for i := range volume {
+			date := trackPublicationDate(&volume[i])
+			if date == "" {
+				continue
+			}
+
+			if earliest == "" || date < earliest {
+				earliest = date
+			}
+		}
+	}
+
+	return earliest
+}
+
+// normalizeDateString converts a Yandex date string to YYYY-MM-DD when possible.
+func normalizeDateString(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ""
+	}
+
+	if parsed, err := time.Parse(time.RFC3339, raw); err == nil {
+		return parsed.Format("2006-01-02")
+	}
+
+	if len(raw) >= 10 && raw[4] == '-' && raw[7] == '-' {
+		return raw[:10]
+	}
+
+	return raw
+}
+
+// collapseNameSeparators drops empty, unknown-year, and duplicate template segments.
+func collapseNameSeparators(name string) string {
+	parts := strings.Split(name, " - ")
+	cleaned := make([]string, 0, len(parts))
+
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" || part == unknownReleaseYear {
+			continue
+		}
+
+		if len(cleaned) > 0 && cleaned[len(cleaned)-1] == part {
+			continue
+		}
+
+		cleaned = append(cleaned, part)
+	}
+
+	return strings.Join(cleaned, " - ")
 }
 
 // trackIndexFromAlbum returns the album track index or the provided fallback.

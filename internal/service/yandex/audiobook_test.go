@@ -274,6 +274,6 @@ func TestBuildTags_PodcastFallbacksForMissingMetadata(t *testing.T) {
 	}
 
 	tags := service.buildTags(job)
-	assert.Equal(t, "MINAEV LIVE", tags[media.TagPodcastAuthors])
-	assert.Equal(t, unknownReleaseYear, tags[media.TagEpisodePublicationDate])
+	assert.Empty(t, tags[media.TagPodcastAuthors])
+	assert.Empty(t, tags[media.TagEpisodePublicationDate])
 }
