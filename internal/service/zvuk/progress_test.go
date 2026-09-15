@@ -1,7 +1,6 @@
 package zvuk
 
 import (
-	"context"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -27,7 +26,7 @@ func TestDownloadTracks_ProgressBarWithSequential(t *testing.T) {
 		nil,
 	)
 
-	setup.impl(t).downloadTracks(context.Background(), metadata)
+	setup.impl(t).downloadTracks(t.Context(), metadata)
 
 	assert.Equal(t, int64(1), setup.config.MaxConcurrentDownloads,
 		"Sequential mode should enable progress bars")
@@ -54,7 +53,7 @@ func TestDownloadTracks_NoProgressBarWithConcurrent(t *testing.T) {
 			)
 		}
 
-		setup.impl(t).downloadTracks(context.Background(), metadata)
+		setup.impl(t).downloadTracks(t.Context(), metadata)
 
 		assert.Greater(t, setup.config.MaxConcurrentDownloads, int64(1),
 			"Concurrent mode disables progress bars to prevent terminal output conflicts")

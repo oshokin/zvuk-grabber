@@ -2,7 +2,6 @@ package zvuk
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -21,22 +20,13 @@ import (
 	"github.com/oshokin/zvuk-grabber/internal/logger"
 )
 
-// mockURLProcessor is a mock implementation of the URLProcessor interface.
-type mockURLProcessor struct{}
-
-// mockTemplateManager is a mock implementation of the TemplateManager interface.
-type mockTemplateManager struct{}
-
-// mockTagProcessor is a mock implementation of the TagProcessor interface.
-type mockTagProcessor struct{}
-
-// partialReadCloser is a mock ReadCloser for partial reads.
+// partialReadCloser is a fake ReadCloser for partial reads.
 type partialReadCloser struct {
 	// Reader provides the underlying byte stream.
 	io.Reader
 }
 
-// slowReadCloser mocks a slow network stream.
+// slowReadCloser fakes a slow network stream.
 type slowReadCloser struct {
 	// Reader provides the underlying byte stream.
 	io.Reader
@@ -53,88 +43,31 @@ var (
 	fatalExitMu sync.Mutex
 )
 
-// assertFatalExit runs fn and asserts that the custom fatal handler would exit the process.
-func assertFatalExit(t *testing.T, fn func()) {
-	t.Helper()
+// TestNewService tests the NewService function.
+func TestNewService(t *testing.T) {
+	t.Parallel()
 
-	fatalExitMu.Lock()
-	defer fatalExitMu.Unlock()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
-	logger.SetFatalHandler(func(code int) {
-		panic(fmt.Sprintf("fatal-exit-%d", code))
-	})
-	defer logger.SetFatalHandler(nil)
-
-	assert.PanicsWithValue(t, "fatal-exit-1", fn)
-}
-
-// ExtractDownloadItems pretends to understand URLs and dutifully returns an empty response.
-func (m *mockURLProcessor) ExtractDownloadItems(
-	_ context.Context,
-	_ []string,
-) (*ExtractDownloadItemsResponse, error) {
-	return new(ExtractDownloadItemsResponse), nil
-}
-
-// DeduplicateDownloadItems is a no-op mock that passes through the incoming slice.
-func (m *mockURLProcessor) DeduplicateDownloadItems(items []*DownloadItem) []*DownloadItem {
-	return items
-}
-
-// GetTrackFilename returns a deterministic filename to keep tests predictable.
-// Uses trackID from tags to ensure unique filenames in concurrent tests.
-func (m *mockTemplateManager) GetTrackFilename(
-	_ context.Context,
-	_ bool,
-	tags map[string]string,
-	_ int64,
-) string {
-	// Use trackID to make filenames unique and avoid race conditions
-	// in concurrent download tests where multiple tracks might be downloaded simultaneously.
-	if trackID, ok := tags["trackID"]; ok && trackID != "" {
-		return "test_track_" + trackID + extensionMP3
+	config := &config.Config{
+		OutputPath: t.TempDir(),
 	}
 
-	// Fallback for tests that don't provide trackID.
-	return "test_track" + extensionMP3
-}
+	mockClient := mock_zvuk_client.NewMockClient(ctrl)
+	mockURLProcessor := newStubURLProcessor(ctrl)
+	mockTemplateManager := newStubTemplateManager(ctrl)
+	mockTagProcessor := newStubTagProcessor(ctrl)
 
-// GetAlbumFolderName returns a placeholder album folder name for the mock universe.
-func (m *mockTemplateManager) GetAlbumFolderName(_ context.Context, _ map[string]string) string {
-	return "test_album"
-}
+	service := NewService(
+		config,
+		mockClient,
+		mockURLProcessor,
+		mockTemplateManager,
+		mockTagProcessor,
+	)
 
-// GetAudiobookFolderName returns a placeholder audiobook folder name for the mock universe.
-func (m *mockTemplateManager) GetAudiobookFolderName(_ context.Context, tags map[string]string) string {
-	return tags["audiobookAuthors"] + " - " + tags["audiobookTitle"]
-}
-
-// GetAudiobookChapterFilename returns a deterministic chapter filename for tests.
-func (m *mockTemplateManager) GetAudiobookChapterFilename(
-	_ context.Context,
-	tags map[string]string,
-	_ int64,
-) string {
-	return tags["trackNumberPad"] + " - " + tags["trackTitle"]
-}
-
-// GetPodcastFolderName returns a placeholder podcast folder name for the mock universe.
-func (m *mockTemplateManager) GetPodcastFolderName(_ context.Context, tags map[string]string) string {
-	return tags["podcastAuthors"] + " - " + tags["podcastTitle"]
-}
-
-// GetPodcastEpisodeFilename returns a deterministic episode filename for tests.
-func (m *mockTemplateManager) GetPodcastEpisodeFilename(
-	_ context.Context,
-	tags map[string]string,
-	_ int64,
-) string {
-	return tags["trackNumberPad"] + " - " + tags["trackTitle"]
-}
-
-// WriteTags pretends the tags were written successfully for the purpose of tests.
-func (m *mockTagProcessor) WriteTags(_ context.Context, _ *WriteTagsRequest) error {
-	return nil
+	assert.NotNil(t, service)
 }
 
 // Close is here solely to satisfy the io.ReadCloser contract in our tests.
@@ -151,33 +84,6 @@ func (s *slowReadCloser) Read(p []byte) (n int, err error) {
 // Close completes the io.ReadCloser contract for the throttled reader.
 func (s *slowReadCloser) Close() error { return nil }
 
-// TestNewService tests the NewService function.
-func TestNewService(t *testing.T) {
-	t.Parallel()
-
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	config := &config.Config{
-		OutputPath: t.TempDir(),
-	}
-
-	mockClient := mock_zvuk_client.NewMockClient(ctrl)
-	mockURLProcessor := new(mockURLProcessor)
-	mockTemplateManager := new(mockTemplateManager)
-	mockTagProcessor := new(mockTagProcessor)
-
-	service := NewService(
-		config,
-		mockClient,
-		mockURLProcessor,
-		mockTemplateManager,
-		mockTagProcessor,
-	)
-
-	assert.NotNil(t, service)
-}
-
 // TestServiceImpl_DownloadURLs makes sure the happy path doesn't implode.
 func TestServiceImpl_DownloadURLs(t *testing.T) {
 	t.Parallel()
@@ -190,9 +96,9 @@ func TestServiceImpl_DownloadURLs(t *testing.T) {
 	}
 
 	mockClient := mock_zvuk_client.NewMockClient(ctrl)
-	mockURLProcessor := new(mockURLProcessor)
-	mockTemplateManager := new(mockTemplateManager)
-	mockTagProcessor := new(mockTagProcessor)
+	mockURLProcessor := newStubURLProcessor(ctrl)
+	mockTemplateManager := newStubTemplateManager(ctrl)
+	mockTagProcessor := newStubTagProcessor(ctrl)
 
 	// Setup mock expectations.
 	getUserProfileResponse := &zvuk.UserProfile{
@@ -212,7 +118,7 @@ func TestServiceImpl_DownloadURLs(t *testing.T) {
 		mockTagProcessor,
 	)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	urls := []string{"https://zvuk.com/track/123"}
 
 	// This should not panic.
@@ -231,9 +137,9 @@ func TestServiceImpl_DownloadURLs_EmptyURLs(t *testing.T) {
 	}
 
 	mockClient := mock_zvuk_client.NewMockClient(ctrl)
-	mockURLProcessor := new(mockURLProcessor)
-	mockTemplateManager := new(mockTemplateManager)
-	mockTagProcessor := new(mockTagProcessor)
+	mockURLProcessor := newStubURLProcessor(ctrl)
+	mockTemplateManager := newStubTemplateManager(ctrl)
+	mockTagProcessor := newStubTagProcessor(ctrl)
 
 	// Setup mock expectations for empty URLs.
 	getUserProfileResponse := &zvuk.UserProfile{
@@ -253,7 +159,7 @@ func TestServiceImpl_DownloadURLs_EmptyURLs(t *testing.T) {
 		mockTagProcessor,
 	)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	urls := []string{}
 
 	// This should not panic.
@@ -272,9 +178,9 @@ func TestServiceImpl_DownloadURLs_NilURLs(t *testing.T) {
 	}
 
 	mockClient := mock_zvuk_client.NewMockClient(ctrl)
-	mockURLProcessor := new(mockURLProcessor)
-	mockTemplateManager := new(mockTemplateManager)
-	mockTagProcessor := new(mockTagProcessor)
+	mockURLProcessor := newStubURLProcessor(ctrl)
+	mockTemplateManager := newStubTemplateManager(ctrl)
+	mockTagProcessor := newStubTagProcessor(ctrl)
 
 	// Setup mock expectations for nil URLs.
 	getUserProfileResponse := &zvuk.UserProfile{
@@ -294,7 +200,7 @@ func TestServiceImpl_DownloadURLs_NilURLs(t *testing.T) {
 		mockTagProcessor,
 	)
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	var urls []string
 
@@ -309,7 +215,7 @@ func TestDownloadURLs_Integration_FullPipeline(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	cfg := &config.Config{
 		OutputPath:             t.TempDir(),
@@ -354,9 +260,6 @@ func TestDownloadURLs_Integration_FullPipeline(t *testing.T) {
 				LabelID:     69,
 			},
 		},
-		Tracks: map[string]*zvuk.Track{
-			trackID: {ID: 1337, Title: "Mercury's Retrograde Blues", ReleaseID: 420, Position: 1},
-		},
 	}
 
 	getLabelsMetadataResponse := map[string]*zvuk.Label{
@@ -372,7 +275,7 @@ func TestDownloadURLs_Integration_FullPipeline(t *testing.T) {
 	mockClient.EXPECT().GetUserProfile(gomock.Any()).Return(getUserProfileResponse, nil).Times(1)
 	mockClient.EXPECT().GetTracksMetadata(gomock.Any(), trackIDs).Return(getTracksMetadataResponse, nil).Times(1)
 	mockClient.EXPECT().
-		GetAlbumsMetadata(gomock.Any(), albumIDs, gomock.Any()).
+		GetAlbumsMetadata(gomock.Any(), albumIDs).
 		Return(getAlbumsMetadataResponse, nil).
 		Times(1)
 	mockClient.EXPECT().GetLabelsMetadata(gomock.Any(), labelIDs).Return(getLabelsMetadataResponse, nil).Times(1)
@@ -405,7 +308,7 @@ func TestDownloadURLs_InvalidToken(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	cfg := &config.Config{
 		OutputPath:             t.TempDir(),
@@ -444,7 +347,7 @@ func TestDownloadURLs_ExpiredSubscription(t *testing.T) {
 
 	mockClient := mock_zvuk_client.NewMockClient(ctrl)
 	mockURLProcessor := NewURLProcessor()
-	mockTemplateManager := NewTemplateManager(context.Background(), cfg)
+	mockTemplateManager := NewTemplateManager(t.Context(), cfg)
 	mockTagProcessor := NewTagProcessor()
 
 	urls := []string{"https://zvuk.com/track/123"}
@@ -456,7 +359,7 @@ func TestDownloadURLs_ExpiredSubscription(t *testing.T) {
 	service := NewService(cfg, mockClient, mockURLProcessor, mockTemplateManager, mockTagProcessor)
 
 	assertFatalExit(t, func() {
-		service.DownloadURLs(context.Background(), urls)
+		service.DownloadURLs(t.Context(), urls)
 	})
 }
 
@@ -478,7 +381,7 @@ func TestDownloadURLs_PartialDownload(t *testing.T) {
 
 	mockClient := mock_zvuk_client.NewMockClient(ctrl)
 	mockURLProcessor := NewURLProcessor()
-	mockTemplateManager := NewTemplateManager(context.Background(), cfg)
+	mockTemplateManager := NewTemplateManager(t.Context(), cfg)
 	mockTagProcessor := NewTagProcessor()
 
 	trackID := "1487"
@@ -508,9 +411,6 @@ func TestDownloadURLs_PartialDownload(t *testing.T) {
 				LabelID:     1312,
 			},
 		},
-		Tracks: map[string]*zvuk.Track{
-			trackID: {ID: 1487, Title: "The Network Gave Up on Life", ReleaseID: 228, Position: 1},
-		},
 	}
 
 	getLabelsMetadataResponse := map[string]*zvuk.Label{
@@ -523,7 +423,7 @@ func TestDownloadURLs_PartialDownload(t *testing.T) {
 
 	mockClient.EXPECT().GetUserProfile(gomock.Any()).Return(getUserProfileResponse, nil)
 	mockClient.EXPECT().GetTracksMetadata(gomock.Any(), trackIDs).Return(getTracksMetadataResponse, nil)
-	mockClient.EXPECT().GetAlbumsMetadata(gomock.Any(), albumIDs, gomock.Any()).Return(getAlbumsMetadataResponse, nil)
+	mockClient.EXPECT().GetAlbumsMetadata(gomock.Any(), albumIDs).Return(getAlbumsMetadataResponse, nil)
 	mockClient.EXPECT().GetLabelsMetadata(gomock.Any(), labelIDs).Return(getLabelsMetadataResponse, nil)
 	mockClient.EXPECT().GetStreamMetadata(gomock.Any(), trackID, gomock.Any()).Return(getStreamMetadataResponse, nil)
 
@@ -540,7 +440,7 @@ func TestDownloadURLs_PartialDownload(t *testing.T) {
 
 	service := NewService(cfg, mockClient, mockURLProcessor, mockTemplateManager, mockTagProcessor)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	// This should not panic, even though the download is incomplete.
 	service.DownloadURLs(ctx, urls)
 }
@@ -563,7 +463,7 @@ func TestDownloadURLs_NonASCIIFilename(t *testing.T) {
 
 	mockClient := mock_zvuk_client.NewMockClient(ctrl)
 	mockURLProcessor := NewURLProcessor()
-	mockTemplateManager := NewTemplateManager(context.Background(), cfg)
+	mockTemplateManager := NewTemplateManager(t.Context(), cfg)
 	mockTagProcessor := NewTagProcessor()
 
 	trackID := "42"
@@ -593,9 +493,6 @@ func TestDownloadURLs_NonASCIIFilename(t *testing.T) {
 				LabelID:     777,
 			},
 		},
-		Tracks: map[string]*zvuk.Track{
-			trackID: {ID: 42, Title: "Енот Жарит Котлеты", ReleaseID: 1984, Position: 1},
-		},
 	}
 
 	getLabelsMetadataResponse := map[string]*zvuk.Label{
@@ -610,7 +507,7 @@ func TestDownloadURLs_NonASCIIFilename(t *testing.T) {
 
 	mockClient.EXPECT().GetUserProfile(gomock.Any()).Return(getUserProfileResponse, nil)
 	mockClient.EXPECT().GetTracksMetadata(gomock.Any(), trackIDs).Return(getTracksMetadataResponse, nil)
-	mockClient.EXPECT().GetAlbumsMetadata(gomock.Any(), albumIDs, gomock.Any()).Return(getAlbumsMetadataResponse, nil)
+	mockClient.EXPECT().GetAlbumsMetadata(gomock.Any(), albumIDs).Return(getAlbumsMetadataResponse, nil)
 	mockClient.EXPECT().GetLabelsMetadata(gomock.Any(), labelIDs).Return(getLabelsMetadataResponse, nil)
 	mockClient.EXPECT().GetStreamMetadata(gomock.Any(), trackID, gomock.Any()).Return(getStreamMetadataResponse, nil)
 
@@ -625,7 +522,7 @@ func TestDownloadURLs_NonASCIIFilename(t *testing.T) {
 
 	service := NewService(cfg, mockClient, mockURLProcessor, mockTemplateManager, mockTagProcessor)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	// This should not panic and should handle Cyrillic characters like a champ.
 	service.DownloadURLs(ctx, urls)
 }
@@ -650,7 +547,7 @@ func TestDownloadURLs_SpeedLimiting(t *testing.T) {
 
 		mockClient := mock_zvuk_client.NewMockClient(ctrl)
 		mockURLProcessor := NewURLProcessor()
-		mockTemplateManager := NewTemplateManager(context.Background(), cfg)
+		mockTemplateManager := NewTemplateManager(t.Context(), cfg)
 		mockTagProcessor := NewTagProcessor()
 
 		trackID := "1488"
@@ -680,9 +577,6 @@ func TestDownloadURLs_SpeedLimiting(t *testing.T) {
 					LabelID:     404,
 				},
 			},
-			Tracks: map[string]*zvuk.Track{
-				trackID: {ID: 1488, Title: "Waiting For The Download Bar", ReleaseID: 2517, Position: 1},
-			},
 		}
 
 		getLabelsMetadataResponse := map[string]*zvuk.Label{
@@ -696,7 +590,7 @@ func TestDownloadURLs_SpeedLimiting(t *testing.T) {
 		mockClient.EXPECT().GetUserProfile(gomock.Any()).Return(getUserProfileResponse, nil)
 		mockClient.EXPECT().GetTracksMetadata(gomock.Any(), trackIDs).Return(getTracksMetadataResponse, nil)
 		mockClient.EXPECT().
-			GetAlbumsMetadata(gomock.Any(), albumIDs, gomock.Any()).
+			GetAlbumsMetadata(gomock.Any(), albumIDs).
 			Return(getAlbumsMetadataResponse, nil)
 		mockClient.EXPECT().GetLabelsMetadata(gomock.Any(), labelIDs).Return(getLabelsMetadataResponse, nil)
 		mockClient.EXPECT().
@@ -718,7 +612,7 @@ func TestDownloadURLs_SpeedLimiting(t *testing.T) {
 
 		service := NewService(cfg, mockClient, mockURLProcessor, mockTemplateManager, mockTagProcessor)
 
-		ctx := context.Background()
+		ctx := t.Context()
 		start := time.Now()
 
 		service.DownloadURLs(ctx, urls)
@@ -729,4 +623,19 @@ func TestDownloadURLs_SpeedLimiting(t *testing.T) {
 		// Note: Actual timing may vary because mocks are fast, but the throttling logic should still execute.
 		assert.GreaterOrEqual(t, duration, 1*time.Second, "Download should show some evidence of throttling")
 	})
+}
+
+// assertFatalExit runs fn and asserts that the custom fatal handler would exit the process.
+func assertFatalExit(t *testing.T, fn func()) {
+	t.Helper()
+
+	fatalExitMu.Lock()
+	defer fatalExitMu.Unlock()
+
+	logger.SetFatalHandler(func(code int) {
+		panic(fmt.Sprintf("fatal-exit-%d", code))
+	})
+	defer logger.SetFatalHandler(nil)
+
+	assert.PanicsWithValue(t, "fatal-exit-1", fn)
 }

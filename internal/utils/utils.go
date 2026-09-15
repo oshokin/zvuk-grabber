@@ -77,8 +77,8 @@ func SanitizeFilename(name string) string {
 
 	// Extract base filename (without extension) for comparison.
 	baseName := result
-	if dotIndex := strings.LastIndex(result, "."); dotIndex != -1 {
-		baseName = result[:dotIndex]
+	if before, _, found := strings.CutLast(result, "."); found {
+		baseName = before
 	}
 
 	// If base name is a Windows reserved name, prepend an underscore.
@@ -95,18 +95,6 @@ func SanitizeFilename(name string) string {
 	}
 
 	return result
-}
-
-// isWindowsReservedName reports whether the name is a Windows reserved device name.
-func isWindowsReservedName(name string) bool {
-	name = strings.ToUpper(name)
-	switch name {
-	case windowsReservedNameCON, windowsReservedNamePRN, windowsReservedNameAUX, windowsReservedNameNUL:
-		return true
-	}
-
-	return len(name) == 4 && (strings.HasPrefix(name, "COM") || strings.HasPrefix(name, "LPT")) && name[3] >= '1' &&
-		name[3] <= '9'
 }
 
 // RandomPause pauses execution for a random duration between min and max values.
@@ -276,4 +264,16 @@ func MapIterator[E, S any](v iter.Seq[E], transformFunc func(E) S) []S {
 	}
 
 	return result
+}
+
+// isWindowsReservedName reports whether the name is a Windows reserved device name.
+func isWindowsReservedName(name string) bool {
+	name = strings.ToUpper(name)
+	switch name {
+	case windowsReservedNameCON, windowsReservedNamePRN, windowsReservedNameAUX, windowsReservedNameNUL:
+		return true
+	}
+
+	return len(name) == 4 && (strings.HasPrefix(name, "COM") || strings.HasPrefix(name, "LPT")) && name[3] >= '1' &&
+		name[3] <= '9'
 }

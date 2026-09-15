@@ -11,8 +11,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-
-	"github.com/google/uuid"
+	"uuid"
 
 	"github.com/oshokin/zvuk-grabber/internal/client/zvuk"
 	"github.com/oshokin/zvuk-grabber/internal/files"
@@ -60,6 +59,21 @@ func (s *ServiceImpl) downloadCollection(ctx context.Context, item *DownloadItem
 		if fetchErr != nil {
 			s.recordCollectionError(item, "fetching "+category.String()+" metadata", fetchErr)
 			return
+		}
+
+		if playlist, ok := getPlaylistsMetadataResponse.Playlists[itemID]; ok && playlist != nil {
+			tracks, tracksErr := s.zvukClient.GetTracksMetadata(
+				ctx,
+				utils.Map(playlist.TrackIDs, func(trackID int64) string {
+					return strconv.FormatInt(trackID, 10)
+				}),
+			)
+			if tracksErr != nil {
+				s.recordCollectionError(item, "fetching "+category.String()+" track metadata", tracksErr)
+				return
+			}
+
+			getPlaylistsMetadataResponse.Tracks = tracks
 		}
 
 		itemData, fetchErr := s.fetchAlbumsDataFromTracks(ctx, getPlaylistsMetadataResponse.Tracks)

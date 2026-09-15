@@ -1,6 +1,7 @@
 package zvuk
 
-//go:generate $MOCKGEN -source=url_processor.go -destination=mocks/url_processor_mock.go
+// Tests are package zvuk, so the mock stays in *_test.go to avoid an import cycle via mocks/.
+//go:generate $MOCKGEN -source=url_processor.go -destination=url_processor_mock_test.go -package=zvuk
 
 import (
 	"context"

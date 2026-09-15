@@ -258,40 +258,6 @@ func DefaultConfig() *Config {
 	}
 }
 
-// applyViperDefaults registers default configuration values with viper.
-func applyViperDefaults() {
-	defaults := DefaultConfig()
-	viper.SetDefault(configKeyZvukAuthToken, defaults.ZvukAuthToken)
-	viper.SetDefault(configKeyYandexMusicToken, defaults.YandexMusicToken)
-	viper.SetDefault("quality", defaults.Quality)
-	viper.SetDefault("min_quality", defaults.MinQuality)
-	viper.SetDefault("min_duration", defaults.MinDuration)
-	viper.SetDefault("max_duration", defaults.MaxDuration)
-	viper.SetDefault("output_path", defaults.OutputPath)
-	viper.SetDefault("group_by_provider", defaults.GroupByProvider)
-	viper.SetDefault("track_filename_template", defaults.TrackFilenameTemplate)
-	viper.SetDefault("album_folder_template", defaults.AlbumFolderTemplate)
-	viper.SetDefault("playlist_filename_template", defaults.PlaylistFilenameTemplate)
-	viper.SetDefault("audiobook_folder_template", defaults.AudiobookFolderTemplate)
-	viper.SetDefault("audiobook_chapter_filename_template", defaults.AudiobookChapterFilenameTemplate)
-	viper.SetDefault("podcast_folder_template", defaults.PodcastFolderTemplate)
-	viper.SetDefault("podcast_episode_filename_template", defaults.PodcastEpisodeFilenameTemplate)
-	viper.SetDefault("download_lyrics", defaults.DownloadLyrics)
-	viper.SetDefault("replace_tracks", defaults.ReplaceTracks)
-	viper.SetDefault("replace_covers", defaults.ReplaceCovers)
-	viper.SetDefault("replace_descriptions", defaults.ReplaceDescriptions)
-	viper.SetDefault("replace_lyrics", defaults.ReplaceLyrics)
-	viper.SetDefault("log_level", defaults.LogLevel)
-	viper.SetDefault("download_speed_limit", defaults.DownloadSpeedLimit)
-	viper.SetDefault("create_folder_for_singles", defaults.CreateFolderForSingles)
-	viper.SetDefault("max_folder_name_length", defaults.MaxFolderNameLength)
-	viper.SetDefault("retry_attempts_count", defaults.RetryAttemptsCount)
-	viper.SetDefault("max_download_pause", defaults.MaxDownloadPause)
-	viper.SetDefault("min_retry_pause", defaults.MinRetryPause)
-	viper.SetDefault("max_retry_pause", defaults.MaxRetryPause)
-	viper.SetDefault("max_concurrent_downloads", defaults.MaxConcurrentDownloads)
-}
-
 // LoadConfig loads configuration settings from a YAML file.
 func LoadConfig(configFilename string) (*Config, error) {
 	if configFilename == "" {
@@ -315,34 +281,6 @@ func LoadConfig(configFilename string) (*Config, error) {
 	}
 
 	return &cfg, nil
-}
-
-// isValidQuality reports whether the quality value is within the supported range.
-func isValidQuality(quality uint8) bool {
-	return quality >= minQuality && quality <= maxQuality
-}
-
-// parsePositiveDuration parses a non-empty duration string and validates it is positive.
-func parsePositiveDuration(raw, name string, invalidErr error) (time.Duration, error) {
-	parsed, err := time.ParseDuration(raw)
-	if err != nil {
-		return 0, fmt.Errorf("failed to parse %s: %w", name, err)
-	}
-
-	if parsed <= 0 {
-		return 0, invalidErr
-	}
-
-	return parsed, nil
-}
-
-// parseOptionalPositiveDuration parses an optional duration string, returning zero when empty.
-func parseOptionalPositiveDuration(raw, name string, invalidErr error) (time.Duration, error) {
-	if raw == "" {
-		return 0, nil
-	}
-
-	return parsePositiveDuration(raw, name, invalidErr)
 }
 
 // ValidateConfig checks the configuration for validity and sets derived fields.
@@ -391,7 +329,7 @@ func ValidateConfig(cfg *Config) error {
 	}
 
 	parsedLogLevel, isLogLevelCorrect := logger.ParseLogLevel(cfg.LogLevel)
-	if !(isLogLevelCorrect) {
+	if !isLogLevelCorrect {
 		return fmt.Errorf("%w: '%s'", ErrUnknownLogLevel, cfg.LogLevel)
 	}
 
@@ -475,6 +413,68 @@ func SaveConfigFields(cfg *Config, fields map[string]string) error {
 	}
 
 	return nil
+}
+
+// applyViperDefaults registers default configuration values with viper.
+func applyViperDefaults() {
+	defaults := DefaultConfig()
+	viper.SetDefault(configKeyZvukAuthToken, defaults.ZvukAuthToken)
+	viper.SetDefault(configKeyYandexMusicToken, defaults.YandexMusicToken)
+	viper.SetDefault("quality", defaults.Quality)
+	viper.SetDefault("min_quality", defaults.MinQuality)
+	viper.SetDefault("min_duration", defaults.MinDuration)
+	viper.SetDefault("max_duration", defaults.MaxDuration)
+	viper.SetDefault("output_path", defaults.OutputPath)
+	viper.SetDefault("group_by_provider", defaults.GroupByProvider)
+	viper.SetDefault("track_filename_template", defaults.TrackFilenameTemplate)
+	viper.SetDefault("album_folder_template", defaults.AlbumFolderTemplate)
+	viper.SetDefault("playlist_filename_template", defaults.PlaylistFilenameTemplate)
+	viper.SetDefault("audiobook_folder_template", defaults.AudiobookFolderTemplate)
+	viper.SetDefault("audiobook_chapter_filename_template", defaults.AudiobookChapterFilenameTemplate)
+	viper.SetDefault("podcast_folder_template", defaults.PodcastFolderTemplate)
+	viper.SetDefault("podcast_episode_filename_template", defaults.PodcastEpisodeFilenameTemplate)
+	viper.SetDefault("download_lyrics", defaults.DownloadLyrics)
+	viper.SetDefault("replace_tracks", defaults.ReplaceTracks)
+	viper.SetDefault("replace_covers", defaults.ReplaceCovers)
+	viper.SetDefault("replace_descriptions", defaults.ReplaceDescriptions)
+	viper.SetDefault("replace_lyrics", defaults.ReplaceLyrics)
+	viper.SetDefault("log_level", defaults.LogLevel)
+	viper.SetDefault("download_speed_limit", defaults.DownloadSpeedLimit)
+	viper.SetDefault("create_folder_for_singles", defaults.CreateFolderForSingles)
+	viper.SetDefault("max_folder_name_length", defaults.MaxFolderNameLength)
+	viper.SetDefault("retry_attempts_count", defaults.RetryAttemptsCount)
+	viper.SetDefault("max_download_pause", defaults.MaxDownloadPause)
+	viper.SetDefault("min_retry_pause", defaults.MinRetryPause)
+	viper.SetDefault("max_retry_pause", defaults.MaxRetryPause)
+	viper.SetDefault("max_concurrent_downloads", defaults.MaxConcurrentDownloads)
+}
+
+// isValidQuality reports whether the quality value is within the supported range.
+func isValidQuality(quality uint8) bool {
+	return quality >= minQuality && quality <= maxQuality
+}
+
+// parsePositiveDuration parses a non-empty duration string and validates it is positive.
+func parsePositiveDuration(raw, name string, invalidErr error) (time.Duration, error) {
+	parsed, err := time.ParseDuration(raw)
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse %s: %w", name, err)
+	}
+
+	if parsed <= 0 {
+		return 0, invalidErr
+	}
+
+	return parsed, nil
+}
+
+// parseOptionalPositiveDuration parses an optional duration string, returning zero when empty.
+func parseOptionalPositiveDuration(raw, name string, invalidErr error) (time.Duration, error) {
+	if raw == "" {
+		return 0, nil
+	}
+
+	return parsePositiveDuration(raw, name, invalidErr)
 }
 
 // getConfigFilePath returns the config file path from viper or the default.

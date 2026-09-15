@@ -22,10 +22,56 @@ type mockZvukClient struct {
 	server *httptest.Server
 }
 
-// newMockZvukClient creates a mock client backed by a local test HTTP server.
-func newMockZvukClient() *mockZvukClient {
-	server := httptest.NewServer(http.HandlerFunc(mockHandler))
-	return &mockZvukClient{server: server}
+// TestNewClient tests the NewClient function.
+func TestNewClient(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		config      *config.Config
+		expectError bool
+	}{
+		{
+			name: "valid config",
+			config: &config.Config{
+				ZvukAuthToken:       "test_token",
+				Quality:             2,
+				ZvukBaseURL:         "https://zvuk.com",
+				RetryAttemptsCount:  3,
+				ParsedMaxRetryPause: 1000000000, // 1 second.
+				ParsedMinRetryPause: 100000000,  // 100ms.
+			},
+			expectError: false,
+		},
+		{
+			name: "invalid base URL",
+			config: &config.Config{
+				ZvukAuthToken:       "test_token",
+				Quality:             2,
+				ZvukBaseURL:         "://invalid-url",
+				RetryAttemptsCount:  3,
+				ParsedMaxRetryPause: 1000000000,
+				ParsedMinRetryPause: 100000000,
+			},
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			client, err := NewClient(tt.config)
+
+			if tt.expectError {
+				require.Error(t, err)
+				assert.Nil(t, client)
+			} else {
+				require.NoError(t, err)
+				assert.NotNil(t, client)
+			}
+		})
+	}
 }
 
 // DownloadFromURL downloads content from the given URL via the test server.
@@ -52,10 +98,8 @@ func (m *mockZvukClient) FetchTrack(_ context.Context, trackURL string) (io.Read
 func (m *mockZvukClient) GetAlbumsMetadata(
 	_ context.Context,
 	_ []string,
-	_ bool,
 ) (*GetAlbumsMetadataResponse, error) {
 	return &GetAlbumsMetadataResponse{
-		Tracks:   make(map[string]*Track),
 		Releases: make(map[string]*Release),
 	}, nil
 }
@@ -142,6 +186,246 @@ func (m *mockZvukClient) Close() {
 	if m.server != nil {
 		m.server.Close()
 	}
+}
+
+// TestClientImpl_DownloadFromURL tests the DownloadFromURL method.
+func TestClientImpl_DownloadFromURL(t *testing.T) {
+	t.Parallel()
+
+	mockClient := newMockZvukClient()
+	defer mockClient.Close()
+
+	ctx := t.Context()
+	url := mockClient.GetBaseURL() + "/test-download"
+
+	reader, err := mockClient.DownloadFromURL(ctx, url)
+	require.NoError(t, err)
+	assert.NotNil(t, reader)
+
+	// Read content.
+	content, err := io.ReadAll(reader)
+	require.NoError(t, err)
+	assert.Equal(t, "test content", string(content))
+	reader.Close()
+}
+
+// TestClientImpl_FetchTrack tests the FetchTrack method.
+func TestClientImpl_FetchTrack(t *testing.T) {
+	t.Parallel()
+
+	mockClient := newMockZvukClient()
+	defer mockClient.Close()
+
+	ctx := t.Context()
+	trackURL := mockClient.GetBaseURL() + "/track/123"
+
+	reader, size, err := mockClient.FetchTrack(ctx, trackURL)
+	require.NoError(t, err)
+	assert.NotNil(t, reader)
+	assert.Equal(t, int64(12), size) // "test content" length.
+
+	reader.Close()
+}
+
+// TestClientImpl_GetAlbumsMetadata tests the GetAlbumsMetadata method.
+func TestClientImpl_GetAlbumsMetadata(t *testing.T) {
+	t.Parallel()
+
+	mockClient := newMockZvukClient()
+	defer mockClient.Close()
+
+	ctx := t.Context()
+	releaseIDs := []string{"release1", "release2"}
+
+	response, err := mockClient.GetAlbumsMetadata(ctx, releaseIDs)
+	require.NoError(t, err)
+	assert.NotNil(t, response)
+	assert.NotNil(t, response.Releases)
+}
+
+// TestClientImpl_GetAlbumURL tests the GetAlbumURL method.
+func TestClientImpl_GetAlbumURL(t *testing.T) {
+	t.Parallel()
+
+	mockClient := newMockZvukClient()
+	defer mockClient.Close()
+
+	ctx := t.Context()
+	releaseID := "release123"
+
+	url, err := mockClient.GetAlbumURL(ctx, releaseID)
+	require.NoError(t, err)
+	assert.Equal(t, "https://example.com/album", url)
+}
+
+// TestClientImpl_GetArtistReleaseIDs tests the GetArtistReleaseIDs method.
+func TestClientImpl_GetArtistReleaseIDs(t *testing.T) {
+	t.Parallel()
+
+	mockClient := newMockZvukClient()
+	defer mockClient.Close()
+
+	ctx := t.Context()
+	artistID := "artist123"
+
+	releaseIDs, err := mockClient.GetArtistReleaseIDs(ctx, artistID, 0, 10)
+	require.NoError(t, err)
+	assert.NotNil(t, releaseIDs)
+	assert.Equal(t, []string{"release1", "release2"}, releaseIDs)
+}
+
+// TestClientImpl_GetBaseURL tests the GetBaseURL method.
+func TestClientImpl_GetBaseURL(t *testing.T) {
+	t.Parallel()
+
+	mockClient := newMockZvukClient()
+	defer mockClient.Close()
+
+	baseURL := mockClient.GetBaseURL()
+	assert.NotEmpty(t, baseURL)
+	assert.Contains(t, baseURL, "127.0.0.1")
+}
+
+// TestClientImpl_GetLabelsMetadata tests the GetLabelsMetadata method.
+func TestClientImpl_GetLabelsMetadata(t *testing.T) {
+	t.Parallel()
+
+	mockClient := newMockZvukClient()
+	defer mockClient.Close()
+
+	ctx := t.Context()
+	labelIDs := []string{"label1", "label2"}
+
+	response, err := mockClient.GetLabelsMetadata(ctx, labelIDs)
+	require.NoError(t, err)
+	assert.NotNil(t, response)
+	assert.NotNil(t, response.Labels)
+}
+
+// TestClientImpl_GetPlaylistsMetadata tests the GetPlaylistsMetadata method.
+func TestClientImpl_GetPlaylistsMetadata(t *testing.T) {
+	t.Parallel()
+
+	mockClient := newMockZvukClient()
+	defer mockClient.Close()
+
+	ctx := t.Context()
+	playlistIDs := []string{"playlist1", "playlist2"}
+
+	response, err := mockClient.GetPlaylistsMetadata(ctx, playlistIDs)
+	require.NoError(t, err)
+	assert.NotNil(t, response)
+	assert.NotNil(t, response.Playlists)
+}
+
+// TestClientImpl_GetStreamMetadata tests the GetStreamMetadata method.
+func TestClientImpl_GetStreamMetadata(t *testing.T) {
+	t.Parallel()
+
+	mockClient := newMockZvukClient()
+	defer mockClient.Close()
+
+	ctx := t.Context()
+	trackID := "track123"
+
+	response, err := mockClient.GetStreamMetadata(ctx, trackID)
+	require.NoError(t, err)
+	assert.NotNil(t, response)
+	assert.NotNil(t, response.Result)
+	assert.Equal(t, "https://example.com/stream.mp3", response.Result.Stream)
+}
+
+// TestClientImpl_GetTrackLyrics tests the GetTrackLyrics method.
+func TestClientImpl_GetTrackLyrics(t *testing.T) {
+	t.Parallel()
+
+	mockClient := newMockZvukClient()
+	defer mockClient.Close()
+
+	ctx := t.Context()
+	trackID := "track123"
+
+	response, err := mockClient.GetTrackLyrics(ctx, trackID)
+	require.NoError(t, err)
+	assert.NotNil(t, response)
+	assert.NotNil(t, response.Result)
+	assert.Equal(t, LyricsTypeSubtitle, response.Result.Type)
+	assert.Equal(t, "Test lyrics content", response.Result.Lyrics)
+}
+
+// TestClientImpl_GetTracksMetadata tests the GetTracksMetadata method.
+func TestClientImpl_GetTracksMetadata(t *testing.T) {
+	t.Parallel()
+
+	mockClient := newMockZvukClient()
+	defer mockClient.Close()
+
+	ctx := t.Context()
+	trackIDs := []string{"track1", "track2"}
+
+	response, err := mockClient.GetTracksMetadata(ctx, trackIDs)
+	require.NoError(t, err)
+	assert.NotNil(t, response)
+	assert.NotNil(t, response.Result)
+	assert.NotNil(t, response.Result.Tracks)
+}
+
+// TestClientImpl_GetUserProfile tests the GetUserProfile method.
+func TestClientImpl_GetUserProfile(t *testing.T) {
+	t.Parallel()
+
+	mockClient := newMockZvukClient()
+	defer mockClient.Close()
+
+	ctx := t.Context()
+
+	response, err := mockClient.GetUserProfile(ctx)
+	require.NoError(t, err)
+	assert.NotNil(t, response)
+	assert.NotNil(t, response.Result)
+	assert.NotNil(t, response.Result.Subscription)
+	assert.Equal(t, "Premium", response.Result.Subscription.Title)
+}
+
+// TestClientImpl_ErrorHandling tests error handling.
+func TestClientImpl_ErrorHandling(t *testing.T) {
+	t.Parallel()
+
+	mockClient := newMockZvukClient()
+	defer mockClient.Close()
+
+	ctx := t.Context()
+
+	// Test with invalid URL.
+	_, err := mockClient.DownloadFromURL(ctx, "invalid-url")
+	require.Error(t, err)
+}
+
+// TestModels tests the model structures.
+func TestModels(t *testing.T) {
+	t.Parallel()
+
+	// Test GetAlbumsMetadataResponse.
+	response := &GetAlbumsMetadataResponse{
+		Releases: make(map[string]*Release),
+	}
+	assert.NotNil(t, response.Releases)
+
+	// Test UserProfile.
+	profile := &UserProfile{
+		Subscription: &UserSubscription{
+			Title:      "Premium",
+			Expiration: 1234567890,
+		},
+	}
+	assert.NotNil(t, profile.Subscription)
+	assert.Equal(t, "Premium", profile.Subscription.Title)
+}
+
+// newMockZvukClient creates a mock client backed by a local test HTTP server.
+func newMockZvukClient() *mockZvukClient {
+	server := httptest.NewServer(http.HandlerFunc(mockHandler))
+	return &mockZvukClient{server: server}
 }
 
 // mockHandler handles HTTP requests for testing.
@@ -288,293 +572,4 @@ func handleLabelsRequest(w http.ResponseWriter, _ *http.Request, _ url.Values) {
 	}
 
 	writeJSONResponse(w, response)
-}
-
-// TestNewClient tests the NewClient function.
-func TestNewClient(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name        string
-		config      *config.Config
-		expectError bool
-	}{
-		{
-			name: "valid config",
-			config: &config.Config{
-				ZvukAuthToken:       "test_token",
-				Quality:             2,
-				ZvukBaseURL:         "https://zvuk.com",
-				RetryAttemptsCount:  3,
-				ParsedMaxRetryPause: 1000000000, // 1 second.
-				ParsedMinRetryPause: 100000000,  // 100ms.
-			},
-			expectError: false,
-		},
-		{
-			name: "invalid base URL",
-			config: &config.Config{
-				ZvukAuthToken:       "test_token",
-				Quality:             2,
-				ZvukBaseURL:         "://invalid-url",
-				RetryAttemptsCount:  3,
-				ParsedMaxRetryPause: 1000000000,
-				ParsedMinRetryPause: 100000000,
-			},
-			expectError: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			client, err := NewClient(tt.config)
-
-			if tt.expectError {
-				require.Error(t, err)
-				assert.Nil(t, client)
-			} else {
-				require.NoError(t, err)
-				assert.NotNil(t, client)
-			}
-		})
-	}
-}
-
-// TestClientImpl_DownloadFromURL tests the DownloadFromURL method.
-func TestClientImpl_DownloadFromURL(t *testing.T) {
-	t.Parallel()
-
-	mockClient := newMockZvukClient()
-	defer mockClient.Close()
-
-	ctx := context.Background()
-	url := mockClient.GetBaseURL() + "/test-download"
-
-	reader, err := mockClient.DownloadFromURL(ctx, url)
-	require.NoError(t, err)
-	assert.NotNil(t, reader)
-
-	// Read content.
-	content, err := io.ReadAll(reader)
-	require.NoError(t, err)
-	assert.Equal(t, "test content", string(content))
-	reader.Close()
-}
-
-// TestClientImpl_FetchTrack tests the FetchTrack method.
-func TestClientImpl_FetchTrack(t *testing.T) {
-	t.Parallel()
-
-	mockClient := newMockZvukClient()
-	defer mockClient.Close()
-
-	ctx := context.Background()
-	trackURL := mockClient.GetBaseURL() + "/track/123"
-
-	reader, size, err := mockClient.FetchTrack(ctx, trackURL)
-	require.NoError(t, err)
-	assert.NotNil(t, reader)
-	assert.Equal(t, int64(12), size) // "test content" length.
-
-	reader.Close()
-}
-
-// TestClientImpl_GetAlbumsMetadata tests the GetAlbumsMetadata method.
-func TestClientImpl_GetAlbumsMetadata(t *testing.T) {
-	t.Parallel()
-
-	mockClient := newMockZvukClient()
-	defer mockClient.Close()
-
-	ctx := context.Background()
-	releaseIDs := []string{"release1", "release2"}
-
-	response, err := mockClient.GetAlbumsMetadata(ctx, releaseIDs, true)
-	require.NoError(t, err)
-	assert.NotNil(t, response)
-	assert.NotNil(t, response.Tracks)
-	assert.NotNil(t, response.Releases)
-}
-
-// TestClientImpl_GetAlbumURL tests the GetAlbumURL method.
-func TestClientImpl_GetAlbumURL(t *testing.T) {
-	t.Parallel()
-
-	mockClient := newMockZvukClient()
-	defer mockClient.Close()
-
-	ctx := context.Background()
-	releaseID := "release123"
-
-	url, err := mockClient.GetAlbumURL(ctx, releaseID)
-	require.NoError(t, err)
-	assert.Equal(t, "https://example.com/album", url)
-}
-
-// TestClientImpl_GetArtistReleaseIDs tests the GetArtistReleaseIDs method.
-func TestClientImpl_GetArtistReleaseIDs(t *testing.T) {
-	t.Parallel()
-
-	mockClient := newMockZvukClient()
-	defer mockClient.Close()
-
-	ctx := context.Background()
-	artistID := "artist123"
-
-	releaseIDs, err := mockClient.GetArtistReleaseIDs(ctx, artistID, 0, 10)
-	require.NoError(t, err)
-	assert.NotNil(t, releaseIDs)
-	assert.Equal(t, []string{"release1", "release2"}, releaseIDs)
-}
-
-// TestClientImpl_GetBaseURL tests the GetBaseURL method.
-func TestClientImpl_GetBaseURL(t *testing.T) {
-	t.Parallel()
-
-	mockClient := newMockZvukClient()
-	defer mockClient.Close()
-
-	baseURL := mockClient.GetBaseURL()
-	assert.NotEmpty(t, baseURL)
-	assert.Contains(t, baseURL, "127.0.0.1")
-}
-
-// TestClientImpl_GetLabelsMetadata tests the GetLabelsMetadata method.
-func TestClientImpl_GetLabelsMetadata(t *testing.T) {
-	t.Parallel()
-
-	mockClient := newMockZvukClient()
-	defer mockClient.Close()
-
-	ctx := context.Background()
-	labelIDs := []string{"label1", "label2"}
-
-	response, err := mockClient.GetLabelsMetadata(ctx, labelIDs)
-	require.NoError(t, err)
-	assert.NotNil(t, response)
-	assert.NotNil(t, response.Labels)
-}
-
-// TestClientImpl_GetPlaylistsMetadata tests the GetPlaylistsMetadata method.
-func TestClientImpl_GetPlaylistsMetadata(t *testing.T) {
-	t.Parallel()
-
-	mockClient := newMockZvukClient()
-	defer mockClient.Close()
-
-	ctx := context.Background()
-	playlistIDs := []string{"playlist1", "playlist2"}
-
-	response, err := mockClient.GetPlaylistsMetadata(ctx, playlistIDs)
-	require.NoError(t, err)
-	assert.NotNil(t, response)
-	assert.NotNil(t, response.Playlists)
-}
-
-// TestClientImpl_GetStreamMetadata tests the GetStreamMetadata method.
-func TestClientImpl_GetStreamMetadata(t *testing.T) {
-	t.Parallel()
-
-	mockClient := newMockZvukClient()
-	defer mockClient.Close()
-
-	ctx := context.Background()
-	trackID := "track123"
-
-	response, err := mockClient.GetStreamMetadata(ctx, trackID)
-	require.NoError(t, err)
-	assert.NotNil(t, response)
-	assert.NotNil(t, response.Result)
-	assert.Equal(t, "https://example.com/stream.mp3", response.Result.Stream)
-}
-
-// TestClientImpl_GetTrackLyrics tests the GetTrackLyrics method.
-func TestClientImpl_GetTrackLyrics(t *testing.T) {
-	t.Parallel()
-
-	mockClient := newMockZvukClient()
-	defer mockClient.Close()
-
-	ctx := context.Background()
-	trackID := "track123"
-
-	response, err := mockClient.GetTrackLyrics(ctx, trackID)
-	require.NoError(t, err)
-	assert.NotNil(t, response)
-	assert.NotNil(t, response.Result)
-	assert.Equal(t, LyricsTypeSubtitle, response.Result.Type)
-	assert.Equal(t, "Test lyrics content", response.Result.Lyrics)
-}
-
-// TestClientImpl_GetTracksMetadata tests the GetTracksMetadata method.
-func TestClientImpl_GetTracksMetadata(t *testing.T) {
-	t.Parallel()
-
-	mockClient := newMockZvukClient()
-	defer mockClient.Close()
-
-	ctx := context.Background()
-	trackIDs := []string{"track1", "track2"}
-
-	response, err := mockClient.GetTracksMetadata(ctx, trackIDs)
-	require.NoError(t, err)
-	assert.NotNil(t, response)
-	assert.NotNil(t, response.Result)
-	assert.NotNil(t, response.Result.Tracks)
-}
-
-// TestClientImpl_GetUserProfile tests the GetUserProfile method.
-func TestClientImpl_GetUserProfile(t *testing.T) {
-	t.Parallel()
-
-	mockClient := newMockZvukClient()
-	defer mockClient.Close()
-
-	ctx := context.Background()
-
-	response, err := mockClient.GetUserProfile(ctx)
-	require.NoError(t, err)
-	assert.NotNil(t, response)
-	assert.NotNil(t, response.Result)
-	assert.NotNil(t, response.Result.Subscription)
-	assert.Equal(t, "Premium", response.Result.Subscription.Title)
-}
-
-// TestClientImpl_ErrorHandling tests error handling.
-func TestClientImpl_ErrorHandling(t *testing.T) {
-	t.Parallel()
-
-	mockClient := newMockZvukClient()
-	defer mockClient.Close()
-
-	ctx := context.Background()
-
-	// Test with invalid URL.
-	_, err := mockClient.DownloadFromURL(ctx, "invalid-url")
-	require.Error(t, err)
-}
-
-// TestModels tests the model structures.
-func TestModels(t *testing.T) {
-	t.Parallel()
-
-	// Test GetAlbumsMetadataResponse.
-	response := &GetAlbumsMetadataResponse{
-		Tracks:   make(map[string]*Track),
-		Releases: make(map[string]*Release),
-	}
-	assert.NotNil(t, response.Tracks)
-	assert.NotNil(t, response.Releases)
-
-	// Test UserProfile.
-	profile := &UserProfile{
-		Subscription: &UserSubscription{
-			Title:      "Premium",
-			Expiration: 1234567890,
-		},
-	}
-	assert.NotNil(t, profile.Subscription)
-	assert.Equal(t, "Premium", profile.Subscription.Title)
 }

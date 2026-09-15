@@ -40,16 +40,6 @@ max_retry_pause: "3s"
 max_concurrent_downloads: 1
 `
 
-// testConfigWithReplacements returns the baseline test config with selected YAML substitutions.
-func testConfigWithReplacements(replacements ...string) string {
-	content := testBaseConfigContent
-	for i := 0; i < len(replacements); i += 2 {
-		content = strings.Replace(content, replacements[i], replacements[i+1], 1)
-	}
-
-	return content
-}
-
 // TestFlagOverrides tests that command-line flags correctly override configuration file values.
 //
 //nolint:funlen,nolintlint,tparallel // It's a comprehensive integration test. Cannot run in parallel due to Viper global state.
@@ -562,4 +552,14 @@ func TestBindFlagsToConfig_EmptyFlagSet(t *testing.T) {
 	// Calling with empty flag set should just validate the config.
 	err := bindFlagsToConfig(emptyFlags, cfg)
 	require.NoError(t, err)
+}
+
+// testConfigWithReplacements returns the baseline test config with selected YAML substitutions.
+func testConfigWithReplacements(replacements ...string) string {
+	content := testBaseConfigContent
+	for i := 0; i < len(replacements); i += 2 {
+		content = strings.Replace(content, replacements[i], replacements[i+1], 1)
+	}
+
+	return content
 }

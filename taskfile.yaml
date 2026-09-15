@@ -30,7 +30,7 @@ vars:
   # -------------------------------
 
   # Linting tool version.
-  GOLANGCI_TAG: "v2.12.2"
+  GOLANGCI_TAG: "v2.13.2"
   # GoMock binary version (uber-go/mock fork).
   MOCKGEN_TAG: "v0.6.0"
 
@@ -152,6 +152,13 @@ tasks:
     cmds:
       - echo "Generating mocks for all interfaces..."
       - go generate ./...
+      - |
+        # mockgen always writes a package godoc. Same-package *_test.go mocks would duplicate doc.go.
+        {{if eq OS "windows"}}
+          powershell.exe -Command "$p = 'internal/service/zvuk/url_processor_mock_test.go'; (Get-Content $p) | Where-Object { $_ -notmatch '^// Package .* is a generated GoMock package\.$' } | Set-Content $p"
+        {{else}}
+          sed -i '/^\/\/ Package .* is a generated GoMock package\.$/d' internal/service/zvuk/url_processor_mock_test.go
+        {{end}}
       - echo "Mock generation completed successfully!"
     env:
       # Set MOCKGEN environment variable to the local binary path.

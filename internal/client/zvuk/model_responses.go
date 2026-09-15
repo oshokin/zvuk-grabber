@@ -4,8 +4,6 @@ import "io"
 
 // GetAlbumsMetadataResponse represents the response structure for fetching metadata about albums.
 type GetAlbumsMetadataResponse struct {
-	// Tracks is a map of track ID to track metadata.
-	Tracks map[string]*Track `json:"tracks"`
 	// Releases is a map of release ID to release metadata.
 	Releases map[string]*Release `json:"releases"`
 }

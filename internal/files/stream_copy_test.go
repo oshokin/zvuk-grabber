@@ -55,7 +55,7 @@ func TestCopyStream_CopiesAndValidatesExpectedBytes(t *testing.T) {
 	var destination bytes.Buffer
 
 	written, err := CopyStream(
-		context.Background(),
+		t.Context(),
 		&destination,
 		bytes.NewBufferString("hello"),
 		&CopyStreamOptions{ExpectedBytes: 5},
@@ -80,7 +80,7 @@ func TestCopyStream_ReturnsIncompleteCopy(t *testing.T) {
 	var destination bytes.Buffer
 
 	written, err := CopyStream(
-		context.Background(),
+		t.Context(),
 		&destination,
 		bytes.NewBufferString("hello"),
 		&CopyStreamOptions{ExpectedBytes: 6},
@@ -107,7 +107,7 @@ func TestCopyStream_RespectsContextCancellationWithoutSpeedLimit(t *testing.T) {
 			delay:     time.Millisecond,
 		}
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		defer cancel()
 
 		go func() {
@@ -134,7 +134,7 @@ func TestCopyStream_ExactMultipleOfSpeedLimit_NoExtraWindowDelay(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		var destination bytes.Buffer
 
-		ctx, cancel := context.WithTimeout(context.Background(), 750*time.Millisecond)
+		ctx, cancel := context.WithTimeout(t.Context(), 750*time.Millisecond)
 		defer cancel()
 
 		written, err := CopyStream(

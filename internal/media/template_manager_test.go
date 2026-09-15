@@ -1,7 +1,6 @@
 package media
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -13,7 +12,7 @@ import (
 func TestNewTemplateManager(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	cfg := &config.Config{
 		TrackFilenameTemplate:    "{{.trackNumberPad}} - {{.trackTitle}}",
 		AlbumFolderTemplate:      "{{.releaseYear}} - {{.albumArtist}} - {{.albumTitle}}",
@@ -29,7 +28,7 @@ func TestNewTemplateManager(t *testing.T) {
 func TestTemplateManager_GetTrackFilename(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	cfg := &config.Config{
 		TrackFilenameTemplate:    "{{.trackNumberPad}} - {{.trackTitle}}",
 		AlbumFolderTemplate:      "{{.releaseYear}} - {{.albumArtist}} - {{.albumTitle}}",
@@ -55,7 +54,7 @@ func TestTemplateManager_GetTrackFilename(t *testing.T) {
 func TestTemplateManager_GetAlbumFolderName(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	cfg := &config.Config{
 		TrackFilenameTemplate:    "{{.trackNumberPad}} - {{.trackTitle}}",
 		AlbumFolderTemplate:      "{{.releaseYear}} - {{.albumArtist}} - {{.albumTitle}}",

@@ -2,7 +2,6 @@ package zvuk
 
 import (
 	"bytes"
-	"context"
 	"io"
 	"testing"
 	"time"
@@ -80,9 +79,9 @@ func TestDownloadTracks_AllFormatsWithCoverEmbedding(t *testing.T) {
 			service := NewService(
 				testConfig,
 				mockClient,
-				new(mockURLProcessor),
-				new(mockTemplateManager),
-				new(mockTagProcessor),
+				newStubURLProcessor(ctrl),
+				newStubTemplateManager(ctrl),
+				newStubTagProcessor(ctrl),
 			)
 
 			// Create test metadata using realistic values based on actual API responses.
@@ -175,7 +174,7 @@ func TestDownloadTracks_AllFormatsWithCoverEmbedding(t *testing.T) {
 			}
 
 			// Execute download.
-			ctx := context.Background()
+			ctx := t.Context()
 
 			impl, ok := service.(*ServiceImpl)
 			assert.True(t, ok, "Service should be of type *ServiceImpl")

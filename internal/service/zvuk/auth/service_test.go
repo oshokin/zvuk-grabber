@@ -1,7 +1,6 @@
 package auth
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -158,6 +157,6 @@ func TestServiceImpl_Cleanup(t *testing.T) {
 
 	// Should not panic even with nil browser.
 	assert.NotPanics(t, func() {
-		service.cleanup(context.Background())
+		service.cleanup(t.Context())
 	})
 }

@@ -8,21 +8,12 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
 	"github.com/oshokin/zvuk-grabber/internal/config"
+	"github.com/oshokin/zvuk-grabber/internal/media"
+	mock_media "github.com/oshokin/zvuk-grabber/internal/media/mocks"
 )
-
-// recordingTagProcessor records the last WriteTags request for assertions.
-type recordingTagProcessor struct {
-	// lastRequest is the most recent WriteTags request passed to WriteTags.
-	lastRequest *WriteTagsRequest
-}
-
-// WriteTags stores the request and returns success without writing tags.
-func (r *recordingTagProcessor) WriteTags(_ context.Context, req *WriteTagsRequest) error {
-	r.lastRequest = req
-	return nil
-}
 
 // TestWriteTrackMetadata_UsesEmbeddableCoverPath verifies embeddable cover path is preferred over final cover.
 func TestWriteTrackMetadata_UsesEmbeddableCoverPath(t *testing.T) {
@@ -42,13 +33,24 @@ func TestWriteTrackMetadata_UsesEmbeddableCoverPath(t *testing.T) {
 
 	finalTrackPath := filepath.Join(tmpDir, "track.mp3")
 
-	rec := &recordingTagProcessor{}
+	ctrl := gomock.NewController(t)
+	tagProcessor := mock_media.NewMockTagProcessor(ctrl)
+
+	var lastRequest *media.WriteTagsRequest
+
+	tagProcessor.EXPECT().
+		WriteTags(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, req *media.WriteTagsRequest) error {
+			lastRequest = req
+			return nil
+		})
+
 	impl := &ServiceImpl{
 		cfg: &config.Config{
 			OutputPath: tmpDir,
 			DryRun:     false,
 		},
-		tagProcessor: rec,
+		tagProcessor: tagProcessor,
 	}
 
 	task := &downloadTrackTask{
@@ -64,10 +66,10 @@ func TestWriteTrackMetadata_UsesEmbeddableCoverPath(t *testing.T) {
 		},
 	}
 
-	impl.writeTrackMetadata(context.Background(), task, map[string]string{}, nil, tempTrackPath)
+	impl.writeTrackMetadata(t.Context(), task, map[string]string{}, nil, tempTrackPath)
 
-	require.NotNil(t, rec.lastRequest)
-	assert.Equal(t, embeddableCoverPath, rec.lastRequest.CoverPath)
+	require.NotNil(t, lastRequest)
+	assert.Equal(t, embeddableCoverPath, lastRequest.CoverPath)
 	assert.FileExists(t, finalTrackPath)
 	assert.NoFileExists(t, tempTrackPath)
 }
@@ -90,13 +92,24 @@ func TestWriteTrackMetadata_FallsBackToFinalCoverPath(t *testing.T) {
 
 	finalTrackPath := filepath.Join(tmpDir, "track.mp3")
 
-	rec := &recordingTagProcessor{}
+	ctrl := gomock.NewController(t)
+	tagProcessor := mock_media.NewMockTagProcessor(ctrl)
+
+	var lastRequest *media.WriteTagsRequest
+
+	tagProcessor.EXPECT().
+		WriteTags(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, req *media.WriteTagsRequest) error {
+			lastRequest = req
+			return nil
+		})
+
 	impl := &ServiceImpl{
 		cfg: &config.Config{
 			OutputPath: tmpDir,
 			DryRun:     false,
 		},
-		tagProcessor: rec,
+		tagProcessor: tagProcessor,
 	}
 
 	task := &downloadTrackTask{
@@ -112,10 +125,10 @@ func TestWriteTrackMetadata_FallsBackToFinalCoverPath(t *testing.T) {
 		},
 	}
 
-	impl.writeTrackMetadata(context.Background(), task, map[string]string{}, nil, tempTrackPath)
+	impl.writeTrackMetadata(t.Context(), task, map[string]string{}, nil, tempTrackPath)
 
-	require.NotNil(t, rec.lastRequest)
-	assert.Equal(t, finalCoverPath, rec.lastRequest.CoverPath)
+	require.NotNil(t, lastRequest)
+	assert.Equal(t, finalCoverPath, lastRequest.CoverPath)
 	assert.FileExists(t, finalTrackPath)
 	assert.NoFileExists(t, tempTrackPath)
 }

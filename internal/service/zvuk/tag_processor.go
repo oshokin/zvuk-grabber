@@ -1,10 +1,8 @@
 package zvuk
 
-//go:generate $MOCKGEN -source=tag_processor.go -destination=mocks/tag_processor_mock.go
-
 import "github.com/oshokin/zvuk-grabber/internal/media"
 
-// TODO: Remove this compatibility shim after migrating remaining mocks/tests to internal/media.
+// Compatibility aliases for the shared media tag processor.
 
 // TagProcessor is a compatibility alias to the shared media tag processor.
 type TagProcessor = media.TagProcessor

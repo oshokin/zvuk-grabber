@@ -1,7 +1,6 @@
 package media
 
 import (
-	"context"
 	"testing"
 
 	"github.com/oshokin/id3v2/v2"
@@ -18,7 +17,7 @@ func TestAddMP3Tags_WritesUnsynchronisedLyricsByDefault(t *testing.T) {
 		Lyrics: "Plain lyrics without synchronization",
 	}
 
-	processor.addMP3Tags(context.Background(), tag, request)
+	processor.addMP3Tags(t.Context(), tag, request)
 
 	assert.Len(t, tag.GetFrames("USLT"), 1)
 	assert.Empty(t, tag.GetFrames("SYLT"))
@@ -35,7 +34,7 @@ func TestAddMP3Tags_WritesSynchronisedLyricsForSubtitleType(t *testing.T) {
 		LyricsType: LyricsTypeSubtitle,
 	}
 
-	processor.addMP3Tags(context.Background(), tag, request)
+	processor.addMP3Tags(t.Context(), tag, request)
 
 	assert.Len(t, tag.GetFrames("SYLT"), 1)
 	assert.Empty(t, tag.GetFrames("USLT"))
@@ -52,7 +51,7 @@ func TestAddMP3Tags_FallsBackToUnsynchronisedLyricsWhenLRCParseFails(t *testing.
 		LyricsType: LyricsTypeLRC,
 	}
 
-	processor.addMP3Tags(context.Background(), tag, request)
+	processor.addMP3Tags(t.Context(), tag, request)
 
 	assert.Empty(t, tag.GetFrames("SYLT"))
 	assert.Len(t, tag.GetFrames("USLT"), 1)

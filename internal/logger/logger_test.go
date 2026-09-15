@@ -1,7 +1,6 @@
 package logger
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -189,7 +188,7 @@ func TestSetLevel(t *testing.T) {
 func TestContextLoggingFunctions(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Test Debug functions.
 	Debug(ctx, "test debug message")
@@ -220,7 +219,7 @@ func TestContextLoggingFunctions(t *testing.T) {
 func TestContextLoggingWithValidContext(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// These should not panic with valid context.
 	Debug(ctx, "test message")
@@ -243,9 +242,9 @@ func TestLoggerInitialization(t *testing.T) {
 }
 
 // TestLoggerThreadSafety tests basic thread safety of logger operations.
-func TestLoggerThreadSafety(_ *testing.T) {
+func TestLoggerThreadSafety(t *testing.T) {
 	// Don't run in parallel to avoid race conditions with global logger state.
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Test concurrent logging operations.
 	done := make(chan bool, 10)

@@ -75,6 +75,41 @@ func TestSanitizeFilename(t *testing.T) {
 			expected: "test_file.txt",
 		},
 		{
+			name:     "ordinary filename",
+			input:    "track.mp3",
+			expected: "track.mp3",
+		},
+		{
+			name:     "multiple dots",
+			input:    "archive.tar.gz",
+			expected: "archive.tar.gz",
+		},
+		{
+			name:     "windows reserved basename with extension",
+			input:    "CON.txt",
+			expected: "_CON.txt",
+		},
+		{
+			name:     "windows reserved basename",
+			input:    "NUL",
+			expected: "_NUL",
+		},
+		{
+			name:     "windows reserved basename with trailing dot",
+			input:    "NUL.",
+			expected: "_NUL",
+		},
+		{
+			name:     "hidden file",
+			input:    ".foo",
+			expected: ".foo",
+		},
+		{
+			name:     "trailing dot",
+			input:    "track.",
+			expected: "track",
+		},
+		{
 			name:     "invalid characters",
 			input:    "test<file>.txt",
 			expected: "test_file_.txt",

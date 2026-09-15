@@ -30,6 +30,7 @@ linters:
     - dupl # Allow some code duplication for clarity.
     - exhaustive # Don't require exhaustive enum handling in all switches.
     - exhaustruct # Don't require all struct fields to be initialized.
+    - exhaustruct_v5 # Don't require all struct fields to be initialized.
     - forcetypeassert # Allow type assertions without error checking when safe.
     - gochecknoglobals # Allow global variables when appropriate for design.
     - gomoddirectives # Allow flexible go.mod directives.
@@ -80,9 +81,11 @@ linters:
             - pkg: github.com/golang/protobuf
               desc: Use google.golang.org/protobuf instead, see https://developers.google.com/protocol-buffers/docs/reference/go/faq#modules
             - pkg: github.com/satori/go.uuid
-              desc: Use github.com/google/uuid instead, satori's package is not maintained
+              desc: Use the standard library uuid package instead, satori's package is not maintained
             - pkg: github.com/gofrs/uuid$
-              desc: Use github.com/gofrs/uuid/v5 or later, it was not a go module before v5
+              desc: Use the standard library uuid package instead
+            - pkg: github.com/google/uuid
+              desc: Use the standard library uuid package instead
 
         # Enforce modern standard library usage in non-test files.
         "non-test files":
@@ -126,6 +129,12 @@ linters:
       forbid:
         - pattern: '^fmt\.Print(f|ln)\(' # Prohibit direct fmt.Print* usage.
           msg: "Use logger.* helpers for diagnostics or fmt.Fprintf to cmd.OutOrStdout for user output"
+
+    # Duplicate-word detection.
+    dupword:
+      # Skip raw string literals (backtick-delimited) from duplicate word checking.
+      # Default: false
+      skip-raw-strings: true # Skip backtick fixtures such as duplicate URL lists.
 
     # Check function order and visibility.
     funcorder:

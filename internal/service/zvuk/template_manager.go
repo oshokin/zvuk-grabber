@@ -1,7 +1,5 @@
 package zvuk
 
-//go:generate $MOCKGEN -source=template_manager.go -destination=mocks/template_manager_mock.go
-
 import (
 	"context"
 
@@ -9,7 +7,7 @@ import (
 	"github.com/oshokin/zvuk-grabber/internal/media"
 )
 
-// TODO: Remove this compatibility shim after migrating remaining mocks/tests to internal/media.
+// Compatibility aliases for the shared media template manager.
 
 // TemplateManager is a compatibility alias to the shared media template manager.
 type TemplateManager = media.TemplateManager

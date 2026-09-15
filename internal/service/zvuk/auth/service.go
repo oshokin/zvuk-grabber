@@ -125,17 +125,6 @@ var (
 	ErrAuthCookieNotFound = errors.New("auth cookie not found - login may have failed")
 )
 
-// newLoginPollingEngine builds the retry engine used while waiting for Zvuk login completion.
-func newLoginPollingEngine() (*retry.Engine, error) {
-	return retry.NewEngine(&retry.EngineConfig{
-		MaxRetries:  0,
-		DelayPolicy: retry.NewRandomRangePolicy(humanBehaviorMinDelay, humanBehaviorMaxDelay),
-		IsRetryable: func(err error) bool {
-			return errors.Is(err, errLoginPending)
-		},
-	})
-}
-
 // NewService creates a new browser authentication service.
 func NewService(cfg *config.Config) (*ServiceImpl, error) {
 	loginPollingEngine, err := newLoginPollingEngine()
@@ -147,6 +136,17 @@ func NewService(cfg *config.Config) (*ServiceImpl, error) {
 		cfg:                cfg,
 		loginPollingEngine: loginPollingEngine,
 	}, nil
+}
+
+// newLoginPollingEngine builds the retry engine used while waiting for Zvuk login completion.
+func newLoginPollingEngine() (*retry.Engine, error) {
+	return retry.NewEngine(&retry.EngineConfig{
+		MaxRetries:  0,
+		DelayPolicy: retry.NewRandomRangePolicy(humanBehaviorMinDelay, humanBehaviorMaxDelay),
+		IsRetryable: func(err error) bool {
+			return errors.Is(err, errLoginPending)
+		},
+	})
 }
 
 // LoginAndExtractToken opens a browser, waits for user to log in, then extracts the auth token.

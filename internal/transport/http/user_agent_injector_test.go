@@ -11,20 +11,12 @@ import (
 	"github.com/oshokin/zvuk-grabber/internal/utils"
 )
 
-// testUserAgentProvider is a string-backed UserAgentProvider test double.
-type testUserAgentProvider string
-
-// GetUserAgent returns the configured test user agent string.
-func (p testUserAgentProvider) GetUserAgent() string {
-	return string(p)
-}
-
 // TestNewUserAgentInjector tests the NewUserAgentInjector function.
 func TestNewUserAgentInjector(t *testing.T) {
 	t.Parallel()
 
 	next := http.DefaultTransport
-	injector := NewUserAgentInjector(next, testUserAgentProvider("TestAgent/1.0"))
+	injector := NewUserAgentInjector(next, utils.NewSimpleUserAgentProvider("TestAgent/1.0"))
 
 	assert.NotNil(t, injector)
 	assert.Implements(t, (*http.RoundTripper)(nil), injector)
@@ -34,22 +26,17 @@ func TestNewUserAgentInjector(t *testing.T) {
 func TestUserAgentInjector_RoundTrip_WithExistingUserAgent(t *testing.T) {
 	t.Parallel()
 
-	// Create a test server.
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "ExistingAgent/1.0", r.Header.Get("User-Agent"))
 		w.WriteHeader(http.StatusOK)
 	}))
-	defer server.Close()
 
-	// Create injector with mock provider.
-	injector := NewUserAgentInjector(http.DefaultTransport, testUserAgentProvider("TestAgent/1.0"))
+	injector := NewUserAgentInjector(server.Client().Transport, utils.NewSimpleUserAgentProvider("TestAgent/1.0"))
 
-	// Create request with existing User-Agent header.
-	req, err := http.NewRequest(http.MethodGet, server.URL, nil)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL, nil)
 	require.NoError(t, err)
 	req.Header.Set("User-Agent", "ExistingAgent/1.0")
 
-	// Execute request.
 	resp, err := injector.RoundTrip(req)
 	require.NoError(t, err)
 
@@ -62,21 +49,16 @@ func TestUserAgentInjector_RoundTrip_WithExistingUserAgent(t *testing.T) {
 func TestUserAgentInjector_RoundTrip_WithoutUserAgent(t *testing.T) {
 	t.Parallel()
 
-	// Create a test server.
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "TestAgent/1.0", r.Header.Get("User-Agent"))
 		w.WriteHeader(http.StatusOK)
 	}))
-	defer server.Close()
 
-	// Create injector with mock provider.
-	injector := NewUserAgentInjector(http.DefaultTransport, testUserAgentProvider("TestAgent/1.0"))
+	injector := NewUserAgentInjector(server.Client().Transport, utils.NewSimpleUserAgentProvider("TestAgent/1.0"))
 
-	// Create request without User-Agent header.
-	req, err := http.NewRequest(http.MethodGet, server.URL, nil)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL, nil)
 	require.NoError(t, err)
 
-	// Execute request.
 	resp, err := injector.RoundTrip(req)
 	require.NoError(t, err)
 
@@ -89,22 +71,17 @@ func TestUserAgentInjector_RoundTrip_WithoutUserAgent(t *testing.T) {
 func TestUserAgentInjector_RoundTrip_WithEmptyUserAgent(t *testing.T) {
 	t.Parallel()
 
-	// Create a test server.
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "TestAgent/1.0", r.Header.Get("User-Agent"))
 		w.WriteHeader(http.StatusOK)
 	}))
-	defer server.Close()
 
-	// Create injector with mock provider.
-	injector := NewUserAgentInjector(http.DefaultTransport, testUserAgentProvider("TestAgent/1.0"))
+	injector := NewUserAgentInjector(server.Client().Transport, utils.NewSimpleUserAgentProvider("TestAgent/1.0"))
 
-	// Create request with empty User-Agent header.
-	req, err := http.NewRequest(http.MethodGet, server.URL, nil)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL, nil)
 	require.NoError(t, err)
 	req.Header.Set("User-Agent", "")
 
-	// Execute request.
 	resp, err := injector.RoundTrip(req)
 	require.NoError(t, err)
 
@@ -117,14 +94,11 @@ func TestUserAgentInjector_RoundTrip_WithEmptyUserAgent(t *testing.T) {
 func TestUserAgentInjector_RoundTrip_ErrorHandling(t *testing.T) {
 	t.Parallel()
 
-	// Create injector with test provider.
-	injector := NewUserAgentInjector(http.DefaultTransport, testUserAgentProvider("TestAgent/1.0"))
+	injector := NewUserAgentInjector(http.DefaultTransport, utils.NewSimpleUserAgentProvider("TestAgent/1.0"))
 
-	// Create request with invalid URL that will definitely fail.
-	req, err := http.NewRequest(http.MethodGet, "http://[::1]:0", nil)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, "http://[::1]:0", nil)
 	require.NoError(t, err)
 
-	// Execute request. - should return an error.
 	resp, err := injector.RoundTrip(req) //nolint:bodyclose // Body is empty on error.
 	require.Error(t, err)
 	assert.Nil(t, resp)
@@ -134,22 +108,17 @@ func TestUserAgentInjector_RoundTrip_ErrorHandling(t *testing.T) {
 func TestUserAgentInjector_IntegrationWithSimpleUserAgentProvider(t *testing.T) {
 	t.Parallel()
 
-	// Create a test server.
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "IntegrationTest/1.0", r.Header.Get("User-Agent"))
 		w.WriteHeader(http.StatusOK)
 	}))
-	defer server.Close()
 
-	// Create injector with SimpleUserAgentProvider.
 	provider := utils.NewSimpleUserAgentProvider("IntegrationTest/1.0")
-	injector := NewUserAgentInjector(http.DefaultTransport, provider)
+	injector := NewUserAgentInjector(server.Client().Transport, provider)
 
-	// Create request without User-Agent header.
-	req, err := http.NewRequest(http.MethodGet, server.URL, nil)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL, nil)
 	require.NoError(t, err)
 
-	// Execute request.
 	resp, err := injector.RoundTrip(req)
 	require.NoError(t, err)
 
@@ -162,19 +131,15 @@ func TestUserAgentInjector_IntegrationWithSimpleUserAgentProvider(t *testing.T) 
 func TestUserAgentInjector_MultipleRequests(t *testing.T) {
 	t.Parallel()
 
-	// Create a test server.
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "TestAgent/1.0", r.Header.Get("User-Agent"))
 		w.WriteHeader(http.StatusOK)
 	}))
-	defer server.Close()
 
-	// Create injector with mock provider.
-	injector := NewUserAgentInjector(http.DefaultTransport, testUserAgentProvider("TestAgent/1.0"))
+	injector := NewUserAgentInjector(server.Client().Transport, utils.NewSimpleUserAgentProvider("TestAgent/1.0"))
 
-	// Make multiple requests.
 	for range 5 {
-		req, err := http.NewRequest(http.MethodGet, server.URL, nil)
+		req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL, nil)
 		require.NoError(t, err)
 
 		resp, err := injector.RoundTrip(req)

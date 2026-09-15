@@ -1,7 +1,5 @@
 package zvuk
 
-//go:generate $MOCKGEN -source=service.go -destination=mocks/service_mock.go
-
 import (
 	"context"
 	"fmt"

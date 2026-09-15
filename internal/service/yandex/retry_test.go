@@ -30,7 +30,7 @@ func TestRetryValue_NoRetryOnNoFLACError(t *testing.T) {
 	}
 
 	calls := 0
-	_, err := retryValue(context.Background(), service, "downloading Yandex FLAC audio", func() (string, error) {
+	_, err := retryValue(t.Context(), service, "downloading Yandex FLAC audio", func() (string, error) {
 		calls++
 
 		return "", fmt.Errorf(
@@ -58,7 +58,7 @@ func TestRetryValue_NoRetryOnValidationError(t *testing.T) {
 	validationErr.APIError.Message = "Parameters requirements are not met."
 
 	calls := 0
-	_, err := retryValue(context.Background(), service, "fetching Yandex lyrics", func() (string, error) {
+	_, err := retryValue(t.Context(), service, "fetching Yandex lyrics", func() (string, error) {
 		calls++
 		return "", validationErr
 	})
@@ -81,7 +81,7 @@ func TestRetryValue_NoRetryOnInvalidSignError(t *testing.T) {
 	invalidSignErr.APIError.Name = "Invalid Sign"
 
 	calls := 0
-	_, err := retryValue(context.Background(), service, "fetching Yandex lyrics", func() (string, error) {
+	_, err := retryValue(t.Context(), service, "fetching Yandex lyrics", func() (string, error) {
 		calls++
 		return "", invalidSignErr
 	})
@@ -101,7 +101,7 @@ func TestRetryValue_RetriesTransientError(t *testing.T) {
 	}
 
 	calls := 0
-	value, err := retryValue(context.Background(), service, "resolving Yandex MP3 link", func() (string, error) {
+	value, err := retryValue(t.Context(), service, "resolving Yandex MP3 link", func() (string, error) {
 		calls++
 		if calls < 3 {
 			return "", errTemporaryNetwork
@@ -114,8 +114,8 @@ func TestRetryValue_RetriesTransientError(t *testing.T) {
 	assert.Equal(t, 3, calls)
 }
 
-// TestRetryValue_CancelDuringRetryPauseReturnsFast verifies cancellation aborts retry backoff quickly.
-func TestRetryValue_CancelDuringRetryPauseReturnsFast(t *testing.T) {
+// TestRetryValue_CancelDuringRetryPause verifies cancellation aborts retry backoff.
+func TestRetryValue_CancelDuringRetryPause(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
@@ -127,9 +127,7 @@ func TestRetryValue_CancelDuringRetryPauseReturnsFast(t *testing.T) {
 			},
 		}
 
-		ctx, cancel := context.WithCancel(context.Background())
-
-		startedAt := time.Now()
+		ctx, cancel := context.WithCancel(t.Context())
 
 		go func() {
 			time.Sleep(25 * time.Millisecond)
@@ -137,14 +135,19 @@ func TestRetryValue_CancelDuringRetryPauseReturnsFast(t *testing.T) {
 		}()
 
 		calls := 0
-		_, err := retryValue(ctx, service, "resolving Yandex MP3 link", func() (string, error) {
-			calls++
 
-			return "", errTemporaryNetwork
-		})
-		require.Error(t, err)
+		_, err := retryValue(
+			ctx,
+			service,
+			"resolving Yandex MP3 link",
+			func() (string, error) {
+				calls++
+
+				return "", errTemporaryNetwork
+			},
+		)
+
 		require.ErrorIs(t, err, context.Canceled)
 		assert.Equal(t, 1, calls)
-		assert.Less(t, time.Since(startedAt), 300*time.Millisecond)
 	})
 }

@@ -1,6 +1,8 @@
 //nolint:gocognit,err113,funlen // Yandex pipeline keeps step-by-step orchestration grouped for readability and observability.
 package yandex
 
+//go:generate $MOCKGEN -source=service.go -destination=mocks/music_client_mock.go -exclude_interfaces=Service -mock_names=musicClient=MockMusicClient
+
 import (
 	"context"
 	"errors"

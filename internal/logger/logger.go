@@ -217,6 +217,25 @@ func FatalKV(ctx context.Context, message string, kvs ...any) {
 	FromContext(ctx).Fatalw(message, kvs...)
 }
 
+// Panic writes a panic level message
+// using the logger from the context and then calls panic().
+func Panic(ctx context.Context, args ...any) {
+	FromContext(ctx).Panic(args...)
+}
+
+// Panicf writes a formatted panic level message
+// using the logger from the context and then calls panic().
+func Panicf(ctx context.Context, format string, args ...any) {
+	FromContext(ctx).Panicf(format, args...)
+}
+
+// PanicKV writes a message and key-value pairs
+// at the panic level using the logger from the context
+// and then calls panic().
+func PanicKV(ctx context.Context, message string, kvs ...any) {
+	FromContext(ctx).Panicw(message, kvs...)
+}
+
 // handleFatal manages fatal error handling by checking if a custom fatal handler
 // is registered and executing it instead of the default fatal behavior.
 // This is primarily used for testing to prevent os.Exit calls during tests.
@@ -236,23 +255,4 @@ func handleFatal(ctx context.Context, logFunc func(*zap.SugaredLogger)) bool {
 	atomicHandler(1)
 
 	return true
-}
-
-// Panic writes a panic level message
-// using the logger from the context and then calls panic().
-func Panic(ctx context.Context, args ...any) {
-	FromContext(ctx).Panic(args...)
-}
-
-// Panicf writes a formatted panic level message
-// using the logger from the context and then calls panic().
-func Panicf(ctx context.Context, format string, args ...any) {
-	FromContext(ctx).Panicf(format, args...)
-}
-
-// PanicKV writes a message and key-value pairs
-// at the panic level using the logger from the context
-// and then calls panic().
-func PanicKV(ctx context.Context, message string, kvs ...any) {
-	FromContext(ctx).Panicw(message, kvs...)
 }

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/oshokin/zvuk-grabber/internal/client/zvuk"
+	"github.com/oshokin/zvuk-grabber/internal/utils"
 )
 
 // AlbumCollectionHandler handles album collection logic.
@@ -44,7 +45,7 @@ var (
 // fetchAlbumData fetches album data including tracks, metadata, and labels.
 func (s *ServiceImpl) fetchAlbumData(ctx context.Context, albumID string) (*fetchAlbumDataResponse, error) {
 	// Fetch album metadata from the API.
-	getAlbumsMetadataResponse, err := s.zvukClient.GetAlbumsMetadata(ctx, []string{albumID}, true)
+	getAlbumsMetadataResponse, err := s.zvukClient.GetAlbumsMetadata(ctx, []string{albumID})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get album metadata: %w", err)
 	}
@@ -53,6 +54,13 @@ func (s *ServiceImpl) fetchAlbumData(ctx context.Context, albumID string) (*fetc
 	album, ok := getAlbumsMetadataResponse.Releases[albumID]
 	if !ok || album == nil {
 		return nil, fmt.Errorf("%w: ID '%s'", ErrAlbumNotFound, albumID)
+	}
+
+	tracks, err := s.zvukClient.GetTracksMetadata(ctx, utils.Map(album.TrackIDs, func(trackID int64) string {
+		return strconv.FormatInt(trackID, 10)
+	}))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get track metadata: %w", err)
 	}
 
 	// Fetch label metadata for the album.
@@ -65,7 +73,7 @@ func (s *ServiceImpl) fetchAlbumData(ctx context.Context, albumID string) (*fetc
 
 	// Return the fetched data.
 	return &fetchAlbumDataResponse{
-		tracks:   getAlbumsMetadataResponse.Tracks,
+		tracks:   tracks,
 		releases: getAlbumsMetadataResponse.Releases,
 		labels:   labelsMetadata,
 	}, nil

@@ -1,7 +1,6 @@
 package zvuk
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -110,7 +109,7 @@ func TestDownloadTracks_MinQualityFilter(t *testing.T) {
 			}
 
 			// Execute download.
-			ctx := context.Background()
+			ctx := t.Context()
 			impl, ok := setup.service.(*ServiceImpl)
 			require.True(t, ok, "service must be of type *ServiceImpl")
 
@@ -225,7 +224,7 @@ func TestDownloadTracks_MinDurationFilter(t *testing.T) {
 			}
 
 			// Execute download.
-			ctx := context.Background()
+			ctx := t.Context()
 			impl, ok := setup.service.(*ServiceImpl)
 			require.True(t, ok, "service must be of type *ServiceImpl")
 
@@ -346,7 +345,7 @@ func TestDownloadTracks_MaxDurationFilter(t *testing.T) {
 			}
 
 			// Execute download.
-			ctx := context.Background()
+			ctx := t.Context()
 			impl, ok := setup.service.(*ServiceImpl)
 			require.True(t, ok, "service must be of type *ServiceImpl")
 

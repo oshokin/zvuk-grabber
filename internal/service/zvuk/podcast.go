@@ -15,17 +15,17 @@ type PodcastCollectionHandler struct {
 	BaseCollectionHandler
 }
 
-// parseEpisodePublicationDate parses episode publication date to YYYY-MM-DD format.
-func parseEpisodePublicationDate(publicationDateISO string) string {
-	date, _ := parsePublicationDateAndYear(publicationDateISO)
-	return date
-}
-
 // NewPodcastCollectionHandler creates a handler for podcast downloads.
 func NewPodcastCollectionHandler(templateManager TemplateManager) *PodcastCollectionHandler {
 	return &PodcastCollectionHandler{
 		BaseCollectionHandler: newBaseCollectionHandler(DownloadCategoryPodcast, templateManager, true, true),
 	}
+}
+
+// parseEpisodePublicationDate parses episode publication date to YYYY-MM-DD format.
+func parseEpisodePublicationDate(publicationDateISO string) string {
+	date, _ := parsePublicationDateAndYear(publicationDateISO)
+	return date
 }
 
 // LogMessage returns the log message for a podcast.

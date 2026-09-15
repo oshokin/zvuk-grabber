@@ -10,19 +10,14 @@ import (
 func TestGetAlbumsMetadataResponse(t *testing.T) {
 	t.Parallel()
 
-	track := &Track{ID: 1, Title: "Test Track"}
 	release := &Release{ID: 1, Title: "Test Album"}
 
 	response := GetAlbumsMetadataResponse{
-		Tracks:   map[string]*Track{"track1": track},
 		Releases: map[string]*Release{"release1": release},
 	}
 
-	assert.NotNil(t, response.Tracks)
 	assert.NotNil(t, response.Releases)
-	assert.Contains(t, response.Tracks, "track1")
 	assert.Contains(t, response.Releases, "release1")
-	assert.Equal(t, "Test Track", response.Tracks["track1"].Title)
 	assert.Equal(t, "Test Album", response.Releases["release1"].Title)
 }
 
@@ -267,7 +262,6 @@ func TestEmptyStructures(t *testing.T) {
 	// Test empty GetAlbumsMetadataResponse.
 	response := new(GetAlbumsMetadataResponse)
 	assert.NotNil(t, response)
-	assert.Nil(t, response.Tracks)
 	assert.Nil(t, response.Releases)
 
 	// Test empty GetLyricsResponse.

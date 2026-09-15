@@ -10,14 +10,14 @@ import (
 
 // fetchJSON fetches JSON from the specified URI.
 //
-//nolint:revive // Has no sense, it's cause Go doesn't allow struct methods to be generic.
+//nolint:revive // Package-level generic helper; a generic method would not simplify call sites.
 func fetchJSON[T any](c *ClientImpl, ctx context.Context, uri string) (*FetchJSONResult[T], error) {
 	return fetchJSONWithQuery[T](c, ctx, uri, nil)
 }
 
 // fetchJSONWithQuery fetches JSON from the specified URI with the specified query.
 //
-//nolint:revive // Has no sense, it's cause Go doesn't allow struct methods to be generic.
+//nolint:revive // Package-level generic helper; a generic method would not simplify call sites.
 func fetchJSONWithQuery[T any](
 	c *ClientImpl,
 	ctx context.Context,

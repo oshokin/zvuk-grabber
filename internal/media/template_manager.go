@@ -63,44 +63,6 @@ type templatePair struct {
 	fallback *template.Template
 }
 
-// newTemplatePair parses a configurable template and prepares its guaranteed-valid fallback.
-func newTemplatePair(
-	ctx context.Context,
-	name string,
-	configuredValue string,
-	defaultValue string,
-	parseErrorMessage string,
-) templatePair {
-	fallback := template.Must(template.New("default" + name).Parse(defaultValue))
-
-	custom, err := template.New(name).Parse(configuredValue)
-	if err != nil {
-		logger.Errorf(ctx, parseErrorMessage, err)
-	}
-
-	return templatePair{
-		custom:   custom,
-		fallback: fallback,
-	}
-}
-
-// render executes a configured template and transparently falls back to the default template on error.
-func (pair *templatePair) render(ctx context.Context, data any, executeErrorMessage string) string {
-	selected := pair.custom
-	if selected == nil {
-		selected = pair.fallback
-	}
-
-	var buffer bytes.Buffer
-	if err := selected.Execute(&buffer, data); err != nil && selected != pair.fallback {
-		logger.Errorf(ctx, executeErrorMessage, err)
-		buffer.Reset()
-		_ = pair.fallback.Execute(&buffer, data) //nolint:errcheck // The fallback template is always valid.
-	}
-
-	return html.UnescapeString(buffer.String())
-}
-
 // NewTemplateManager creates and returns a new instance of TemplateManagerImpl.
 // It initializes templates from the configuration and falls back to default templates if parsing fails.
 func NewTemplateManager(ctx context.Context, cfg *config.Config) TemplateManager {
@@ -155,6 +117,44 @@ func NewTemplateManager(ctx context.Context, cfg *config.Config) TemplateManager
 			config.DefaultPodcastEpisodeFilenameTemplate,
 			"Failed to parse podcast episode filename template, using default: %v",
 		),
+	}
+}
+
+// render executes a configured template and transparently falls back to the default template on error.
+func (pair *templatePair) render(ctx context.Context, data any, executeErrorMessage string) string {
+	selected := pair.custom
+	if selected == nil {
+		selected = pair.fallback
+	}
+
+	var buffer bytes.Buffer
+	if err := selected.Execute(&buffer, data); err != nil && selected != pair.fallback {
+		logger.Errorf(ctx, executeErrorMessage, err)
+		buffer.Reset()
+		_ = pair.fallback.Execute(&buffer, data) //nolint:errcheck // The fallback template is always valid.
+	}
+
+	return html.UnescapeString(buffer.String())
+}
+
+// newTemplatePair parses a configurable template and prepares its guaranteed-valid fallback.
+func newTemplatePair(
+	ctx context.Context,
+	name string,
+	configuredValue string,
+	defaultValue string,
+	parseErrorMessage string,
+) templatePair {
+	fallback := template.Must(template.New("default" + name).Parse(defaultValue))
+
+	custom, err := template.New(name).Parse(configuredValue)
+	if err != nil {
+		logger.Errorf(ctx, parseErrorMessage, err)
+	}
+
+	return templatePair{
+		custom:   custom,
+		fallback: fallback,
 	}
 }
 

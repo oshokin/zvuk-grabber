@@ -164,8 +164,7 @@ func isRetryableYandexError(err error) bool {
 		return false
 	}
 
-	var apiErr *model.ErrorResponse
-	if errors.As(err, &apiErr) {
+	if apiErr, ok := errors.AsType[*model.ErrorResponse](err); ok {
 		if strings.EqualFold(apiErr.APIError.Name, "validate") ||
 			strings.EqualFold(apiErr.ResultError.Name, "validate") ||
 			strings.EqualFold(apiErr.APIError.Name, "invalid sign") ||

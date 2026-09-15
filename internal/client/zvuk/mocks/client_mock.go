@@ -20,17 +20,13 @@ import (
 
 // MockClient is a mock of Client interface.
 type MockClient struct {
-	// ctrl is the GoMock controller for this mock.
 	ctrl     *gomock.Controller
-	// recorder records expected mock calls.
 	recorder *MockClientMockRecorder
-	// isgomock is a marker type used by the gomock framework.
 	isgomock struct{}
 }
 
 // MockClientMockRecorder is the mock recorder for MockClient.
 type MockClientMockRecorder struct {
-	// mock is the mock instance being recorded.
 	mock *MockClient
 }
 
@@ -92,18 +88,18 @@ func (mr *MockClientMockRecorder) GetAlbumURL(releaseID any) *gomock.Call {
 }
 
 // GetAlbumsMetadata mocks base method.
-func (m *MockClient) GetAlbumsMetadata(ctx context.Context, releaseIDs []string, withTracks bool) (*zvuk.GetAlbumsMetadataResponse, error) {
+func (m *MockClient) GetAlbumsMetadata(ctx context.Context, releaseIDs []string) (*zvuk.GetAlbumsMetadataResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetAlbumsMetadata", ctx, releaseIDs, withTracks)
+	ret := m.ctrl.Call(m, "GetAlbumsMetadata", ctx, releaseIDs)
 	ret0, _ := ret[0].(*zvuk.GetAlbumsMetadataResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetAlbumsMetadata indicates an expected call of GetAlbumsMetadata.
-func (mr *MockClientMockRecorder) GetAlbumsMetadata(ctx, releaseIDs, withTracks any) *gomock.Call {
+func (mr *MockClientMockRecorder) GetAlbumsMetadata(ctx, releaseIDs any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAlbumsMetadata", reflect.TypeOf((*MockClient)(nil).GetAlbumsMetadata), ctx, releaseIDs, withTracks)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAlbumsMetadata", reflect.TypeOf((*MockClient)(nil).GetAlbumsMetadata), ctx, releaseIDs)
 }
 
 // GetArtistReleaseIDs mocks base method.

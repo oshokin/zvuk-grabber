@@ -1,6 +1,6 @@
 module github.com/oshokin/zvuk-grabber
 
-go 1.26
+go 1.27.1
 
 require (
 	github.com/dustin/go-humanize v1.0.1
@@ -9,7 +9,6 @@ require (
 	github.com/go-flac/go-flac v1.0.0
 	github.com/go-rod/rod v0.116.2
 	github.com/go-rod/stealth v0.4.9
-	github.com/google/uuid v1.6.0
 	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/machinebox/graphql v0.2.2
 	github.com/oshokin/id3v2/v2 v2.1.4
@@ -24,13 +23,13 @@ require (
 )
 
 require (
-	code.cloudfoundry.org/bytefmt v0.68.0 // indirect
-	github.com/fsnotify/fsnotify v1.9.0 // indirect
+	code.cloudfoundry.org/bytefmt v0.90.0 // indirect
+	github.com/fsnotify/fsnotify v1.10.1 // indirect
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/matryer/is v1.4.1 // indirect
 	github.com/mitchellh/colorstring v0.0.0-20190213212951-d06e56a500db // indirect
-	github.com/pelletier/go-toml/v2 v2.3.0 // indirect
+	github.com/pelletier/go-toml/v2 v2.4.3 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/sagikazarmark/locafero v0.12.0 // indirect
@@ -44,8 +43,8 @@ require (
 	github.com/ysmood/leakless v0.9.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
-	golang.org/x/sys v0.46.0 // indirect
-	golang.org/x/term v0.44.0 // indirect
-	golang.org/x/text v0.36.0 // indirect
+	golang.org/x/sys v0.48.0 // indirect
+	golang.org/x/term v0.46.0 // indirect
+	golang.org/x/text v0.42.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 )

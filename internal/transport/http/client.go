@@ -558,13 +558,28 @@ func (c *Client) baseContext() context.Context {
 	return c.ctx
 }
 
-// withOptionalTimeout wraps a context with a timeout when duration is positive.
-func withOptionalTimeout(ctx context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
-	if timeout <= 0 {
-		return ctx, func() {}
+// ResponsePreview returns a redacted text preview for textual bodies.
+func ResponsePreview(contentType string, body []byte) string {
+	if len(body) == 0 {
+		return ""
 	}
 
-	return context.WithTimeout(ctx, timeout)
+	contentType = strings.ToLower(contentType)
+	if !strings.Contains(contentType, "json") && !strings.Contains(contentType, "xml") &&
+		!strings.Contains(contentType, "text") {
+		return ""
+	}
+
+	const maxPreviewBytes = 512
+
+	preview := strings.TrimSpace(string(body))
+	preview = SanitizeTextSecrets(preview)
+
+	if len(preview) <= maxPreviewBytes {
+		return preview
+	}
+
+	return preview[:maxPreviewBytes] + "...(truncated)"
 }
 
 // logRequest writes a structured transport request log entry.
@@ -600,26 +615,11 @@ func (c *Client) requestContext(reqCtx *RequestLogContext) context.Context {
 	return c.baseContext()
 }
 
-// ResponsePreview returns a redacted text preview for textual bodies.
-func ResponsePreview(contentType string, body []byte) string {
-	if len(body) == 0 {
-		return ""
+// withOptionalTimeout wraps a context with a timeout when duration is positive.
+func withOptionalTimeout(ctx context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
+	if timeout <= 0 {
+		return ctx, func() {}
 	}
 
-	contentType = strings.ToLower(contentType)
-	if !strings.Contains(contentType, "json") && !strings.Contains(contentType, "xml") &&
-		!strings.Contains(contentType, "text") {
-		return ""
-	}
-
-	const maxPreviewBytes = 512
-
-	preview := strings.TrimSpace(string(body))
-	preview = SanitizeTextSecrets(preview)
-
-	if len(preview) <= maxPreviewBytes {
-		return preview
-	}
-
-	return preview[:maxPreviewBytes] + "...(truncated)"
+	return context.WithTimeout(ctx, timeout)
 }

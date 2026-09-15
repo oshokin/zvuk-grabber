@@ -1,7 +1,6 @@
 package zvuk
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -73,7 +72,7 @@ func TestURLPatterns(t *testing.T) {
 			t.Parallel()
 
 			processor := NewURLProcessor()
-			ctx := context.Background()
+			ctx := t.Context()
 
 			result, err := processor.ExtractDownloadItems(ctx, []string{tt.url})
 			require.NoError(t, err)
@@ -306,7 +305,7 @@ func TestURLProcessorImpl_ExtractDownloadItems(t *testing.T) {
 			t.Parallel()
 
 			processor := NewURLProcessor()
-			ctx := context.Background()
+			ctx := t.Context()
 
 			result, err := processor.ExtractDownloadItems(ctx, tt.urls)
 			require.NoError(t, err)

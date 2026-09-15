@@ -3,6 +3,7 @@ package input
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -30,13 +31,15 @@ func TestFlatten_ExpandsTextFileAndDeduplicates(t *testing.T) {
 
 	tempDir := t.TempDir()
 	urlListPath := filepath.Join(tempDir, "urls.txt")
-	content := `
-# comment
-https://zvuk.com/release/1
-https://music.yandex.ru/album/2
-
-https://music.yandex.ru/album/2
-`
+	content := strings.Join([]string{
+		"",
+		"# comment",
+		"https://zvuk.com/release/1",
+		"https://music.yandex.ru/album/2",
+		"",
+		"https://music.yandex.ru/album/2",
+		"",
+	}, "\n")
 	err := os.WriteFile(urlListPath, []byte(content), 0o600)
 	require.NoError(t, err)
 

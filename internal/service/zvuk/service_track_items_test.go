@@ -1,7 +1,6 @@
 package zvuk
 
 import (
-	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -32,7 +31,7 @@ func TestDownloadTrackItems_RecordsMetadataFetchError(t *testing.T) {
 		Return(nil, errTrackMetadataFetch).
 		Times(1)
 
-	impl.downloadTrackItems(context.Background(), []*DownloadItem{
+	impl.downloadTrackItems(t.Context(), []*DownloadItem{
 		{
 			Category: DownloadCategoryTrack,
 			URL:      "https://zvuk.com/track/" + trackID,
@@ -75,7 +74,7 @@ func TestDownloadTrackItems_SkipsTracksCoveredByRegisteredCollections(t *testing
 	}
 	impl.audioCollectionsMutex.Unlock()
 
-	impl.downloadTrackItems(context.Background(), []*DownloadItem{
+	impl.downloadTrackItems(t.Context(), []*DownloadItem{
 		{
 			Category: DownloadCategoryTrack,
 			URL:      "https://zvuk.com/track/" + trackIDString,
@@ -119,7 +118,7 @@ func TestFinalizeCollectionAssets_TrackModeFinalizesRegisteredCollectionCover(t 
 	}
 	impl.audioCollectionsMutex.Unlock()
 
-	impl.finalizeCollectionAssets(context.Background(), &downloadTracksMetadata{
+	impl.finalizeCollectionAssets(t.Context(), &downloadTracksMetadata{
 		category: DownloadCategoryTrack,
 	})
 

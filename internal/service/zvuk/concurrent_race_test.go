@@ -1,7 +1,6 @@
 package zvuk
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -39,7 +38,7 @@ func TestFinalizeCover_SingleChapterAudiobook(t *testing.T) {
 	}
 
 	// Finalize cover (should rename embeddable cover to cover path).
-	impl.finalizeCover(context.Background(), 1, audioCollection)
+	impl.finalizeCover(t.Context(), 1, audioCollection)
 
 	// Verify temp file was renamed.
 	assert.NoFileExists(t, embeddableCoverPath, "Embeddable cover file should be renamed")
@@ -81,7 +80,7 @@ func TestFinalizeCover_WithFolderForSingles(t *testing.T) {
 	}
 
 	// Finalize cover (should rename to "cover.jpg").
-	impl.finalizeCover(context.Background(), 1, audioCollection)
+	impl.finalizeCover(t.Context(), 1, audioCollection)
 
 	// Verify temp file was renamed.
 	assert.NoFileExists(t, embeddableCoverPath, "Embeddable cover file should be renamed")
@@ -123,7 +122,7 @@ func TestFinalizeDescription_SingleChapter(t *testing.T) {
 	}
 
 	// Finalize description (should rename to match chapter).
-	impl.finalizeDescription(context.Background(), audioCollection, 1)
+	impl.finalizeDescription(t.Context(), audioCollection, 1)
 
 	// Verify temp file was renamed.
 	assert.NoFileExists(t, embeddableDescriptionPath, "Embeddable description file should be renamed")
@@ -165,7 +164,7 @@ func TestFinalizeDescription_MultiChapter(t *testing.T) {
 	}
 
 	// Finalize description on last chapter (should rename to description.txt).
-	impl.finalizeDescription(context.Background(), audioCollection, 3)
+	impl.finalizeDescription(t.Context(), audioCollection, 3)
 
 	// Verify temp file was renamed.
 	assert.NoFileExists(t, embeddableDescriptionPath, "Embeddable description file should be renamed")
@@ -192,7 +191,7 @@ func TestUUIDBasedNaming_UniquePaths(t *testing.T) {
 
 		// Simulate saving a description (uses UUID internally).
 		tempDescPath, _ := impl.saveDescription(
-			context.Background(),
+			t.Context(),
 			DownloadCategoryAudiobook,
 			setup.tempDir,
 			"Test description",

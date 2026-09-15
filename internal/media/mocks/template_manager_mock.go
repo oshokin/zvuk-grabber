@@ -6,8 +6,8 @@
 //	mockgen -source=template_manager.go -destination=mocks/template_manager_mock.go
 //
 
-// Package mock_zvuk is a generated GoMock package.
-package mock_zvuk
+// Package mock_media is a generated GoMock package.
+package mock_media
 
 import (
 	context "context"
@@ -18,17 +18,13 @@ import (
 
 // MockTemplateManager is a mock of TemplateManager interface.
 type MockTemplateManager struct {
-	// ctrl is the GoMock controller for this mock.
 	ctrl     *gomock.Controller
-	// recorder records expected mock calls.
 	recorder *MockTemplateManagerMockRecorder
-	// isgomock is a marker type used by the gomock framework.
 	isgomock struct{}
 }
 
 // MockTemplateManagerMockRecorder is the mock recorder for MockTemplateManager.
 type MockTemplateManagerMockRecorder struct {
-	// mock is the mock instance being recorded.
 	mock *MockTemplateManager
 }
 

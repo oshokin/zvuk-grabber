@@ -2,7 +2,6 @@ package zvuk
 
 import (
 	"bytes"
-	"context"
 	"io"
 	"path/filepath"
 	"testing"
@@ -42,9 +41,9 @@ func TestDownloadTracks_DryRunMode(t *testing.T) {
 	service := NewService(
 		testConfig,
 		mockClient,
-		new(mockURLProcessor),
-		new(mockTemplateManager),
-		new(mockTagProcessor),
+		newStubURLProcessor(ctrl),
+		newStubTemplateManager(ctrl),
+		newStubTagProcessor(ctrl),
 	)
 
 	// Create test metadata.
@@ -122,7 +121,7 @@ func TestDownloadTracks_DryRunMode(t *testing.T) {
 	impl.stats.IsDryRun = true
 
 	// Execute dry-run download.
-	ctx := context.Background()
+	ctx := t.Context()
 	impl.downloadTracks(ctx, metadata)
 
 	// Verify NO files were created (dry-run doesn't save anything).
@@ -170,9 +169,9 @@ func TestDownloadTracks_DryRunSkipsExistingFiles(t *testing.T) {
 	service := NewService(
 		testConfig,
 		mockClient,
-		new(mockURLProcessor),
-		new(mockTemplateManager),
-		new(mockTagProcessor),
+		newStubURLProcessor(ctrl),
+		newStubTemplateManager(ctrl),
+		newStubTagProcessor(ctrl),
 	)
 
 	// First, download one track to create the actual file.
@@ -220,9 +219,9 @@ func TestDownloadTracks_DryRunSkipsExistingFiles(t *testing.T) {
 	normalService := NewService(
 		normalConfig,
 		mockClient,
-		new(mockURLProcessor),
-		new(mockTemplateManager),
-		new(mockTagProcessor),
+		newStubURLProcessor(ctrl),
+		newStubTemplateManager(ctrl),
+		newStubTagProcessor(ctrl),
 	)
 
 	// Setup mocks for actual download.
@@ -254,7 +253,7 @@ func TestDownloadTracks_DryRunSkipsExistingFiles(t *testing.T) {
 	}
 
 	// Download the file in normal mode first.
-	ctx := context.Background()
+	ctx := t.Context()
 	//nolint:errcheck // downloadTracks does not return an error.
 	normalService.(*ServiceImpl).downloadTracks(ctx, metadata)
 

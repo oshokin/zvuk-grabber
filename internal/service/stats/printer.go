@@ -55,6 +55,24 @@ func Print(ctx context.Context, r *Report) {
 	printDryRunSuggestion(ctx, r)
 }
 
+// FormatDuration formats a duration into a compact human-readable string.
+func FormatDuration(d time.Duration) string {
+	if d < time.Second {
+		return fmt.Sprintf("%dms", d.Milliseconds())
+	}
+
+	h, m, s := int(d.Hours()), int(d.Minutes())%60, int(d.Seconds())%60
+	if h > 0 {
+		return fmt.Sprintf("%dh %dm %ds", h, m, s)
+	}
+
+	if m > 0 {
+		return fmt.Sprintf("%dm %ds", m, s)
+	}
+
+	return fmt.Sprintf("%ds", s)
+}
+
 // printHeader writes the summary title banner for regular, dry-run, or interrupted sessions.
 func printHeader(ctx context.Context, interrupted, dryRun bool) {
 	title := "                     DOWNLOAD SUMMARY"
@@ -382,24 +400,6 @@ func printFinalMessage(ctx context.Context, r *Report) {
 		logger.Info(ctx, "")
 		logger.Info(ctx, "All tracks already exist in the output directory.")
 	}
-}
-
-// FormatDuration formats a duration into a compact human-readable string.
-func FormatDuration(d time.Duration) string {
-	if d < time.Second {
-		return fmt.Sprintf("%dms", d.Milliseconds())
-	}
-
-	h, m, s := int(d.Hours()), int(d.Minutes())%60, int(d.Seconds())%60
-	if h > 0 {
-		return fmt.Sprintf("%dh %dm %ds", h, m, s)
-	}
-
-	if m > 0 {
-		return fmt.Sprintf("%dm %ds", m, s)
-	}
-
-	return fmt.Sprintf("%ds", s)
 }
 
 // fallback returns the first non-empty string or "unknown".

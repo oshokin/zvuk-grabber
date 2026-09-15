@@ -30,9 +30,9 @@ func TestDownloadCollection_PodcastPassesEpisodeIDsToGetStreamQualities(t *testi
 			ParsedMaxDownloadPause: 100 * time.Millisecond,
 		},
 		mockClient,
-		new(mockURLProcessor),
-		new(mockTemplateManager),
-		new(mockTagProcessor),
+		newStubURLProcessor(ctrl),
+		newStubTemplateManager(ctrl),
+		newStubTagProcessor(ctrl),
 	)
 
 	podcastID := "29997388"
@@ -65,7 +65,7 @@ func TestDownloadCollection_PodcastPassesEpisodeIDsToGetStreamQualities(t *testi
 		}, nil).
 		Times(1)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 
 	// Stop before per-track downloads; this test only verifies stream IDs wiring.
 	cancel()

@@ -1,7 +1,6 @@
 package yandex
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -9,20 +8,14 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
 	"github.com/oshokin/zvuk-grabber/internal/client/yandex/model"
 	"github.com/oshokin/zvuk-grabber/internal/config"
 	"github.com/oshokin/zvuk-grabber/internal/media"
+	mock_media "github.com/oshokin/zvuk-grabber/internal/media/mocks"
 	"github.com/oshokin/zvuk-grabber/internal/service/stats"
 )
-
-// noopTagProcessor is a TagProcessor test double that skips tag writes.
-type noopTagProcessor struct{}
-
-// WriteTags is a no-op tag write implementation for tests.
-func (*noopTagProcessor) WriteTags(_ context.Context, _ *media.WriteTagsRequest) error {
-	return nil
-}
 
 // TestWriteAudioFile_KeepExistingCoverWhenReplaceDisabled verifies existing covers are kept when replacement is disabled.
 func TestWriteAudioFile_KeepExistingCoverWhenReplaceDisabled(t *testing.T) {
@@ -35,13 +28,17 @@ func TestWriteAudioFile_KeepExistingCoverWhenReplaceDisabled(t *testing.T) {
 	err := os.WriteFile(existingCoverPath, []byte("cover-data"), 0o600)
 	require.NoError(t, err)
 
+	ctrl := gomock.NewController(t)
+	tagProcessor := mock_media.NewMockTagProcessor(ctrl)
+	tagProcessor.EXPECT().WriteTags(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+
 	service := &ServiceImpl{
 		cfg: &config.Config{
 			ReplaceTracks:          false,
 			ReplaceCovers:          false,
 			CreateFolderForSingles: false,
 		},
-		tagProcessor: new(noopTagProcessor),
+		tagProcessor: tagProcessor,
 		sessionStats: stats.NewSession(time.Time{}, false),
 	}
 
@@ -57,7 +54,7 @@ func TestWriteAudioFile_KeepExistingCoverWhenReplaceDisabled(t *testing.T) {
 		},
 	}
 
-	written, err := service.writeAudioFile(context.Background(), targetPath, payload, job, map[string]string{}, "")
+	written, err := service.writeAudioFile(t.Context(), targetPath, payload, job, map[string]string{}, "")
 	require.NoError(t, err)
 	assert.Equal(t, int64(len(payload.data)), written)
 

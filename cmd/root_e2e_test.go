@@ -65,37 +65,6 @@ var (
 	testBuildErr error //nolint:errname // This is a test error, not intended to be used in production.
 )
 
-// getTestBinaryName returns the test binary name with the correct extension for the platform.
-func getTestBinaryName() string {
-	if runtime.GOOS == "windows" {
-		return testBinaryName + ".exe"
-	}
-
-	return testBinaryName
-}
-
-// ensureTestBinary ensures the test binary exists and is built.
-func ensureTestBinary() error {
-	testBuildOnce.Do(func() {
-		// Check if binary already exists.
-		if _, err := os.Stat(testBinaryPath); err == nil {
-			testBuildErr = nil // Binary exists, no error.
-			return
-		}
-
-		// Build the binary.
-		buildCmd := exec.Command("go", "build", "-o", testBinaryPath, "..")
-		testBuildErr = buildCmd.Run()
-	})
-
-	return testBuildErr
-}
-
-// execTestBinary executes the test binary with the given arguments.
-func execTestBinary(args ...string) *exec.Cmd {
-	return exec.Command(testBinaryPath, args...)
-}
-
 // TestMain builds the binary before running E2E tests.
 func TestMain(m *testing.M) {
 	// Get the current working directory.
@@ -338,6 +307,37 @@ func TestE2E_FlagOverrides_InvalidValues(t *testing.T) {
 				"Expected error message about '%s' but got: %s", tt.expectedErrorMsg, outputStr)
 		})
 	}
+}
+
+// getTestBinaryName returns the test binary name with the correct extension for the platform.
+func getTestBinaryName() string {
+	if runtime.GOOS == "windows" {
+		return testBinaryName + ".exe"
+	}
+
+	return testBinaryName
+}
+
+// ensureTestBinary ensures the test binary exists and is built.
+func ensureTestBinary() error {
+	testBuildOnce.Do(func() {
+		// Check if binary already exists.
+		if _, err := os.Stat(testBinaryPath); err == nil {
+			testBuildErr = nil // Binary exists, no error.
+			return
+		}
+
+		// Build the binary.
+		buildCmd := exec.Command("go", "build", "-o", testBinaryPath, "..")
+		testBuildErr = buildCmd.Run()
+	})
+
+	return testBuildErr
+}
+
+// execTestBinary executes the test binary with the given arguments.
+func execTestBinary(args ...string) *exec.Cmd {
+	return exec.Command(testBinaryPath, args...)
 }
 
 // runWithConfigDump runs the app with config dump enabled and parses the output.

@@ -14,16 +14,6 @@ import (
 	"github.com/oshokin/zvuk-grabber/internal/service/stats"
 )
 
-// makeJobs builds a slice of empty track jobs for concurrency tests.
-func makeJobs(count int) []*trackJob {
-	jobs := make([]*trackJob, 0, count)
-	for range count {
-		jobs = append(jobs, &trackJob{})
-	}
-
-	return jobs
-}
-
 // TestDownloadJobs_SequentialWhenMaxConcurrentOne verifies downloads run sequentially when concurrency is one.
 func TestDownloadJobs_SequentialWhenMaxConcurrentOne(t *testing.T) {
 	t.Parallel()
@@ -41,7 +31,7 @@ func TestDownloadJobs_SequentialWhenMaxConcurrentOne(t *testing.T) {
 			maxSeen atomic.Int64
 		)
 
-		s.executeDownloadJobs(context.Background(), makeJobs(6), func(_ context.Context, _ *trackJob) {
+		s.executeDownloadJobs(t.Context(), makeJobs(6), func(_ context.Context, _ *trackJob) {
 			value := current.Add(1)
 
 			for {
@@ -75,7 +65,7 @@ func TestDownloadJobs_ConcurrentLimitRespected(t *testing.T) {
 			maxSeen atomic.Int64
 		)
 
-		s.executeDownloadJobs(context.Background(), makeJobs(20), func(_ context.Context, _ *trackJob) {
+		s.executeDownloadJobs(t.Context(), makeJobs(20), func(_ context.Context, _ *trackJob) {
 			value := current.Add(1)
 
 			for {
@@ -108,7 +98,7 @@ func TestDownloadJobs_ContextCancellationStopsQueuedWork(t *testing.T) {
 
 		var started atomic.Int64
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 
 		go func() {
 			time.Sleep(10 * time.Millisecond)
@@ -134,7 +124,7 @@ func TestDownloadJobs_StatsCorrectUnderParallelExecution(t *testing.T) {
 		sessionStats: stats.NewSession(time.Time{}, false),
 	}
 
-	s.executeDownloadJobs(context.Background(), makeJobs(12), func(_ context.Context, _ *trackJob) {
+	s.executeDownloadJobs(t.Context(), makeJobs(12), func(_ context.Context, _ *trackJob) {
 		s.recordProcessed()
 		s.recordDownloaded(10)
 	})
@@ -143,4 +133,14 @@ func TestDownloadJobs_StatsCorrectUnderParallelExecution(t *testing.T) {
 	assert.Equal(t, int64(12), snapshot.Tracks.TotalProcessed)
 	assert.Equal(t, int64(12), snapshot.Tracks.Downloaded)
 	assert.Equal(t, int64(120), snapshot.BytesDownloaded)
+}
+
+// makeJobs builds a slice of empty track jobs for concurrency tests.
+func makeJobs(count int) []*trackJob {
+	jobs := make([]*trackJob, 0, count)
+	for range count {
+		jobs = append(jobs, &trackJob{})
+	}
+
+	return jobs
 }

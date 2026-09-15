@@ -31,7 +31,7 @@ type Client interface {
 	// FetchTrack fetches track data from the specified URL.
 	FetchTrack(ctx context.Context, trackURL string) (*FetchTrackResult, error)
 	// GetAlbumsMetadata retrieves metadata for the specified album IDs.
-	GetAlbumsMetadata(ctx context.Context, releaseIDs []string, withTracks bool) (*GetAlbumsMetadataResponse, error)
+	GetAlbumsMetadata(ctx context.Context, releaseIDs []string) (*GetAlbumsMetadataResponse, error)
 	// GetAlbumURL constructs the URL for a specific album.
 	GetAlbumURL(releaseID string) (string, error)
 	// GetArtistReleaseIDs retrieves release IDs for a specific artist.
@@ -130,6 +130,65 @@ func (e *retryableStreamMetadataError) Unwrap() error {
 	}
 
 	return e.err
+}
+
+// NewClient creates and returns a new instance of ClientImpl.
+// It initializes the HTTP and GraphQL clients with the provided configuration.
+func NewClient(cfg *config.Config) (Client, error) {
+	if strings.TrimSpace(cfg.ZvukAuthToken) == "" {
+		return nil, config.ErrEmptyZvukAuthToken
+	}
+
+	// Parse the base URL for Zvuk's API.
+	baseURL, err := url.Parse(cfg.ZvukBaseURL)
+	if err != nil {
+		return nil, fmt.Errorf("invalid host URL: %w", err)
+	}
+
+	cookies, err := newClientCookieJar(baseURL, cfg.ZvukAuthToken)
+	if err != nil {
+		return nil, err
+	}
+
+	// Initialize the HTTP client with custom transport and timeout.
+	httpClient := &http.Client{
+		Transport: http_transport.NewUserAgentInjector(
+			http_transport.NewLogTransport(http.DefaultTransport, 0),
+			utils.NewSimpleUserAgentProvider(http_transport.DefaultUserAgent)),
+		Jar:     cookies,
+		Timeout: http_transport.DefaultTimeout,
+	}
+
+	// Initialize the GraphQL client.
+	graphQLURL := baseURL.JoinPath(zvukAPIGraphQLURI)
+	graphqlClient := graphql.NewClient(graphQLURL.String(), graphql.WithHTTPClient(httpClient))
+
+	caches, err := newClientMetadataCaches()
+	if err != nil {
+		return nil, err
+	}
+
+	streamMetadataRetryEngine, err := newStreamMetadataRetryEngine(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create stream metadata retry engine: %w", err)
+	}
+
+	// Create and return the ClientImpl instance.
+	client := &ClientImpl{
+		cfg:                       cfg,
+		baseURL:                   baseURL.String(),
+		httpClient:                httpClient,
+		graphQLClient:             graphqlClient,
+		labelsCache:               caches.labels,
+		albumsCache:               caches.albums,
+		tracksCache:               caches.tracks,
+		playlistsCache:            caches.playlists,
+		audiobooksCache:           caches.audiobooks,
+		podcastsCache:             caches.podcasts,
+		streamMetadataRetryEngine: streamMetadataRetryEngine,
+	}
+
+	return client, nil
 }
 
 // newStreamMetadataRetryEngine builds a reusable retry engine for GetStreamMetadata.
@@ -336,65 +395,6 @@ func fetchGraphQLCollections[T any](
 	return entities, tracks, nil
 }
 
-// NewClient creates and returns a new instance of ClientImpl.
-// It initializes the HTTP and GraphQL clients with the provided configuration.
-func NewClient(cfg *config.Config) (Client, error) {
-	if strings.TrimSpace(cfg.ZvukAuthToken) == "" {
-		return nil, config.ErrEmptyZvukAuthToken
-	}
-
-	// Parse the base URL for Zvuk's API.
-	baseURL, err := url.Parse(cfg.ZvukBaseURL)
-	if err != nil {
-		return nil, fmt.Errorf("invalid host URL: %w", err)
-	}
-
-	cookies, err := newClientCookieJar(baseURL, cfg.ZvukAuthToken)
-	if err != nil {
-		return nil, err
-	}
-
-	// Initialize the HTTP client with custom transport and timeout.
-	httpClient := &http.Client{
-		Transport: http_transport.NewUserAgentInjector(
-			http_transport.NewLogTransport(http.DefaultTransport, 0),
-			utils.NewSimpleUserAgentProvider(http_transport.DefaultUserAgent)),
-		Jar:     cookies,
-		Timeout: http_transport.DefaultTimeout,
-	}
-
-	// Initialize the GraphQL client.
-	graphQLURL := baseURL.JoinPath(zvukAPIGraphQLURI)
-	graphqlClient := graphql.NewClient(graphQLURL.String(), graphql.WithHTTPClient(httpClient))
-
-	caches, err := newClientMetadataCaches()
-	if err != nil {
-		return nil, err
-	}
-
-	streamMetadataRetryEngine, err := newStreamMetadataRetryEngine(cfg)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create stream metadata retry engine: %w", err)
-	}
-
-	// Create and return the ClientImpl instance.
-	client := &ClientImpl{
-		cfg:                       cfg,
-		baseURL:                   baseURL.String(),
-		httpClient:                httpClient,
-		graphQLClient:             graphqlClient,
-		labelsCache:               caches.labels,
-		albumsCache:               caches.albums,
-		tracksCache:               caches.tracks,
-		playlistsCache:            caches.playlists,
-		audiobooksCache:           caches.audiobooks,
-		podcastsCache:             caches.podcasts,
-		streamMetadataRetryEngine: streamMetadataRetryEngine,
-	}
-
-	return client, nil
-}
-
 // DownloadFromURL downloads content from the specified URL.
 func (c *ClientImpl) DownloadFromURL(ctx context.Context, url string) (io.ReadCloser, error) {
 	body, _, err := c.openDownloadResponse(ctx, url, nil, http.StatusOK)
@@ -422,17 +422,30 @@ func (c *ClientImpl) FetchTrack(ctx context.Context, trackURL string) (*FetchTra
 
 // GetAlbumsMetadata retrieves metadata for the specified album IDs.
 // Uses an LRU cache to avoid redundant API calls for the same albums.
-// Note: Only caches albums without tracks to avoid stale track data.
 func (c *ClientImpl) GetAlbumsMetadata(
 	ctx context.Context,
 	releaseIDs []string,
-	withTracks bool,
 ) (*GetAlbumsMetadataResponse, error) {
-	if withTracks {
-		return c.getAlbumsMetadataWithTracks(ctx, releaseIDs)
+	releases, err := fetchCachedMetadata(
+		ctx,
+		releaseIDs,
+		c.albumsCache,
+		"Album",
+		"API",
+		func(ctx context.Context, ids []string) (map[string]*Release, error) {
+			metadata, fetchErr := c.getEntitiesMetadata(ctx, zvukAPIReleaseMetadataURI, ids, nil)
+			if fetchErr != nil {
+				return nil, fetchErr
+			}
+
+			return metadata.Releases, nil
+		},
+	)
+	if err != nil {
+		return nil, err
 	}
 
-	return c.getAlbumsMetadataFromCache(ctx, releaseIDs)
+	return &GetAlbumsMetadataResponse{Releases: releases}, nil
 }
 
 // GetAlbumURL constructs the URL for a specific album.
@@ -471,26 +484,26 @@ func (c *ClientImpl) GetPlaylistsMetadata(
 	ctx context.Context,
 	playlistIDs []string,
 ) (*GetPlaylistsMetadataResponse, error) {
-	playlists, tracks, err := fetchCachedCollectionMetadata(
+	playlists, err := fetchCachedMetadata(
 		ctx,
 		playlistIDs,
 		c.playlistsCache,
 		"Playlist",
 		"API",
-		func(ctx context.Context, ids []string) (map[string]*Playlist, map[string]*Track, error) {
-			metadata, fetchErr := c.getEntitiesMetadata(ctx, zvukAPIPlaylistURI, ids, url.Values{"include": {"track"}})
+		func(ctx context.Context, ids []string) (map[string]*Playlist, error) {
+			metadata, fetchErr := c.getEntitiesMetadata(ctx, zvukAPIPlaylistURI, ids, nil)
 			if fetchErr != nil {
-				return nil, nil, fetchErr
+				return nil, fetchErr
 			}
 
-			return metadata.Playlists, metadata.Tracks, nil
+			return metadata.Playlists, nil
 		},
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	return &GetPlaylistsMetadataResponse{Tracks: tracks, Playlists: playlists}, nil
+	return &GetPlaylistsMetadataResponse{Playlists: playlists}, nil
 }
 
 // GetAudiobooksMetadata retrieves metadata for the specified audiobook IDs.
@@ -584,8 +597,7 @@ func (c *ClientImpl) GetStreamMetadata(ctx context.Context, trackID, quality str
 		},
 	})
 	if err != nil {
-		var retryableErr *retryableStreamMetadataError
-		if errors.As(err, &retryableErr) {
+		if retryableErr, ok := errors.AsType[*retryableStreamMetadataError](err); ok {
 			err = retryableErr.Unwrap()
 		}
 
@@ -677,52 +689,4 @@ func (c *ClientImpl) getEntitiesMetadata(
 	}
 
 	return result.Data.Result, nil
-}
-
-// getAlbumsMetadataWithTracks fetches album metadata including tracks without caching.
-// This ensures track data is always fresh from the API.
-func (c *ClientImpl) getAlbumsMetadataWithTracks(
-	ctx context.Context,
-	releaseIDs []string,
-) (*GetAlbumsMetadataResponse, error) {
-	query := url.Values{}
-	query.Set("include", "track")
-
-	result, err := c.getEntitiesMetadata(ctx, zvukAPIReleaseMetadataURI, releaseIDs, query)
-	if err != nil {
-		return nil, err
-	}
-
-	return &GetAlbumsMetadataResponse{
-		Tracks:   result.Tracks,
-		Releases: result.Releases,
-	}, nil
-}
-
-// getAlbumsMetadataFromCache fetches album metadata using cache-first strategy.
-// Returns cached albums when available and only fetches missing ones from the API.
-func (c *ClientImpl) getAlbumsMetadataFromCache(
-	ctx context.Context,
-	releaseIDs []string,
-) (*GetAlbumsMetadataResponse, error) {
-	releases, err := fetchCachedMetadata(
-		ctx,
-		releaseIDs,
-		c.albumsCache,
-		"Album",
-		"API",
-		func(ctx context.Context, ids []string) (map[string]*Release, error) {
-			metadata, fetchErr := c.getEntitiesMetadata(ctx, zvukAPIReleaseMetadataURI, ids, nil)
-			if fetchErr != nil {
-				return nil, fetchErr
-			}
-
-			return metadata.Releases, nil
-		},
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	return &GetAlbumsMetadataResponse{Releases: releases}, nil
 }

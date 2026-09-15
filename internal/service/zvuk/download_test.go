@@ -1,7 +1,6 @@
 package zvuk
 
 import (
-	"context"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -47,7 +46,7 @@ func TestDownloadTracks_Sequential(t *testing.T) {
 			)
 		}
 
-		setup.impl(t).downloadTracks(context.Background(), metadata)
+		setup.impl(t).downloadTracks(t.Context(), metadata)
 
 		assert.Equal(t, trackIDs, executionOrder, "Tracks should be downloaded sequentially")
 	})
@@ -84,7 +83,7 @@ func TestDownloadTracks_Concurrent(t *testing.T) {
 			)
 		}
 
-		setup.impl(t).downloadTracks(context.Background(), metadata)
+		setup.impl(t).downloadTracks(t.Context(), metadata)
 
 		assert.GreaterOrEqual(t, maxObserved.Load(), int32(2),
 			"At least 2 tracks should have been downloading concurrently")
@@ -126,7 +125,7 @@ func TestDownloadTracks_ConcurrentLimitRespected(t *testing.T) {
 			)
 		}
 
-		setup.impl(t).downloadTracks(context.Background(), metadata)
+		setup.impl(t).downloadTracks(t.Context(), metadata)
 
 		assert.LessOrEqual(t, maxObserved.Load(), int32(maxConcurrent),
 			"Maximum concurrent downloads should not exceed configured limit")
@@ -157,7 +156,7 @@ func TestDownloadTracks_ConcurrentWithFewerTracks(t *testing.T) {
 		)
 	}
 
-	setup.impl(t).downloadTracks(context.Background(), metadata)
+	setup.impl(t).downloadTracks(t.Context(), metadata)
 
 	assert.Equal(t, int32(len(trackIDs)), downloadCount.Load(), "All tracks should have been downloaded")
 }

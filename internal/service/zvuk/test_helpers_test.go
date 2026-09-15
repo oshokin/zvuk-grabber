@@ -21,6 +21,7 @@ import (
 	"github.com/oshokin/zvuk-grabber/internal/config"
 	"github.com/oshokin/zvuk-grabber/internal/files"
 	"github.com/oshokin/zvuk-grabber/internal/logger"
+	mock_media "github.com/oshokin/zvuk-grabber/internal/media/mocks"
 )
 
 // testDownloadSetup encapsulates common test dependencies and configuration.
@@ -78,9 +79,9 @@ func newTestDownloadSetup(t *testing.T, configOverrides ...func(*config.Config))
 	service := NewService(
 		cfg,
 		mockClient,
-		new(mockURLProcessor),
-		new(mockTemplateManager),
-		new(mockTagProcessor),
+		newStubURLProcessor(ctrl),
+		newStubTemplateManager(ctrl),
+		newStubTagProcessor(ctrl),
 	)
 
 	return &testDownloadSetup{
@@ -371,4 +372,71 @@ func findFileWithExtension(t *testing.T, dir, ext string, expectedContent []byte
 	require.NoError(t, err, "Failed to walk directory")
 
 	return foundPath, found
+}
+
+// newStubURLProcessor returns a generated URLProcessor mock with default no-op behavior.
+func newStubURLProcessor(ctrl *gomock.Controller) URLProcessor {
+	processor := NewMockURLProcessor(ctrl)
+	processor.EXPECT().
+		ExtractDownloadItems(gomock.Any(), gomock.Any()).
+		Return(new(ExtractDownloadItemsResponse), nil).
+		AnyTimes()
+	processor.EXPECT().
+		DeduplicateDownloadItems(gomock.Any()).
+		DoAndReturn(func(items []*DownloadItem) []*DownloadItem {
+			return items
+		}).
+		AnyTimes()
+
+	return processor
+}
+
+// newStubTagProcessor returns a generated TagProcessor mock that accepts any WriteTags call.
+func newStubTagProcessor(ctrl *gomock.Controller) TagProcessor {
+	processor := mock_media.NewMockTagProcessor(ctrl)
+	processor.EXPECT().WriteTags(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+
+	return processor
+}
+
+// newStubTemplateManager returns a generated TemplateManager mock with deterministic test names.
+func newStubTemplateManager(ctrl *gomock.Controller) TemplateManager {
+	manager := mock_media.NewMockTemplateManager(ctrl)
+	manager.EXPECT().
+		GetTrackFilename(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, _ bool, tags map[string]string, _ int64) string {
+			if trackID, ok := tags[TagTrackID]; ok && trackID != "" {
+				return "test_track_" + trackID + extensionMP3
+			}
+
+			return "test_track" + extensionMP3
+		}).
+		AnyTimes()
+	manager.EXPECT().GetAlbumFolderName(gomock.Any(), gomock.Any()).Return("test_album").AnyTimes()
+	manager.EXPECT().
+		GetAudiobookFolderName(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, tags map[string]string) string {
+			return tags[TagAudiobookAuthors] + " - " + tags[TagAudiobookTitle]
+		}).
+		AnyTimes()
+	manager.EXPECT().
+		GetAudiobookChapterFilename(gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, tags map[string]string, _ int64) string {
+			return tags[TagTrackNumberPad] + " - " + tags[TagTrackTitle]
+		}).
+		AnyTimes()
+	manager.EXPECT().
+		GetPodcastFolderName(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, tags map[string]string) string {
+			return tags[TagPodcastAuthors] + " - " + tags[TagPodcastTitle]
+		}).
+		AnyTimes()
+	manager.EXPECT().
+		GetPodcastEpisodeFilename(gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, tags map[string]string, _ int64) string {
+			return tags[TagTrackNumberPad] + " - " + tags[TagTrackTitle]
+		}).
+		AnyTimes()
+
+	return manager
 }

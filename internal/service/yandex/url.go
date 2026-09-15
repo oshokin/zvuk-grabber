@@ -6,8 +6,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
-
-	"github.com/google/uuid"
+	"uuid"
 )
 
 // sourceKind identifies the Yandex Music URL shape parsed from user input.

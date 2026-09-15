@@ -5,8 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-
-	"github.com/google/uuid"
+	"uuid"
 )
 
 // RenameFile renames sourcePath to destinationPath.
@@ -43,7 +42,7 @@ func RenameFile(srcPath, dstPath string, replace bool) error {
 
 // replaceExistingDestination moves an existing destination aside before renaming the source into place.
 func replaceExistingDestination(sourcePath, destinationPath string) error {
-	backupPath := destinationPath + ".bak-" + uuid.NewString()
+	backupPath := destinationPath + ".bak-" + uuid.New().String()
 
 	if err := os.Rename(destinationPath, backupPath); err != nil {
 		return fmt.Errorf("failed to move existing destination aside: %w", err)

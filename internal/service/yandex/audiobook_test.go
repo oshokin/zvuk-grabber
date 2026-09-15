@@ -1,94 +1,18 @@
 package yandex
 
 import (
-	"context"
 	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
 	"github.com/oshokin/zvuk-grabber/internal/client/yandex/model"
 	"github.com/oshokin/zvuk-grabber/internal/config"
 	"github.com/oshokin/zvuk-grabber/internal/media"
+	mock_media "github.com/oshokin/zvuk-grabber/internal/media/mocks"
 )
-
-// recordingTemplateManager records template manager calls and returns preset values in tests.
-type recordingTemplateManager struct {
-	// trackFilename is the value returned by GetTrackFilename.
-	trackFilename string
-	// albumFolder is the value returned by GetAlbumFolderName.
-	albumFolder string
-	// audiobookFolder is the value returned by GetAudiobookFolderName.
-	audiobookFolder string
-	// audiobookChapterName is the value returned by GetAudiobookChapterFilename.
-	audiobookChapterName string
-	// podcastFolder is the value returned by GetPodcastFolderName.
-	podcastFolder string
-	// podcastEpisodeName is the value returned by GetPodcastEpisodeFilename.
-	podcastEpisodeName string
-	// trackFilenameCalls counts GetTrackFilename invocations.
-	trackFilenameCalls int
-	// albumFolderCalls counts GetAlbumFolderName invocations.
-	albumFolderCalls int
-	// audiobookFolderCalls counts GetAudiobookFolderName invocations.
-	audiobookFolderCalls int
-	// audiobookChapterCalls counts GetAudiobookChapterFilename invocations.
-	audiobookChapterCalls int
-	// podcastFolderCalls counts GetPodcastFolderName invocations.
-	podcastFolderCalls int
-	// podcastEpisodeCalls counts GetPodcastEpisodeFilename invocations.
-	podcastEpisodeCalls int
-}
-
-// GetTrackFilename records the call and returns the preset track filename.
-func (m *recordingTemplateManager) GetTrackFilename(
-	_ context.Context,
-	_ bool,
-	_ map[string]string,
-	_ int64,
-) string {
-	m.trackFilenameCalls++
-	return m.trackFilename
-}
-
-// GetAlbumFolderName returns the preset album folder name.
-func (m *recordingTemplateManager) GetAlbumFolderName(_ context.Context, _ map[string]string) string {
-	m.albumFolderCalls++
-	return m.albumFolder
-}
-
-// GetAudiobookFolderName records the call and returns the preset audiobook folder name.
-func (m *recordingTemplateManager) GetAudiobookFolderName(_ context.Context, _ map[string]string) string {
-	m.audiobookFolderCalls++
-	return m.audiobookFolder
-}
-
-// GetAudiobookChapterFilename records the call and returns the preset chapter filename.
-func (m *recordingTemplateManager) GetAudiobookChapterFilename(
-	_ context.Context,
-	_ map[string]string,
-	_ int64,
-) string {
-	m.audiobookChapterCalls++
-	return m.audiobookChapterName
-}
-
-// GetPodcastFolderName records the call and returns the preset podcast folder name.
-func (m *recordingTemplateManager) GetPodcastFolderName(_ context.Context, _ map[string]string) string {
-	m.podcastFolderCalls++
-	return m.podcastFolder
-}
-
-// GetPodcastEpisodeFilename records the call and returns the preset episode filename.
-func (m *recordingTemplateManager) GetPodcastEpisodeFilename(
-	_ context.Context,
-	_ map[string]string,
-	_ int64,
-) string {
-	m.podcastEpisodeCalls++
-	return m.podcastEpisodeName
-}
 
 // TestAlbumJobs_UsesAudiobookKind verifies audiobook albums produce audiobook collection jobs.
 func TestAlbumJobs_UsesAudiobookKind(t *testing.T) {
@@ -125,12 +49,13 @@ func TestAlbumJobs_UsesAudiobookKind(t *testing.T) {
 func TestBuildTargetPath_AudiobookUsesAudiobookTemplates(t *testing.T) {
 	t.Parallel()
 
-	templateManager := &recordingTemplateManager{
-		trackFilename:        "track-name",
-		albumFolder:          "album-folder",
-		audiobookFolder:      "audiobook-folder",
-		audiobookChapterName: "chapter-name",
-	}
+	ctrl := gomock.NewController(t)
+	templateManager := mock_media.NewMockTemplateManager(ctrl)
+	templateManager.EXPECT().GetAudiobookFolderName(gomock.Any(), gomock.Any()).Return("audiobook-folder")
+	templateManager.EXPECT().
+		GetAudiobookChapterFilename(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return("chapter-name")
+
 	service := &ServiceImpl{
 		cfg: &config.Config{
 			OutputPath:      "downloads",
@@ -139,7 +64,7 @@ func TestBuildTargetPath_AudiobookUsesAudiobookTemplates(t *testing.T) {
 		templateManager: templateManager,
 	}
 
-	path := service.buildTargetPath(context.Background(), &trackJob{
+	path := service.buildTargetPath(t.Context(), &trackJob{
 		kind:       collectionAudiobook,
 		trackCount: 18,
 	}, map[string]string{}, media.QualityMP3Mid)
@@ -149,19 +74,18 @@ func TestBuildTargetPath_AudiobookUsesAudiobookTemplates(t *testing.T) {
 		filepath.Join("downloads", "yandex", "audiobook-folder", "chapter-name.mp3"),
 		path,
 	)
-	assert.Equal(t, 1, templateManager.audiobookFolderCalls)
-	assert.Equal(t, 1, templateManager.audiobookChapterCalls)
-	assert.Zero(t, templateManager.trackFilenameCalls)
 }
 
 // TestBuildTargetPath_AlbumSingleWithoutFolder verifies one-track albums stay flat when single folders are disabled.
 func TestBuildTargetPath_AlbumSingleWithoutFolder(t *testing.T) {
 	t.Parallel()
 
-	templateManager := &recordingTemplateManager{
-		trackFilename: "single-track-name",
-		albumFolder:   "album-folder",
-	}
+	ctrl := gomock.NewController(t)
+	templateManager := mock_media.NewMockTemplateManager(ctrl)
+	templateManager.EXPECT().
+		GetTrackFilename(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return("single-track-name")
+
 	service := &ServiceImpl{
 		cfg: &config.Config{
 			OutputPath:             "downloads",
@@ -171,7 +95,7 @@ func TestBuildTargetPath_AlbumSingleWithoutFolder(t *testing.T) {
 		templateManager: templateManager,
 	}
 
-	path := service.buildTargetPath(context.Background(), &trackJob{
+	path := service.buildTargetPath(t.Context(), &trackJob{
 		kind:       collectionAlbum,
 		trackCount: 1,
 	}, map[string]string{}, media.QualityMP3Mid)
@@ -181,18 +105,18 @@ func TestBuildTargetPath_AlbumSingleWithoutFolder(t *testing.T) {
 		filepath.Join("downloads", "yandex", "single-track-name.mp3"),
 		path,
 	)
-	assert.Equal(t, 1, templateManager.trackFilenameCalls)
-	assert.Zero(t, templateManager.albumFolderCalls)
 }
 
 // TestBuildTargetPath_AudiobookSingleWithoutFolder verifies one-track audiobooks stay flat when single folders are disabled.
 func TestBuildTargetPath_AudiobookSingleWithoutFolder(t *testing.T) {
 	t.Parallel()
 
-	templateManager := &recordingTemplateManager{
-		audiobookFolder:      "audiobook-folder",
-		audiobookChapterName: "single-chapter-name",
-	}
+	ctrl := gomock.NewController(t)
+	templateManager := mock_media.NewMockTemplateManager(ctrl)
+	templateManager.EXPECT().
+		GetAudiobookChapterFilename(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return("single-chapter-name")
+
 	service := &ServiceImpl{
 		cfg: &config.Config{
 			OutputPath:             "downloads",
@@ -202,7 +126,7 @@ func TestBuildTargetPath_AudiobookSingleWithoutFolder(t *testing.T) {
 		templateManager: templateManager,
 	}
 
-	path := service.buildTargetPath(context.Background(), &trackJob{
+	path := service.buildTargetPath(t.Context(), &trackJob{
 		kind:       collectionAudiobook,
 		trackCount: 1,
 	}, map[string]string{}, media.QualityMP3Mid)
@@ -212,8 +136,6 @@ func TestBuildTargetPath_AudiobookSingleWithoutFolder(t *testing.T) {
 		filepath.Join("downloads", "yandex", "single-chapter-name.mp3"),
 		path,
 	)
-	assert.Zero(t, templateManager.audiobookFolderCalls)
-	assert.Equal(t, 1, templateManager.audiobookChapterCalls)
 }
 
 // TestAlbumJobs_UsesPodcastKind verifies podcast albums produce podcast collection jobs.
@@ -258,11 +180,13 @@ func TestCollectionKindFromAlbum_MetaTypePodcast(t *testing.T) {
 func TestBuildTargetPath_PodcastUsesPodcastTemplates(t *testing.T) {
 	t.Parallel()
 
-	templateManager := &recordingTemplateManager{
-		trackFilename:      "track-name",
-		podcastFolder:      "podcast-folder",
-		podcastEpisodeName: "episode-name",
-	}
+	ctrl := gomock.NewController(t)
+	templateManager := mock_media.NewMockTemplateManager(ctrl)
+	templateManager.EXPECT().GetPodcastFolderName(gomock.Any(), gomock.Any()).Return("podcast-folder")
+	templateManager.EXPECT().
+		GetPodcastEpisodeFilename(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return("episode-name")
+
 	service := &ServiceImpl{
 		cfg: &config.Config{
 			OutputPath:      "downloads",
@@ -271,7 +195,7 @@ func TestBuildTargetPath_PodcastUsesPodcastTemplates(t *testing.T) {
 		templateManager: templateManager,
 	}
 
-	path := service.buildTargetPath(context.Background(), &trackJob{
+	path := service.buildTargetPath(t.Context(), &trackJob{
 		kind:       collectionPodcast,
 		trackCount: 323,
 	}, map[string]string{}, media.QualityMP3Mid)
@@ -281,19 +205,18 @@ func TestBuildTargetPath_PodcastUsesPodcastTemplates(t *testing.T) {
 		filepath.Join("downloads", "yandex", "podcast-folder", "episode-name.mp3"),
 		path,
 	)
-	assert.Equal(t, 1, templateManager.podcastFolderCalls)
-	assert.Equal(t, 1, templateManager.podcastEpisodeCalls)
-	assert.Zero(t, templateManager.trackFilenameCalls)
 }
 
 // TestBuildTargetPath_PodcastSingleWithoutFolder verifies one-track podcasts stay flat when single folders are disabled.
 func TestBuildTargetPath_PodcastSingleWithoutFolder(t *testing.T) {
 	t.Parallel()
 
-	templateManager := &recordingTemplateManager{
-		podcastFolder:      "podcast-folder",
-		podcastEpisodeName: "single-episode-name",
-	}
+	ctrl := gomock.NewController(t)
+	templateManager := mock_media.NewMockTemplateManager(ctrl)
+	templateManager.EXPECT().
+		GetPodcastEpisodeFilename(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return("single-episode-name")
+
 	service := &ServiceImpl{
 		cfg: &config.Config{
 			OutputPath:             "downloads",
@@ -303,7 +226,7 @@ func TestBuildTargetPath_PodcastSingleWithoutFolder(t *testing.T) {
 		templateManager: templateManager,
 	}
 
-	path := service.buildTargetPath(context.Background(), &trackJob{
+	path := service.buildTargetPath(t.Context(), &trackJob{
 		kind:       collectionPodcast,
 		trackCount: 1,
 	}, map[string]string{}, media.QualityMP3Mid)
@@ -313,8 +236,6 @@ func TestBuildTargetPath_PodcastSingleWithoutFolder(t *testing.T) {
 		filepath.Join("downloads", "yandex", "single-episode-name.mp3"),
 		path,
 	)
-	assert.Zero(t, templateManager.podcastFolderCalls)
-	assert.Equal(t, 1, templateManager.podcastEpisodeCalls)
 }
 
 // TestQualityLogFormatting_UsesActualMP3Bitrate verifies quality logs report the resolved MP3 bitrate.

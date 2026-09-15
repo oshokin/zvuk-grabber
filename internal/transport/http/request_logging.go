@@ -79,52 +79,6 @@ func WriteRequestLog(level RequestLogLevel, reqCtx *RequestLogContext, msg strin
 	}
 }
 
-// requestContext resolves the effective context for request logging.
-func requestContext(reqCtx *RequestLogContext) context.Context {
-	if reqCtx != nil && reqCtx.Ctx != nil {
-		return reqCtx.Ctx
-	}
-
-	return context.Background()
-}
-
-// requestSensitiveFieldKeys returns source-specific structured fields that must be redacted.
-func requestSensitiveFieldKeys(reqCtx *RequestLogContext) []string {
-	if reqCtx == nil {
-		return nil
-	}
-
-	return reqCtx.SensitiveFieldKeys
-}
-
-// requestSensitiveQueryKeys returns source-specific query params that must be redacted.
-func requestSensitiveQueryKeys(reqCtx *RequestLogContext) []string {
-	if reqCtx == nil {
-		return nil
-	}
-
-	return reqCtx.SensitiveQueryKeys
-}
-
-// requestLogAttrs builds structured log attributes from context and caller args.
-func requestLogAttrs(reqCtx *RequestLogContext, args ...any) []any {
-	attrs := make([]any, 0, len(args)+10)
-
-	if reqCtx != nil {
-		if reqCtx.Stage != "" {
-			attrs = append(attrs, "stage", reqCtx.Stage)
-		}
-
-		if reqCtx.Operation != "" {
-			attrs = append(attrs, "operation", reqCtx.Operation)
-		}
-	}
-
-	attrs = append(attrs, args...)
-
-	return sanitizeArgsWithKeys(attrs, requestSensitiveFieldKeys(reqCtx))
-}
-
 // SanitizeHeaders redacts sensitive HTTP headers for safe logging.
 func SanitizeHeaders(headers http.Header) map[string]string {
 	if len(headers) == 0 {
@@ -189,6 +143,79 @@ func SanitizeURLWithKeys(rawURL string, sensitiveQueryKeys, sensitiveFieldKeys [
 	}
 
 	return parsed.String()
+}
+
+// SanitizeTextSecrets redacts token-like values in free-form text.
+func SanitizeTextSecrets(value string) string {
+	if strings.TrimSpace(value) == "" {
+		return ""
+	}
+
+	value = sensitiveQuotedValuePattern.ReplaceAllString(value, `$1`+redactedValue+`$3`)
+
+	return sensitiveValuePattern.ReplaceAllStringFunc(value, func(raw string) string {
+		index := strings.IndexAny(raw, ":=")
+		if index == -1 {
+			return redactedValue
+		}
+
+		return raw[:index+1] + redactedValue
+	})
+}
+
+// FormatByteSize formats bytes for logs and returns "unknown" for negatives.
+func FormatByteSize(size int64) string {
+	if size < 0 {
+		return "unknown"
+	}
+
+	return humanize.IBytes(uint64(size))
+}
+
+// requestContext resolves the effective context for request logging.
+func requestContext(reqCtx *RequestLogContext) context.Context {
+	if reqCtx != nil && reqCtx.Ctx != nil {
+		return reqCtx.Ctx
+	}
+
+	return context.Background()
+}
+
+// requestSensitiveFieldKeys returns source-specific structured fields that must be redacted.
+func requestSensitiveFieldKeys(reqCtx *RequestLogContext) []string {
+	if reqCtx == nil {
+		return nil
+	}
+
+	return reqCtx.SensitiveFieldKeys
+}
+
+// requestSensitiveQueryKeys returns source-specific query params that must be redacted.
+func requestSensitiveQueryKeys(reqCtx *RequestLogContext) []string {
+	if reqCtx == nil {
+		return nil
+	}
+
+	return reqCtx.SensitiveQueryKeys
+}
+
+// requestLogAttrs builds structured log attributes from context and caller args.
+func requestLogAttrs(reqCtx *RequestLogContext, args ...any) []any {
+	attrs := make([]any, 0, len(args)+10)
+
+	if reqCtx != nil {
+		if reqCtx.Stage != "" {
+			attrs = append(attrs, "stage", reqCtx.Stage)
+		}
+
+		if reqCtx.Operation != "" {
+			attrs = append(attrs, "operation", reqCtx.Operation)
+		}
+	}
+
+	attrs = append(attrs, args...)
+
+	return sanitizeArgsWithKeys(attrs, requestSensitiveFieldKeys(reqCtx))
 }
 
 // sanitizeArgsWithKeys redacts sensitive values in structured log attributes using source-specific keys.
@@ -271,31 +298,4 @@ func normalizeSensitiveKeySet(keys []string) map[string]struct{} {
 	}
 
 	return result
-}
-
-// SanitizeTextSecrets redacts token-like values in free-form text.
-func SanitizeTextSecrets(value string) string {
-	if strings.TrimSpace(value) == "" {
-		return ""
-	}
-
-	value = sensitiveQuotedValuePattern.ReplaceAllString(value, `$1`+redactedValue+`$3`)
-
-	return sensitiveValuePattern.ReplaceAllStringFunc(value, func(raw string) string {
-		index := strings.IndexAny(raw, ":=")
-		if index == -1 {
-			return redactedValue
-		}
-
-		return raw[:index+1] + redactedValue
-	})
-}
-
-// FormatByteSize formats bytes for logs and returns "unknown" for negatives.
-func FormatByteSize(size int64) string {
-	if size < 0 {
-		return "unknown"
-	}
-
-	return humanize.IBytes(uint64(size))
 }

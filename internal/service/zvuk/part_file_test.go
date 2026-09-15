@@ -2,7 +2,6 @@ package zvuk
 
 import (
 	"bytes"
-	"context"
 	"os"
 	"testing"
 	"testing/synctest"
@@ -28,7 +27,7 @@ func TestDownloadTracks_PartFileHandling(t *testing.T) {
 
 	expectSuccessfulTrackDownload(setup.mockClient, trackID, "/stream/701", audioData, nil)
 
-	setup.impl(t).downloadTracks(context.Background(), metadata)
+	setup.impl(t).downloadTracks(t.Context(), metadata)
 
 	assert.Empty(t, findPartFiles(t, setup.tempDir), ".part files should be cleaned up after successful download")
 
@@ -67,7 +66,7 @@ func TestDownloadTracks_PartFileCleanupOnFailure(t *testing.T) {
 				TotalBytes: int64(len(fullContent)),
 			}, nil)
 
-		setup.impl(t).downloadTracks(context.Background(), metadata)
+		setup.impl(t).downloadTracks(t.Context(), metadata)
 
 		// Allow deferred cleanup paths to complete before assertions.
 		time.Sleep(50 * time.Millisecond)

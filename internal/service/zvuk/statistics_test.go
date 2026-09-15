@@ -10,24 +10,6 @@ import (
 	"github.com/oshokin/zvuk-grabber/internal/config"
 )
 
-// newStatisticsService builds a ServiceImpl test instance with optional configuration.
-func newStatisticsService(t *testing.T, cfg *config.Config) *ServiceImpl {
-	t.Helper()
-
-	if cfg == nil {
-		cfg = new(config.Config)
-	}
-
-	service := NewService(cfg, nil, nil, nil, nil)
-
-	impl, ok := service.(*ServiceImpl)
-	if !ok {
-		t.Fatalf("Service should be of type *ServiceImpl")
-	}
-
-	return impl
-}
-
 // TestDownloadStatistics_InitialState verifies download statistics start at zero.
 func TestDownloadStatistics_InitialState(t *testing.T) {
 	t.Parallel()
@@ -108,7 +90,7 @@ func TestPrintDownloadSummary_NoTracksProcessed(t *testing.T) {
 	t.Parallel()
 
 	impl := newStatisticsService(t, nil)
-	impl.PrintDownloadSummary(context.Background())
+	impl.PrintDownloadSummary(t.Context())
 	assert.Equal(t, int64(0), impl.stats.TotalTracksProcessed)
 }
 
@@ -120,7 +102,7 @@ func TestPrintDownloadSummary_WithResults(t *testing.T) {
 	impl.incrementTrackDownloaded(36860019)
 	impl.incrementLyricsDownloaded()
 	impl.incrementCoverDownloaded()
-	impl.PrintDownloadSummary(context.Background())
+	impl.PrintDownloadSummary(t.Context())
 
 	assert.Equal(t, int64(1), impl.stats.TotalTracksProcessed)
 	assert.Equal(t, int64(1), impl.stats.TracksDownloaded)
@@ -164,7 +146,7 @@ func TestPrintDownloadSummary_WithInterruption(t *testing.T) {
 	impl.incrementTrackDownloaded(5000000)
 	impl.incrementCoverDownloaded()
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	impl.PrintDownloadSummary(ctx)
 
@@ -212,7 +194,7 @@ func TestDownloadStatistics_ErrorTracking(t *testing.T) {
 	assert.Equal(t, "Test Track 1", impl.stats.Errors[0].ItemTitle)
 	assert.Equal(t, "downloading file", impl.stats.Errors[0].Phase)
 	assert.Equal(t, DownloadCategoryTrack, impl.stats.Errors[0].Category)
-	impl.PrintDownloadSummary(context.Background())
+	impl.PrintDownloadSummary(t.Context())
 }
 
 // TestPrintDownloadSummary_WithDuration verifies duration and speed are computed from session timestamps.
@@ -230,7 +212,7 @@ func TestPrintDownloadSummary_WithDuration(t *testing.T) {
 	actualDuration := impl.stats.EndTime.Sub(impl.stats.StartTime)
 	assert.Equal(t, int64(2), impl.stats.TracksDownloaded)
 	assert.Equal(t, totalBytes*2, impl.stats.TotalBytesDownloaded)
-	impl.PrintDownloadSummary(context.Background())
+	impl.PrintDownloadSummary(t.Context())
 	assert.Equal(t, 150*time.Millisecond, actualDuration)
 	assert.Greater(t, float64(totalBytes*2)/actualDuration.Seconds(), float64(1024*1024))
 }
@@ -264,4 +246,22 @@ func TestFormatDuration(t *testing.T) {
 			assert.Equal(t, tc.expected, formatDuration(tc.duration))
 		})
 	}
+}
+
+// newStatisticsService builds a ServiceImpl test instance with optional configuration.
+func newStatisticsService(t *testing.T, cfg *config.Config) *ServiceImpl {
+	t.Helper()
+
+	if cfg == nil {
+		cfg = new(config.Config)
+	}
+
+	service := NewService(cfg, nil, nil, nil, nil)
+
+	impl, ok := service.(*ServiceImpl)
+	if !ok {
+		t.Fatalf("Service should be of type *ServiceImpl")
+	}
+
+	return impl
 }

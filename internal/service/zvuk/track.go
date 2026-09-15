@@ -120,7 +120,7 @@ func (s *ServiceImpl) fetchAlbumsDataFromTracks(
 		})
 
 	// Fetch album metadata.
-	albumsMetadataResponse, err := s.zvukClient.GetAlbumsMetadata(ctx, albumIDs, false)
+	albumsMetadataResponse, err := s.zvukClient.GetAlbumsMetadata(ctx, albumIDs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get albums metadata: %w", err)
 	}
@@ -204,11 +204,7 @@ queueTracks:
 		default:
 		}
 
-		waitGroup.Add(1)
-
-		go func(trackIndex int, currentTrackID int64) {
-			defer waitGroup.Done()
-
+		waitGroup.Go(func() {
 			// Acquire semaphore slot or stop immediately on cancellation.
 			select {
 			case semaphore <- struct{}{}:
@@ -226,8 +222,8 @@ queueTracks:
 				return
 			}
 
-			s.downloadSingleTrack(ctx, trackIndex, currentTrackID, metadata)
-		}(index, trackID)
+			s.downloadSingleTrack(ctx, index, trackID, metadata)
+		})
 	}
 
 	// Wait for all in-flight downloads to complete.

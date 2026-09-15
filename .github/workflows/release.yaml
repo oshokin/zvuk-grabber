@@ -17,7 +17,7 @@ on:
 env:
   # Tool versions.
   GORELEASER_VERSION: "latest"
-  GO_VERSION: "stable"
+  GO_VERSION: "1.27.1"
 
   # Git configuration for automated commits.
   GIT_BOT_NAME: "github-actions[bot]"
@@ -48,12 +48,19 @@ jobs:
             exit 1
           fi
 
-      # Set up Go environment for building release binaries.
       - name: Set up Go
         uses: actions/setup-go@v7
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
+
+      - name: Toolchain info
+        run: |
+          go version
+          go env GOOS
+          go env GOARCH
+          go env GOTOOLCHAIN
+          go env GOVERSION
 
       # Analyze commit messages since last tag to determine version bump.
       # Uses the semver_next.sh script to implement semantic versioning logic.

@@ -6,30 +6,26 @@
 //	mockgen -source=tag_processor.go -destination=mocks/tag_processor_mock.go
 //
 
-// Package mock_zvuk is a generated GoMock package.
-package mock_zvuk
+// Package mock_media is a generated GoMock package.
+package mock_media
 
 import (
 	context "context"
 	reflect "reflect"
 
-	zvuk "github.com/oshokin/zvuk-grabber/internal/service/zvuk"
+	media "github.com/oshokin/zvuk-grabber/internal/media"
 	gomock "go.uber.org/mock/gomock"
 )
 
 // MockTagProcessor is a mock of TagProcessor interface.
 type MockTagProcessor struct {
-	// ctrl is the GoMock controller for this mock.
 	ctrl     *gomock.Controller
-	// recorder records expected mock calls.
 	recorder *MockTagProcessorMockRecorder
-	// isgomock is a marker type used by the gomock framework.
 	isgomock struct{}
 }
 
 // MockTagProcessorMockRecorder is the mock recorder for MockTagProcessor.
 type MockTagProcessorMockRecorder struct {
-	// mock is the mock instance being recorded.
 	mock *MockTagProcessor
 }
 
@@ -46,7 +42,7 @@ func (m *MockTagProcessor) EXPECT() *MockTagProcessorMockRecorder {
 }
 
 // WriteTags mocks base method.
-func (m *MockTagProcessor) WriteTags(ctx context.Context, req *zvuk.WriteTagsRequest) error {
+func (m *MockTagProcessor) WriteTags(ctx context.Context, req *media.WriteTagsRequest) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WriteTags", ctx, req)
 	ret0, _ := ret[0].(error)

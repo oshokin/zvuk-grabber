@@ -19,8 +19,8 @@ on:
 # Environment variables (constants for configuration).
 env:
   # Tool versions.
-  GOLANGCI_LINT_VERSION: "v2.12.2"
-  GO_VERSION: "1.26.x"
+  GOLANGCI_LINT_VERSION: "v2.13.2"
+  GO_VERSION: "1.27.1"
 
   # Test configuration.
   TEST_TIMEOUT: "600s"
@@ -60,36 +60,33 @@ jobs:
         with:
           version: ${{ env.GOLANGCI_LINT_VERSION }}
 
-  # Job to test the application on multiple Go versions and platforms.
-  test-go-versions:
+  # Job to test the application on multiple platforms.
+  test:
     runs-on: ${{ matrix.platform }}
     strategy:
       # Continue running other matrix jobs even if one fails.
       fail-fast: false
-      # Create a matrix of 2 jobs: 1 Go version × 2 platforms.
       matrix:
-        go-version: ["1.26.x"]
-        platform: [ubuntu-latest, windows-latest]
+        platform:
+          - ubuntu-latest
+          - windows-latest
     steps:
-      # Checkout the repository code.
       - name: Checkout code
         uses: actions/checkout@v7
-      # Install the Go version specified in the matrix.
-      - name: Install Go ${{ matrix.go-version }}
+      - name: Install Go
         uses: actions/setup-go@v7
         with:
-          # Use the Go version from the matrix.
-          go-version: ${{ matrix.go-version }}
+          go-version: ${{ env.GO_VERSION }}
           cache: true
-      # Run all tests with race detection.
-      - name: Run tests
+      - name: Toolchain info
         run: |
-          # Show which Go binary is being used.
-          which go
-          # Display the Go version.
           go version
-          # Run tests with race detector, configurable timeout, for all packages.
-          go test -race -timeout ${{ env.TEST_TIMEOUT }} ./...
+          go env GOOS
+          go env GOARCH
+          go env GOTOOLCHAIN
+          go env GOVERSION
+      - name: Run tests
+        run: go test -race -timeout ${{ env.TEST_TIMEOUT }} ./...
 
   # Job to verify that the application builds correctly.
   test-build:
@@ -104,23 +101,22 @@ jobs:
       # Checkout the repository code.
       - name: Checkout code
         uses: actions/checkout@v7
-      # Install Go for the build test.
       - name: Install Go
         uses: actions/setup-go@v7
         with:
-          # Use the configured Go version.
           go-version: ${{ env.GO_VERSION }}
           cache: true
-      # Build the application and verify it works.
+      - name: Toolchain info
+        run: |
+          go version
+          go env GOOS
+          go env GOARCH
+          go env GOTOOLCHAIN
+          go env GOVERSION
       - name: Check build
         run: |
-          # Display the Go version being used.
-          go version
-          # Show current directory and list its contents.
           pwd && ls -l
-          # Build the application.
           go build -v ./...
-          # Verify the binary works (if it exists).
           if [ -f "./zvuk-grabber" ]; then
             ./zvuk-grabber --help
           elif [ -f "./zvuk-grabber.exe" ]; then

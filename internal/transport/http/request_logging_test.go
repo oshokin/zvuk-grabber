@@ -1,7 +1,6 @@
 package http
 
 import (
-	"context"
 	"net/url"
 	"testing"
 
@@ -18,7 +17,7 @@ func TestLogRequest_UsesInternalLoggerAndRequestContext(t *testing.T) {
 	t.Parallel()
 
 	core, observedLogs := observer.New(zap.DebugLevel)
-	ctx := applogger.ToContext(context.Background(), zap.New(core).Sugar())
+	ctx := applogger.ToContext(t.Context(), zap.New(core).Sugar())
 
 	WriteRequestLog(
 		RequestLogLevelInfo,
@@ -44,7 +43,7 @@ func TestLogRequest_DoesNotRedactWithoutSensitiveAttributes(t *testing.T) {
 	t.Parallel()
 
 	core, observedLogs := observer.New(zap.DebugLevel)
-	ctx := applogger.ToContext(context.Background(), zap.New(core).Sugar())
+	ctx := applogger.ToContext(t.Context(), zap.New(core).Sugar())
 
 	WriteRequestLog(
 		RequestLogLevelInfo,
@@ -65,7 +64,7 @@ func TestLogRequest_RedactsSourceSpecificSensitiveAttributes(t *testing.T) {
 	t.Parallel()
 
 	core, observedLogs := observer.New(zap.DebugLevel)
-	ctx := applogger.ToContext(context.Background(), zap.New(core).Sugar())
+	ctx := applogger.ToContext(t.Context(), zap.New(core).Sugar())
 
 	WriteRequestLog(
 		RequestLogLevelInfo,

@@ -16,33 +16,6 @@ import (
 	"github.com/oshokin/zvuk-grabber/internal/config"
 )
 
-// newRetryTestClient builds a client backed by an httptest server for retry behavior tests.
-func newRetryTestClient(
-	t *testing.T,
-	handler http.HandlerFunc,
-	attempts int64,
-	minPause, maxPause time.Duration,
-) *ClientImpl {
-	t.Helper()
-
-	server := httptest.NewServer(handler)
-	t.Cleanup(server.Close)
-
-	client, err := NewClient(&config.Config{
-		ZvukAuthToken:       "test_token",
-		ZvukBaseURL:         server.URL,
-		RetryAttemptsCount:  attempts,
-		ParsedMinRetryPause: minPause,
-		ParsedMaxRetryPause: maxPause,
-	})
-	require.NoError(t, err)
-
-	typedClient, ok := client.(*ClientImpl)
-	require.True(t, ok)
-
-	return typedClient
-}
-
 // TestClientImpl_GetStreamMetadata_RetriesTeapot verifies transient HTTP 418 responses are retried.
 func TestClientImpl_GetStreamMetadata_RetriesTeapot(t *testing.T) {
 	t.Parallel()
@@ -71,7 +44,7 @@ func TestClientImpl_GetStreamMetadata_RetriesTeapot(t *testing.T) {
 		}
 	}, 3, 0, 0)
 
-	result, err := client.GetStreamMetadata(context.Background(), "track-id", defaultStreamQuality)
+	result, err := client.GetStreamMetadata(t.Context(), "track-id", defaultStreamQuality)
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	assert.Equal(t, "https://example.com/stream.mp3", result.Stream)
@@ -93,7 +66,7 @@ func TestClientImpl_GetStreamMetadata_DoesNotRetryNonTeapot(t *testing.T) {
 		w.WriteHeader(http.StatusInternalServerError)
 	}, 5, 0, 0)
 
-	_, err := client.GetStreamMetadata(context.Background(), "track-id", defaultStreamQuality)
+	_, err := client.GetStreamMetadata(t.Context(), "track-id", defaultStreamQuality)
 	require.Error(t, err)
 	require.ErrorIs(t, err, ErrUnexpectedHTTPStatus)
 	assert.EqualValues(t, 1, calls.Load())
@@ -114,7 +87,7 @@ func TestClientImpl_GetStreamMetadata_CancelledDuringRetryPause(t *testing.T) {
 		w.WriteHeader(http.StatusTeapot)
 	}, 5, 500*time.Millisecond, 500*time.Millisecond)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	go func() {
@@ -128,4 +101,31 @@ func TestClientImpl_GetStreamMetadata_CancelledDuringRetryPause(t *testing.T) {
 	assert.True(t, errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded))
 	assert.EqualValues(t, 1, calls.Load())
 	assert.Less(t, time.Since(startedAt), 300*time.Millisecond)
+}
+
+// newRetryTestClient builds a client backed by an httptest server for retry behavior tests.
+func newRetryTestClient(
+	t *testing.T,
+	handler http.HandlerFunc,
+	attempts int64,
+	minPause, maxPause time.Duration,
+) *ClientImpl {
+	t.Helper()
+
+	server := httptest.NewServer(handler)
+	t.Cleanup(server.Close)
+
+	client, err := NewClient(&config.Config{
+		ZvukAuthToken:       "test_token",
+		ZvukBaseURL:         server.URL,
+		RetryAttemptsCount:  attempts,
+		ParsedMinRetryPause: minPause,
+		ParsedMaxRetryPause: maxPause,
+	})
+	require.NoError(t, err)
+
+	typedClient, ok := client.(*ClientImpl)
+	require.True(t, ok)
+
+	return typedClient
 }
