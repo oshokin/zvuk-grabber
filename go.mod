@@ -3,7 +3,7 @@ module github.com/oshokin/zvuk-grabber
 go 1.27.1
 
 require (
-	github.com/dustin/go-humanize v1.0.1
+	github.com/dustin/go-humanize v1.1.0
 	github.com/go-flac/flacpicture v0.3.0
 	github.com/go-flac/flacvorbis v0.2.0
 	github.com/go-flac/go-flac v1.0.0
@@ -11,7 +11,7 @@ require (
 	github.com/go-rod/stealth v0.4.9
 	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/machinebox/graphql v0.2.2
-	github.com/oshokin/id3v2/v2 v2.1.4
+	github.com/oshokin/id3v2/v2 v2.1.5
 	github.com/schollz/progressbar/v3 v3.19.1
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.10
@@ -23,9 +23,9 @@ require (
 )
 
 require (
-	code.cloudfoundry.org/bytefmt v0.90.0 // indirect
 	github.com/fsnotify/fsnotify v1.10.1 // indirect
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
+	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/matryer/is v1.4.1 // indirect
 	github.com/mitchellh/colorstring v0.0.0-20190213212951-d06e56a500db // indirect
