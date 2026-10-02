@@ -12,6 +12,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/oshokin/zvuk-grabber/internal/client/zvuk"
+	"github.com/oshokin/zvuk-grabber/internal/media"
 )
 
 // TestDownloadTracks_PartFileHandling tests that .part files are used for atomic downloads.
@@ -53,7 +54,7 @@ func TestDownloadTracks_PartFileCleanupOnFailure(t *testing.T) {
 		metadata := newTestMetadata([]int64{trackID}, 8).withAlbumTitle("Failed Download Album").build()
 
 		setup.mockClient.EXPECT().
-			GetStreamMetadata(gomock.Any(), "801", TrackQualityFLACString).
+			GetStreamMetadata(gomock.Any(), "801", media.QualityFLACString).
 			Return(&zvuk.StreamMetadata{Stream: "/stream/801"}, nil)
 
 		fullContent := []byte("this is supposed to be 100 bytes of audio data but network failed")

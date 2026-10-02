@@ -21,6 +21,7 @@ import (
 	"github.com/oshokin/zvuk-grabber/internal/config"
 	"github.com/oshokin/zvuk-grabber/internal/files"
 	"github.com/oshokin/zvuk-grabber/internal/logger"
+	"github.com/oshokin/zvuk-grabber/internal/media"
 	mock_media "github.com/oshokin/zvuk-grabber/internal/media/mocks"
 )
 
@@ -130,7 +131,7 @@ func expectSuccessfulTrackDownload(
 	streamMetadata := &zvuk.StreamMetadata{Stream: streamURL}
 
 	mockClient.EXPECT().
-		GetStreamMetadata(gomock.Any(), trackIDString, TrackQualityFLACString).
+		GetStreamMetadata(gomock.Any(), trackIDString, media.QualityFLACString).
 		DoAndReturn(func(_ context.Context, _ string, _ string) (*zvuk.StreamMetadata, error) {
 			if onMetadata != nil {
 				onMetadata(trackID)
@@ -171,7 +172,7 @@ func newTestMetadata(trackIDs []int64, albumID int64) *testMetadataBuilder {
 			Title:          fmt.Sprintf("Track %d", i+1),
 			ReleaseID:      albumID,
 			Position:       int64(i + 1),
-			HighestQuality: TrackQualityFLACString,
+			HighestQuality: media.QualityFLACString,
 			HasFLAC:        true,
 		}
 	}
@@ -392,7 +393,7 @@ func newStubURLProcessor(ctrl *gomock.Controller) URLProcessor {
 }
 
 // newStubTagProcessor returns a generated TagProcessor mock that accepts any WriteTags call.
-func newStubTagProcessor(ctrl *gomock.Controller) TagProcessor {
+func newStubTagProcessor(ctrl *gomock.Controller) media.TagProcessor {
 	processor := mock_media.NewMockTagProcessor(ctrl)
 	processor.EXPECT().WriteTags(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 
@@ -400,12 +401,12 @@ func newStubTagProcessor(ctrl *gomock.Controller) TagProcessor {
 }
 
 // newStubTemplateManager returns a generated TemplateManager mock with deterministic test names.
-func newStubTemplateManager(ctrl *gomock.Controller) TemplateManager {
+func newStubTemplateManager(ctrl *gomock.Controller) media.TemplateManager {
 	manager := mock_media.NewMockTemplateManager(ctrl)
 	manager.EXPECT().
 		GetTrackFilename(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		DoAndReturn(func(_ context.Context, _ bool, tags map[string]string, _ int64) string {
-			if trackID, ok := tags[TagTrackID]; ok && trackID != "" {
+			if trackID, ok := tags[media.TagTrackID]; ok && trackID != "" {
 				return "test_track_" + trackID + extensionMP3
 			}
 
@@ -416,25 +417,25 @@ func newStubTemplateManager(ctrl *gomock.Controller) TemplateManager {
 	manager.EXPECT().
 		GetAudiobookFolderName(gomock.Any(), gomock.Any()).
 		DoAndReturn(func(_ context.Context, tags map[string]string) string {
-			return tags[TagAudiobookAuthors] + " - " + tags[TagAudiobookTitle]
+			return tags[media.TagAudiobookAuthors] + " - " + tags[media.TagAudiobookTitle]
 		}).
 		AnyTimes()
 	manager.EXPECT().
 		GetAudiobookChapterFilename(gomock.Any(), gomock.Any(), gomock.Any()).
 		DoAndReturn(func(_ context.Context, tags map[string]string, _ int64) string {
-			return tags[TagTrackNumberPad] + " - " + tags[TagTrackTitle]
+			return tags[media.TagTrackNumberPad] + " - " + tags[media.TagTrackTitle]
 		}).
 		AnyTimes()
 	manager.EXPECT().
 		GetPodcastFolderName(gomock.Any(), gomock.Any()).
 		DoAndReturn(func(_ context.Context, tags map[string]string) string {
-			return tags[TagPodcastAuthors] + " - " + tags[TagPodcastTitle]
+			return tags[media.TagPodcastAuthors] + " - " + tags[media.TagPodcastTitle]
 		}).
 		AnyTimes()
 	manager.EXPECT().
 		GetPodcastEpisodeFilename(gomock.Any(), gomock.Any(), gomock.Any()).
 		DoAndReturn(func(_ context.Context, tags map[string]string, _ int64) string {
-			return tags[TagTrackNumberPad] + " - " + tags[TagTrackTitle]
+			return tags[media.TagTrackNumberPad] + " - " + tags[media.TagTrackTitle]
 		}).
 		AnyTimes()
 

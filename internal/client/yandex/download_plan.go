@@ -9,6 +9,7 @@ import (
 
 	"github.com/oshokin/zvuk-grabber/internal/client/yandex/model"
 	"github.com/oshokin/zvuk-grabber/internal/media"
+	"github.com/oshokin/zvuk-grabber/internal/media/lossless"
 )
 
 // NewAuthorizedClient creates a Yandex Music client with an OAuth token.
@@ -95,7 +96,7 @@ func (c *Client) DownloadFLACBytes(ctx context.Context, trackID string) ([]byte,
 		return nil, err
 	}
 
-	return normalizeLosslessFLAC(data)
+	return lossless.Normalize(data)
 }
 
 // pickBitrate selects the best MP3 download option for the preferred quality tier.

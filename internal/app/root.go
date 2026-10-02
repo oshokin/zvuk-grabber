@@ -2,6 +2,8 @@ package app
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"strings"
 
 	yandex_client "github.com/oshokin/zvuk-grabber/internal/client/yandex"
@@ -20,35 +22,48 @@ type summaryPrinter interface {
 	PrintDownloadSummary(ctx context.Context)
 }
 
+// downloadService exposes results independently from logging verbosity.
+type downloadService interface {
+	summaryPrinter
+	// DownloadURLs downloads every URL and records per-item results.
+	DownloadURLs(ctx context.Context, urls []string) error
+}
+
+// errUnsupportedURL is returned for URLs that are neither Zvuk nor Yandex Music.
+var errUnsupportedURL = errors.New("unsupported URL")
+
 // ExecuteRootCommand is the entry point for the application.
 // It accepts mixed Zvuk and Yandex Music URLs, classifies them by provider,
 // and routes each group to the corresponding provider service.
-func ExecuteRootCommand(ctx context.Context, cfg *config.Config, args []string) {
+func ExecuteRootCommand(ctx context.Context, cfg *config.Config, args []string) error {
 	urls, err := input.Flatten(args)
 	if err != nil {
-		logger.Fatalf(ctx, "Failed to read input URLs: %v", err)
-		return
+		return fmt.Errorf("failed to read input URLs: %w", err)
 	}
+
+	var failures []error
 
 	classified := input.Classify(urls)
 	for _, rawURL := range classified.Unknown {
-		logger.Errorf(ctx, "Unsupported URL skipped: %s", rawURL)
+		failures = append(failures, fmt.Errorf("%w: %s", errUnsupportedURL, rawURL))
 	}
 
 	templateManager := media.NewTemplateManager(ctx, cfg)
 	tagProcessor := media.NewTagProcessor()
 
 	if len(classified.Zvuk) > 0 {
-		executeZvukDownloads(ctx, cfg, classified.Zvuk, templateManager, tagProcessor)
+		failures = append(failures, executeZvukDownloads(ctx, cfg, classified.Zvuk, templateManager, tagProcessor))
 	}
 
 	if ctx.Err() == nil && len(classified.Yandex) > 0 {
-		executeYandexDownloads(ctx, cfg, classified.Yandex, templateManager, tagProcessor)
+		failures = append(failures, executeYandexDownloads(ctx, cfg, classified.Yandex, templateManager, tagProcessor))
 	}
 
 	if len(classified.Zvuk) == 0 && len(classified.Yandex) == 0 && len(classified.Unknown) == 0 {
 		logger.Info(ctx, "No URLs to download")
 	}
+
+	return errors.Join(append(failures, ctx.Err())...)
 }
 
 // executeZvukDownloads initializes the Zvuk client and downloads the given URLs.
@@ -58,24 +73,21 @@ func executeZvukDownloads(
 	urls []string,
 	templateManager media.TemplateManager,
 	tagProcessor media.TagProcessor,
-) {
+) error {
 	if strings.TrimSpace(cfg.ZvukAuthToken) == "" {
-		logger.Fatalf(ctx, "Zvuk URLs require zvuk_auth_token. Run: zvuk-grabber auth zvuk login")
-		return
+		return fmt.Errorf("%w; run: zvuk-grabber auth zvuk login", config.ErrEmptyZvukAuthToken)
 	}
 
 	zvukClient, err := zvuk_client.NewClient(cfg)
 	if err != nil {
-		logger.Fatalf(ctx, "Failed to initialize Zvuk client: %v", err)
-		return
+		return fmt.Errorf("failed to initialize Zvuk client: %w", err)
 	}
 
 	urlProcessor := zvuk_service.NewURLProcessor()
 
 	s := zvuk_service.NewService(cfg, zvukClient, urlProcessor, templateManager, tagProcessor)
-	defer recoverAndPrintSummary(ctx, s)
 
-	s.DownloadURLs(ctx, urls)
+	return runDownloads(ctx, s, urls)
 }
 
 // executeYandexDownloads initializes the Yandex client and downloads the given URLs.
@@ -85,25 +97,21 @@ func executeYandexDownloads(
 	urls []string,
 	templateManager media.TemplateManager,
 	tagProcessor media.TagProcessor,
-) {
+) error {
 	if strings.TrimSpace(cfg.YandexMusicToken) == "" {
-		logger.Fatalf(ctx, "Yandex Music URLs require yandex_music_token. Run: zvuk-grabber auth yandex login")
-		return
+		return fmt.Errorf("%w; run: zvuk-grabber auth yandex login", config.ErrEmptyYandexMusicToken)
 	}
 
 	yandexClient := yandex_client.NewAuthorizedClient(cfg.YandexMusicToken)
 
 	s := yandex_service.NewService(cfg, yandexClient, templateManager, tagProcessor)
-	defer recoverAndPrintSummary(ctx, s)
 
-	s.DownloadURLs(ctx, urls)
+	return runDownloads(ctx, s, urls)
 }
 
-// recoverAndPrintSummary recovers from panics and always prints the download summary.
-func recoverAndPrintSummary(ctx context.Context, s summaryPrinter) {
-	if r := recover(); r != nil {
-		logger.Errorf(ctx, "Panic recovered: %v", r)
-	}
+// runDownloads always prints the summary after the provider run returns.
+func runDownloads(ctx context.Context, s downloadService, urls []string) error {
+	defer s.PrintDownloadSummary(ctx)
 
-	s.PrintDownloadSummary(ctx)
+	return s.DownloadURLs(ctx, urls)
 }

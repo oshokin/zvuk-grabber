@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/oshokin/zvuk-grabber/internal/client/zvuk"
+	"github.com/oshokin/zvuk-grabber/internal/media"
 )
 
 // PodcastCollectionHandler handles podcast collection logic.
@@ -16,7 +17,7 @@ type PodcastCollectionHandler struct {
 }
 
 // NewPodcastCollectionHandler creates a handler for podcast downloads.
-func NewPodcastCollectionHandler(templateManager TemplateManager) *PodcastCollectionHandler {
+func NewPodcastCollectionHandler(templateManager media.TemplateManager) *PodcastCollectionHandler {
 	return &PodcastCollectionHandler{
 		BaseCollectionHandler: newBaseCollectionHandler(DownloadCategoryPodcast, templateManager, true, true),
 	}
@@ -33,8 +34,8 @@ func (h *PodcastCollectionHandler) LogMessage(ctx context.Context, item *zvuk.Po
 	return fmt.Sprintf(
 		"Downloading %s: %s by %s",
 		h.Category.ToTitleCase(),
-		tags[TagPodcastTitle],
-		tags[TagPodcastAuthors],
+		tags[media.TagPodcastTitle],
+		tags[media.TagPodcastAuthors],
 	)
 }
 
@@ -47,22 +48,22 @@ func (h *PodcastCollectionHandler) FillTags(item *zvuk.Podcast) map[string]strin
 	}
 
 	tags := map[string]string{
-		TagType:               h.Category.String(),
-		TagPodcastID:          strconv.FormatInt(item.ID, 10),
-		TagPodcastTitle:       item.Title,
-		TagPodcastAuthors:     strings.Join(item.ArtistNames, ", "),
-		TagPodcastTrackCount:  strconv.FormatInt(int64(len(item.TrackIDs)), 10),
-		TagPodcastDescription: item.Description,
-		TagPodcastCategory:    item.Category,
+		media.TagType:               h.Category.String(),
+		media.TagPodcastID:          strconv.FormatInt(item.ID, 10),
+		media.TagPodcastTitle:       item.Title,
+		media.TagPodcastAuthors:     strings.Join(item.ArtistNames, ", "),
+		media.TagPodcastTrackCount:  strconv.FormatInt(int64(len(item.TrackIDs)), 10),
+		media.TagPodcastDescription: item.Description,
+		media.TagPodcastCategory:    item.Category,
 		// Tag processor compatibility fields.
-		TagAlbumID:     strconv.FormatInt(item.ID, 10),
-		TagAlbumArtist: strings.Join(item.ArtistNames, ", "),
-		TagTrackGenre:  genreTag,
+		media.TagAlbumID:     strconv.FormatInt(item.ID, 10),
+		media.TagAlbumArtist: strings.Join(item.ArtistNames, ", "),
+		media.TagTrackGenre:  genreTag,
 	}
 
 	// Add explicit flag if set.
 	if item.Explicit {
-		tags[TagPodcastExplicit] = "true"
+		tags[media.TagPodcastExplicit] = "true"
 	}
 
 	return tags

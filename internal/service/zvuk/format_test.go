@@ -14,6 +14,7 @@ import (
 	"github.com/oshokin/zvuk-grabber/internal/config"
 	"github.com/oshokin/zvuk-grabber/internal/files"
 	"github.com/oshokin/zvuk-grabber/internal/logger"
+	"github.com/oshokin/zvuk-grabber/internal/media"
 )
 
 // TestDownloadTracks_AllFormatsWithCoverEmbedding tests that FLAC, MP3, and fallback formats work correctly.
@@ -22,35 +23,35 @@ func TestDownloadTracks_AllFormatsWithCoverEmbedding(t *testing.T) {
 
 	testCases := []struct {
 		name              string
-		quality           TrackQuality
+		quality           media.Quality
 		expectedExtension string
 		highestQuality    string
 		streamURL         string
 	}{
 		{
 			name:              "FLAC format",
-			quality:           TrackQualityFLAC,
+			quality:           media.QualityFLAC,
 			expectedExtension: files.ExtensionFLAC,
 			highestQuality:    "flac",
 			streamURL:         "/streamfl?id=1001",
 		},
 		{
 			name:              "MP3 High format",
-			quality:           TrackQualityMP3High,
+			quality:           media.QualityMP3High,
 			expectedExtension: files.ExtensionMP3,
-			highestQuality:    TrackQualityMP3HighString,
+			highestQuality:    media.QualityMP3HighString,
 			streamURL:         "/streamhq?id=1001",
 		},
 		{
 			name:              "MP3 Mid format",
-			quality:           TrackQualityMP3Mid,
+			quality:           media.QualityMP3Mid,
 			expectedExtension: files.ExtensionMP3,
-			highestQuality:    TrackQualityMP3MidString,
+			highestQuality:    media.QualityMP3MidString,
 			streamURL:         "/stream?id=1001",
 		},
 		{
 			name:              "Unknown format (fallback to .bin)",
-			quality:           TrackQualityUnknown,
+			quality:           media.QualityUnknown,
 			expectedExtension: files.ExtensionBin,
 			highestQuality:    "",
 			streamURL:         "/unknown-stream/1001",
@@ -99,7 +100,7 @@ func TestDownloadTracks_AllFormatsWithCoverEmbedding(t *testing.T) {
 					ReleaseID:      releaseID,
 					Position:       1,
 					HighestQuality: tc.highestQuality,
-					HasFLAC:        tc.quality == TrackQualityFLAC,
+					HasFLAC:        tc.quality == media.QualityFLAC,
 				},
 			}
 			albumsMetadata := map[string]*zvuk.Release{
@@ -136,13 +137,13 @@ func TestDownloadTracks_AllFormatsWithCoverEmbedding(t *testing.T) {
 			var audioData []byte
 
 			switch tc.quality {
-			case TrackQualityFLAC:
+			case media.QualityFLAC:
 				// Simulate FLAC file (~37 MB like the real Tipping Point track).
 				audioData = make([]byte, 37*1024*1024)
-			case TrackQualityMP3High:
+			case media.QualityMP3High:
 				// Simulate MP3 320 Kbps file.
 				audioData = make([]byte, 10*1024*1024)
-			case TrackQualityMP3Mid:
+			case media.QualityMP3Mid:
 				// Simulate MP3 128 Kbps file.
 				audioData = make([]byte, 4*1024*1024)
 			default:

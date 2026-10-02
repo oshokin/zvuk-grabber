@@ -66,6 +66,8 @@ type ClientImpl struct {
 	baseURL string
 	// httpClient is the HTTP client for making requests.
 	httpClient *http.Client
+	// downloadClient is used only for audio bodies.
+	downloadClient *http.Client
 	// graphQLClient is the GraphQL client for making queries.
 	graphQLClient *graphql.Client
 	// labelsCache caches label metadata to reduce duplicate API calls for the same labels.
@@ -159,6 +161,26 @@ func NewClient(cfg *config.Config) (Client, error) {
 		Timeout: http_transport.DefaultTimeout,
 	}
 
+	if cfg.ZvukDownloadHTTP == nil {
+		cfg.ZvukDownloadHTTP = new(config.DownloadHTTPConfig)
+	}
+
+	if err = cfg.ZvukDownloadHTTP.Validate(); err != nil {
+		return nil, err
+	}
+
+	downloadClient := &http.Client{
+		Transport: http_transport.NewUserAgentInjector(
+			http_transport.NewLogTransport(
+				newDownloadTransport(cfg.ZvukDownloadHTTP, cfg.ParsedDownloadSpeedLimit > 0),
+				0,
+			),
+			utils.NewSimpleUserAgentProvider(http_transport.DefaultUserAgent),
+		),
+		Jar:     cookies,
+		Timeout: cfg.ZvukDownloadHTTP.Timeout,
+	}
+
 	// Initialize the GraphQL client.
 	graphQLURL := baseURL.JoinPath(zvukAPIGraphQLURI)
 	graphqlClient := graphql.NewClient(graphQLURL.String(), graphql.WithHTTPClient(httpClient))
@@ -178,6 +200,7 @@ func NewClient(cfg *config.Config) (Client, error) {
 		cfg:                       cfg,
 		baseURL:                   baseURL.String(),
 		httpClient:                httpClient,
+		downloadClient:            downloadClient,
 		graphQLClient:             graphqlClient,
 		labelsCache:               caches.labels,
 		albumsCache:               caches.albums,
@@ -397,7 +420,7 @@ func fetchGraphQLCollections[T any](
 
 // DownloadFromURL downloads content from the specified URL.
 func (c *ClientImpl) DownloadFromURL(ctx context.Context, url string) (io.ReadCloser, error) {
-	body, _, err := c.openDownloadResponse(ctx, url, nil, http.StatusOK)
+	body, _, err := c.openDownloadResponse(ctx, c.httpClient, url, nil, http.StatusOK)
 	if err != nil {
 		return nil, err
 	}
@@ -407,9 +430,16 @@ func (c *ClientImpl) DownloadFromURL(ctx context.Context, url string) (io.ReadCl
 
 // FetchTrack fetches track data from the specified URL.
 func (c *ClientImpl) FetchTrack(ctx context.Context, trackURL string) (*FetchTrackResult, error) {
-	body, totalBytes, err := c.openDownloadResponse(ctx, trackURL, func(request *http.Request) {
-		request.Header.Add("Range", "bytes=0-")
-	}, http.StatusOK, http.StatusPartialContent)
+	// Supports injected clients.
+	downloadClient := c.downloadClient
+	if downloadClient == nil {
+		downloadClient = c.httpClient
+	}
+
+	body, totalBytes, err := c.openDownloadResponse(ctx, downloadClient, trackURL,
+		func(request *http.Request) {
+			request.Header.Add("Range", "bytes=0-")
+		}, http.StatusOK, http.StatusPartialContent)
 	if err != nil {
 		return nil, err
 	}
@@ -673,6 +703,7 @@ func (c *ClientImpl) hydratePlaylistTrackIDs(ctx context.Context, playlists map[
 // openDownloadResponse creates a GET request and validates the response status.
 func (c *ClientImpl) openDownloadResponse(
 	ctx context.Context,
+	client *http.Client,
 	url string,
 	configure func(*http.Request),
 	allowedStatuses ...int,
@@ -686,7 +717,7 @@ func (c *ClientImpl) openDownloadResponse(
 		configure(request)
 	}
 
-	response, err := c.httpClient.Do(request)
+	response, err := client.Do(request)
 	if err != nil {
 		return nil, 0, err
 	}

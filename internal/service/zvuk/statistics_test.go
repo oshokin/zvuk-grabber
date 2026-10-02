@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/oshokin/zvuk-grabber/internal/config"
+	"github.com/oshokin/zvuk-grabber/internal/service/stats"
 )
 
 // TestDownloadStatistics_InitialState verifies download statistics start at zero.
@@ -243,7 +244,7 @@ func TestFormatDuration(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tc.expected, formatDuration(tc.duration))
+			assert.Equal(t, tc.expected, stats.FormatDuration(tc.duration))
 		})
 	}
 }

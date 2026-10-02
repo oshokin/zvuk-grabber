@@ -1,5 +1,7 @@
 package media
 
+import "strings"
+
 // Quality represents audio quality used by providers and writers.
 type Quality uint8
 
@@ -67,7 +69,7 @@ func (q Quality) Extension() string {
 
 // ParseQuality parses quality string identifiers.
 func ParseQuality(value string) Quality {
-	switch value {
+	switch strings.ToLower(strings.TrimSpace(value)) {
 	case QualityMP3MidString, "med":
 		return QualityMP3Mid
 	case QualityMP3HighString:

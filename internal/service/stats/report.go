@@ -1,6 +1,9 @@
 package stats
 
-import "time"
+import (
+	"errors"
+	"time"
+)
 
 // TrackCounters contains audio-track counters collected during one download session.
 type TrackCounters struct {
@@ -114,6 +117,9 @@ type Report struct {
 	DryRunSuggestion string
 }
 
+// ErrDownloadsFailed signals a completed batch with recorded failures.
+var ErrDownloadsFailed = errors.New("downloads failed")
+
 // NewReport combines provider config and session counters into a printable report.
 func NewReport(cfg *ReportConfig, snapshot *ReportSnapshot) *Report {
 	return &Report{
@@ -129,23 +135,6 @@ func NewReport(cfg *ReportConfig, snapshot *ReportSnapshot) *Report {
 		RetryCommandBase: cfg.RetryCommandBase,
 		DryRunSuggestion: cfg.DryRunSuggestion,
 	}
-}
-
-// compactAssets drops nil asset entries while preserving provider-defined order.
-func compactAssets(assets []*AssetCounters) []*AssetCounters {
-	if len(assets) == 0 {
-		return nil
-	}
-
-	result := make([]*AssetCounters, 0, len(assets))
-	for _, asset := range assets {
-		if asset != nil {
-			clone := *asset
-			result = append(result, &clone)
-		}
-	}
-
-	return result
 }
 
 // HasDetails reports whether the error can be rendered as a structured item.
@@ -184,4 +173,34 @@ func (r *Report) Duration() (time.Duration, bool) {
 	d := r.EndTime.Sub(r.StartTime)
 
 	return d, d > 100*time.Millisecond
+}
+
+// clone returns a detached copy of the asset counters.
+func (a *AssetCounters) clone() *AssetCounters {
+	if a == nil {
+		return nil
+	}
+
+	return &AssetCounters{
+		Title:            a.Title,
+		Downloaded:       a.Downloaded,
+		Skipped:          a.Skipped,
+		LeadingBlankLine: a.LeadingBlankLine,
+	}
+}
+
+// compactAssets drops nil asset entries while preserving provider-defined order.
+func compactAssets(assets []*AssetCounters) []*AssetCounters {
+	if len(assets) == 0 {
+		return nil
+	}
+
+	result := make([]*AssetCounters, 0, len(assets))
+	for _, asset := range assets {
+		if cloned := asset.clone(); cloned != nil {
+			result = append(result, cloned)
+		}
+	}
+
+	return result
 }

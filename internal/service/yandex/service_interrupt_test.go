@@ -32,7 +32,7 @@ func TestDownloadURLs_StopsBeforeResolveWhenInterrupted(t *testing.T) {
 		client: client,
 	}
 
-	service.DownloadURLs(ctx, []string{"https://music.yandex.ru/album/1"})
+	require.ErrorIs(t, service.DownloadURLs(ctx, []string{"https://music.yandex.ru/album/1"}), context.Canceled)
 
 	snapshot := service.statsSnapshot()
 	require.NotNil(t, snapshot)
@@ -60,10 +60,10 @@ func TestDownloadURLs_StopsAndSkipsResolveErrorAfterInterrupt(t *testing.T) {
 		client: client,
 	}
 
-	service.DownloadURLs(ctx, []string{
+	require.ErrorIs(t, service.DownloadURLs(ctx, []string{
 		"https://music.yandex.ru/album/1",
 		"https://music.yandex.ru/album/2",
-	})
+	}), context.Canceled)
 
 	snapshot := service.statsSnapshot()
 	require.NotNil(t, snapshot)

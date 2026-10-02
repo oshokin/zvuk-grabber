@@ -49,7 +49,7 @@ type musicClient interface {
 // Service downloads Yandex Music URLs using shared template and tag components.
 type Service interface {
 	// DownloadURLs resolves and downloads tracks from the given Yandex Music URLs.
-	DownloadURLs(ctx context.Context, urls []string)
+	DownloadURLs(ctx context.Context, urls []string) error
 	// PrintDownloadSummary logs aggregated download statistics for the session.
 	PrintDownloadSummary(ctx context.Context)
 }
@@ -205,7 +205,23 @@ func NewService(
 }
 
 // DownloadURLs resolves each URL into track jobs and downloads them sequentially or concurrently.
-func (s *ServiceImpl) DownloadURLs(ctx context.Context, urls []string) {
+func (s *ServiceImpl) DownloadURLs(ctx context.Context, urls []string) (result error) {
+	defer func() {
+		snapshot := s.statsSnapshot()
+		if result == nil && (snapshot.Tracks.Failed > 0 || len(snapshot.Errors) > 0) {
+			result = fmt.Errorf(
+				"%w (Yandex): %d failed tracks, %d recorded errors",
+				stats.ErrDownloadsFailed,
+				snapshot.Tracks.Failed,
+				len(snapshot.Errors),
+			)
+		}
+
+		if ctx.Err() != nil {
+			result = ctx.Err()
+		}
+	}()
+
 	s.statsMu.Lock()
 	s.sessionStats = stats.NewSession(time.Now(), s.cfg.DryRun)
 	s.statsMu.Unlock()
@@ -218,7 +234,7 @@ func (s *ServiceImpl) DownloadURLs(ctx context.Context, urls []string) {
 	if !s.cfg.DryRun {
 		if err := os.MkdirAll(outputPath, files.DefaultFolderPermissions); err != nil {
 			logger.Errorf(ctx, "Failed to create output path: %v", err)
-			return
+			return err
 		}
 	} else {
 		logger.Infof(ctx, "[DRY-RUN] Would create output directory: %s", outputPath)
@@ -268,6 +284,8 @@ func (s *ServiceImpl) DownloadURLs(ctx context.Context, urls []string) {
 	if interrupted {
 		logger.Debugf(ctx, "Yandex download loop interrupted: %v", ctx.Err())
 	}
+
+	return nil
 }
 
 // outputPath returns the effective output folder for Yandex Music downloads.

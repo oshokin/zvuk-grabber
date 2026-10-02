@@ -17,6 +17,7 @@ import (
 	"github.com/oshokin/zvuk-grabber/internal/client/zvuk"
 	"github.com/oshokin/zvuk-grabber/internal/files"
 	"github.com/oshokin/zvuk-grabber/internal/logger"
+	"github.com/oshokin/zvuk-grabber/internal/media"
 	"github.com/oshokin/zvuk-grabber/internal/utils"
 )
 
@@ -66,7 +67,7 @@ type downloadTrackTask struct {
 	// trackPath is the full output path for the downloaded track.
 	trackPath string
 	// quality is the resolved audio quality for this download.
-	quality TrackQuality
+	quality media.Quality
 	// streamURL is the remote URL to download the track audio from.
 	streamURL string
 	// albumTags contains album-level metadata tags for the track.
@@ -641,7 +642,7 @@ func (s *ServiceImpl) writeTrackMetadata(
 		}
 	}
 
-	writeTagsRequest := &WriteTagsRequest{
+	writeTagsRequest := &media.WriteTagsRequest{
 		TrackPath:  tempPath,
 		CoverPath:  coverPath,
 		Quality:    t.quality,
@@ -734,6 +735,8 @@ func (s *ServiceImpl) skipExistingTrack(ctx context.Context, trackPath string) b
 }
 
 // downloadAndSaveTrack downloads and saves a track to a file.
+//
+//nolint:funlen // Keep ownership and cleanup of the two temporary files in one scope.
 func (s *ServiceImpl) downloadAndSaveTrack(
 	ctx context.Context,
 	trackURL string,
@@ -818,6 +821,21 @@ func (s *ServiceImpl) downloadAndSaveTrack(
 		}
 
 		return nil, fmt.Errorf("failed to write file: %w", err)
+	}
+
+	normalized, err := normalizeDownloadedFLAC(ctx, f, trackPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if normalized != "" {
+		// The defer removes the original MP4; the caller owns the new FLAC temp.
+		logger.Infof(ctx, "Remuxed FLAC from MP4 container")
+		return &DownloadTrackResult{TempPath: normalized, BytesDownloaded: bytesWritten}, nil
+	}
+
+	if err = f.Close(); err != nil {
+		return nil, fmt.Errorf("close downloaded track: %w", err)
 	}
 
 	// Mark download as successful to prevent cleanup by defer.

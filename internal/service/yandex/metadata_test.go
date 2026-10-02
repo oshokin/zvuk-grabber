@@ -9,20 +9,21 @@ import (
 	"github.com/oshokin/zvuk-grabber/internal/client/yandex/model"
 	"github.com/oshokin/zvuk-grabber/internal/config"
 	"github.com/oshokin/zvuk-grabber/internal/media"
+	"github.com/oshokin/zvuk-grabber/internal/utils"
 )
 
 func TestCollapseNameSeparators(t *testing.T) {
 	t.Parallel()
 
-	assert.Equal(t, "Author - Title", collapseNameSeparators("0000 - Author - Title"))
-	assert.Equal(t, "Author - Title", collapseNameSeparators(" - Author - Title"))
-	assert.Equal(t, "Совсем другое дело", collapseNameSeparators("Совсем другое дело - Совсем другое дело"))
-	assert.Equal(t, "01 - Title", collapseNameSeparators("01 - Title"))
-	assert.Equal(t, "Title", collapseNameSeparators("0000 - Title"))
+	assert.Equal(t, "Author - Title", utils.CollapseTemplateName("0000 - Author - Title"))
+	assert.Equal(t, "Author - Title", utils.CollapseTemplateName(" - Author - Title"))
+	assert.Equal(t, "Совсем другое дело", utils.CollapseTemplateName("Совсем другое дело - Совсем другое дело"))
+	assert.Equal(t, "01 - Title", utils.CollapseTemplateName("01 - Title"))
+	assert.Equal(t, "Title", utils.CollapseTemplateName("0000 - Title"))
 	assert.Equal(
 		t,
 		"Татьяна Столяр. «Я есть жир»",
-		collapseNameSeparators("Татьяна Столяр - Татьяна Столяр. «Я есть жир»"),
+		utils.CollapseTemplateName("Татьяна Столяр - Татьяна Столяр. «Я есть жир»"),
 	)
 }
 

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/oshokin/zvuk-grabber/internal/client/zvuk"
+	"github.com/oshokin/zvuk-grabber/internal/media"
 )
 
 // trackTagContext contains data required to build track tags for:
@@ -45,11 +46,11 @@ func fillCommonTrackTags(tags map[string]string, trackNumber int64, track *zvuk.
 	trackNumberValue := strconv.FormatInt(trackNumber, 10)
 	trackNumberPad := fmt.Sprintf("%0*d", trackNumberPaddingWidth, trackNumber)
 
-	tags[TagTrackArtist] = strings.Join(track.ArtistNames, ", ")
-	tags[TagTrackID] = strconv.FormatInt(track.ID, 10)
-	tags[TagTrackNumber] = trackNumberValue
-	tags[TagTrackNumberPad] = trackNumberPad
-	tags[TagTrackTitle] = track.Title
+	tags[media.TagTrackArtist] = strings.Join(track.ArtistNames, ", ")
+	tags[media.TagTrackID] = strconv.FormatInt(track.ID, 10)
+	tags[media.TagTrackNumber] = trackNumberValue
+	tags[media.TagTrackNumberPad] = trackNumberPad
+	tags[media.TagTrackTitle] = track.Title
 
 	return trackNumberValue, trackNumberPad
 }
@@ -60,9 +61,9 @@ func buildAudiobookTrackTags(ctx *trackTagContext) map[string]string {
 	collection := ctx.audioCollection
 	result := maps.Clone(collection.tags)
 
-	result[TagCollectionTitle] = collection.title
+	result[media.TagCollectionTitle] = collection.title
 	fillCommonTrackTags(result, ctx.trackNumber, track)
-	result[TagTrackCount] = strconv.FormatInt(collection.tracksCount, 10)
+	result[media.TagTrackCount] = strconv.FormatInt(collection.tracksCount, 10)
 
 	return result
 }
@@ -74,25 +75,25 @@ func buildPodcastTrackTags(ctx *trackTagContext) map[string]string {
 	result := make(map[string]string, len(collection.tags)+16)
 	maps.Copy(result, collection.tags)
 
-	setIfNotBlank(result, TagCollectionTitle, collection.title)
+	setIfNotBlank(result, media.TagCollectionTitle, collection.title)
 
 	if collection.tracksCount > 0 {
-		result[TagTrackCount] = strconv.FormatInt(collection.tracksCount, 10)
+		result[media.TagTrackCount] = strconv.FormatInt(collection.tracksCount, 10)
 	}
 
-	setIfNotBlank(result, TagTrackGenre, strings.Join(track.Genres, ", "))
+	setIfNotBlank(result, media.TagTrackGenre, strings.Join(track.Genres, ", "))
 
 	publicationDate := parseEpisodePublicationDate(track.Credits)
 	trackNumber, trackNumberPad := fillCommonTrackTags(result, ctx.trackNumber, track)
 
-	result[TagEpisodeID] = result[TagTrackID]
-	result[TagEpisodeTitle] = result[TagTrackTitle]
-	result[TagEpisodeDuration] = strconv.FormatInt(track.Duration, 10)
-	result[TagEpisodeNumber] = trackNumber
-	result[TagEpisodeNumberPad] = trackNumberPad
-	setIfNotBlank(result, TagEpisodePublicationDate, publicationDate)
+	result[media.TagEpisodeID] = result[media.TagTrackID]
+	result[media.TagEpisodeTitle] = result[media.TagTrackTitle]
+	result[media.TagEpisodeDuration] = strconv.FormatInt(track.Duration, 10)
+	result[media.TagEpisodeNumber] = trackNumber
+	result[media.TagEpisodeNumberPad] = trackNumberPad
+	setIfNotBlank(result, media.TagEpisodePublicationDate, publicationDate)
 
-	result[TagTrackDuration] = strconv.FormatInt(track.Duration, 10)
+	result[media.TagTrackDuration] = strconv.FormatInt(track.Duration, 10)
 
 	return result
 }
@@ -105,10 +106,10 @@ func buildDefaultTrackTags(ctx *trackTagContext) map[string]string {
 	maps.Copy(result, ctx.albumTags)
 	maps.Copy(result, collection.tags)
 
-	result[TagCollectionTitle] = collection.title
-	setIfNotBlank(result, TagTrackGenre, strings.Join(track.Genres, ", "))
+	result[media.TagCollectionTitle] = collection.title
+	setIfNotBlank(result, media.TagTrackGenre, strings.Join(track.Genres, ", "))
 	fillCommonTrackTags(result, ctx.trackNumber, track)
-	result[TagTrackCount] = strconv.FormatInt(collection.tracksCount, 10)
+	result[media.TagTrackCount] = strconv.FormatInt(collection.tracksCount, 10)
 
 	return result
 }

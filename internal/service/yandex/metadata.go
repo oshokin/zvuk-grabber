@@ -366,11 +366,6 @@ func normalizeDateString(raw string) string {
 	return raw
 }
 
-// collapseNameSeparators drops empty, placeholder, duplicate, and prefix-overlapped template segments.
-func collapseNameSeparators(name string) string {
-	return utils.CollapseTemplateName(name)
-}
-
 // trackIndexFromAlbum returns the album track index or the provided fallback.
 func trackIndexFromAlbum(album *model.Album, fallback int) int {
 	if album != nil && album.TrackPosition.Index > 0 {

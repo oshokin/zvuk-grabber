@@ -3,21 +3,20 @@ package zvuk
 import (
 	"bytes"
 	"errors"
-	"fmt"
 	"io"
-	"sync"
 	"testing"
 	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"go.uber.org/zap/zapcore"
 
 	"github.com/oshokin/zvuk-grabber/internal/client/zvuk"
 	mock_zvuk_client "github.com/oshokin/zvuk-grabber/internal/client/zvuk/mocks"
 	"github.com/oshokin/zvuk-grabber/internal/config"
-	"github.com/oshokin/zvuk-grabber/internal/logger"
+	"github.com/oshokin/zvuk-grabber/internal/media"
 )
 
 // partialReadCloser is a fake ReadCloser for partial reads.
@@ -35,13 +34,8 @@ type slowReadCloser struct {
 	delay time.Duration
 }
 
-var (
-	// errUnauthorizedTest simulates an invalid-token error response from the API.
-	errUnauthorizedTest = errors.New("unauthorized: invalid token")
-
-	// fatalExitMu is a helper mutex so that parallel tests don't clobber each other.
-	fatalExitMu sync.Mutex
-)
+// errUnauthorizedTest simulates an invalid-token error response from the API.
+var errUnauthorizedTest = errors.New("unauthorized: invalid token")
 
 // TestNewService tests the NewService function.
 func TestNewService(t *testing.T) {
@@ -122,7 +116,7 @@ func TestServiceImpl_DownloadURLs(t *testing.T) {
 	urls := []string{"https://zvuk.com/track/123"}
 
 	// This should not panic.
-	service.DownloadURLs(ctx, urls)
+	require.NoError(t, service.DownloadURLs(ctx, urls))
 }
 
 // TestServiceImpl_DownloadURLs_EmptyURLs tests DownloadURLs with empty URLs.
@@ -163,7 +157,7 @@ func TestServiceImpl_DownloadURLs_EmptyURLs(t *testing.T) {
 	urls := []string{}
 
 	// This should not panic.
-	service.DownloadURLs(ctx, urls)
+	require.NoError(t, service.DownloadURLs(ctx, urls))
 }
 
 // TestServiceImpl_DownloadURLs_NilURLs tests DownloadURLs with nil URLs.
@@ -205,7 +199,7 @@ func TestServiceImpl_DownloadURLs_NilURLs(t *testing.T) {
 	var urls []string
 
 	// This should not panic.
-	service.DownloadURLs(ctx, urls)
+	require.NoError(t, service.DownloadURLs(ctx, urls))
 }
 
 // TestDownloadURLs_Integration_FullPipeline tests the full download pipeline with mocked client responses.
@@ -230,8 +224,8 @@ func TestDownloadURLs_Integration_FullPipeline(t *testing.T) {
 
 	mockClient := mock_zvuk_client.NewMockClient(ctrl)
 	mockURLProcessor := NewURLProcessor()
-	mockTemplateManager := NewTemplateManager(ctx, cfg)
-	mockTagProcessor := NewTagProcessor()
+	mockTemplateManager := media.NewTemplateManager(ctx, cfg)
+	mockTagProcessor := media.NewTagProcessor()
 
 	trackID := "1337"
 	albumID := "420"
@@ -298,7 +292,7 @@ func TestDownloadURLs_Integration_FullPipeline(t *testing.T) {
 	service := NewService(cfg, mockClient, mockURLProcessor, mockTemplateManager, mockTagProcessor)
 
 	// This should not panic and should complete successfully.
-	service.DownloadURLs(ctx, urls)
+	require.NoError(t, service.DownloadURLs(ctx, urls))
 }
 
 // TestDownloadURLs_InvalidToken verifies fatal handling triggered by invalid authentication tokens.
@@ -317,8 +311,8 @@ func TestDownloadURLs_InvalidToken(t *testing.T) {
 
 	mockClient := mock_zvuk_client.NewMockClient(ctrl)
 	mockURLProcessor := NewURLProcessor()
-	mockTemplateManager := NewTemplateManager(ctx, cfg)
-	mockTagProcessor := NewTagProcessor()
+	mockTemplateManager := media.NewTemplateManager(ctx, cfg)
+	mockTagProcessor := media.NewTagProcessor()
 
 	urls := []string{"https://zvuk.com/track/123"}
 
@@ -328,9 +322,7 @@ func TestDownloadURLs_InvalidToken(t *testing.T) {
 
 	t.Helper()
 
-	assertFatalExit(t, func() {
-		service.DownloadURLs(ctx, urls)
-	})
+	require.ErrorContains(t, service.DownloadURLs(ctx, urls), "failed to retrieve user profile")
 }
 
 // TestDownloadURLs_ExpiredSubscription ensures the service exits when subscription data is missing.
@@ -347,8 +339,8 @@ func TestDownloadURLs_ExpiredSubscription(t *testing.T) {
 
 	mockClient := mock_zvuk_client.NewMockClient(ctrl)
 	mockURLProcessor := NewURLProcessor()
-	mockTemplateManager := NewTemplateManager(t.Context(), cfg)
-	mockTagProcessor := NewTagProcessor()
+	mockTemplateManager := media.NewTemplateManager(t.Context(), cfg)
+	mockTagProcessor := media.NewTagProcessor()
 
 	urls := []string{"https://zvuk.com/track/123"}
 
@@ -358,9 +350,7 @@ func TestDownloadURLs_ExpiredSubscription(t *testing.T) {
 
 	service := NewService(cfg, mockClient, mockURLProcessor, mockTemplateManager, mockTagProcessor)
 
-	assertFatalExit(t, func() {
-		service.DownloadURLs(t.Context(), urls)
-	})
+	require.ErrorContains(t, service.DownloadURLs(t.Context(), urls), "active subscription")
 }
 
 // TestDownloadURLs_PartialDownload tests partial stream via mocked ReadCloser that fails midway.
@@ -381,8 +371,8 @@ func TestDownloadURLs_PartialDownload(t *testing.T) {
 
 	mockClient := mock_zvuk_client.NewMockClient(ctrl)
 	mockURLProcessor := NewURLProcessor()
-	mockTemplateManager := NewTemplateManager(t.Context(), cfg)
-	mockTagProcessor := NewTagProcessor()
+	mockTemplateManager := media.NewTemplateManager(t.Context(), cfg)
+	mockTagProcessor := media.NewTagProcessor()
 
 	trackID := "1487"
 	albumID := "228"
@@ -442,7 +432,7 @@ func TestDownloadURLs_PartialDownload(t *testing.T) {
 
 	ctx := t.Context()
 	// This should not panic, even though the download is incomplete.
-	service.DownloadURLs(ctx, urls)
+	require.Error(t, service.DownloadURLs(ctx, urls))
 }
 
 // TestDownloadURLs_NonASCIIFilename tests non-ASCII handling.
@@ -463,8 +453,8 @@ func TestDownloadURLs_NonASCIIFilename(t *testing.T) {
 
 	mockClient := mock_zvuk_client.NewMockClient(ctrl)
 	mockURLProcessor := NewURLProcessor()
-	mockTemplateManager := NewTemplateManager(t.Context(), cfg)
-	mockTagProcessor := NewTagProcessor()
+	mockTemplateManager := media.NewTemplateManager(t.Context(), cfg)
+	mockTagProcessor := media.NewTagProcessor()
 
 	trackID := "42"
 	albumID := "1984"
@@ -524,7 +514,7 @@ func TestDownloadURLs_NonASCIIFilename(t *testing.T) {
 
 	ctx := t.Context()
 	// This should not panic and should handle Cyrillic characters like a champ.
-	service.DownloadURLs(ctx, urls)
+	require.NoError(t, service.DownloadURLs(ctx, urls))
 }
 
 // TestDownloadURLs_SpeedLimiting tests speed limiting with a large mock stream.
@@ -547,8 +537,8 @@ func TestDownloadURLs_SpeedLimiting(t *testing.T) {
 
 		mockClient := mock_zvuk_client.NewMockClient(ctrl)
 		mockURLProcessor := NewURLProcessor()
-		mockTemplateManager := NewTemplateManager(t.Context(), cfg)
-		mockTagProcessor := NewTagProcessor()
+		mockTemplateManager := media.NewTemplateManager(t.Context(), cfg)
+		mockTagProcessor := media.NewTagProcessor()
 
 		trackID := "1488"
 		albumID := "2517"
@@ -615,7 +605,7 @@ func TestDownloadURLs_SpeedLimiting(t *testing.T) {
 		ctx := t.Context()
 		start := time.Now()
 
-		service.DownloadURLs(ctx, urls)
+		require.NoError(t, service.DownloadURLs(ctx, urls))
 
 		duration := time.Since(start)
 
@@ -623,19 +613,4 @@ func TestDownloadURLs_SpeedLimiting(t *testing.T) {
 		// Note: Actual timing may vary because mocks are fast, but the throttling logic should still execute.
 		assert.GreaterOrEqual(t, duration, 1*time.Second, "Download should show some evidence of throttling")
 	})
-}
-
-// assertFatalExit runs fn and asserts that the custom fatal handler would exit the process.
-func assertFatalExit(t *testing.T, fn func()) {
-	t.Helper()
-
-	fatalExitMu.Lock()
-	defer fatalExitMu.Unlock()
-
-	logger.SetFatalHandler(func(code int) {
-		panic(fmt.Sprintf("fatal-exit-%d", code))
-	})
-	defer logger.SetFatalHandler(nil)
-
-	assert.PanicsWithValue(t, "fatal-exit-1", fn)
 }

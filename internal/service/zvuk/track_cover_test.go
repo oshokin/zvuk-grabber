@@ -55,7 +55,7 @@ func TestWriteTrackMetadata_UsesEmbeddableCoverPath(t *testing.T) {
 
 	task := &downloadTrackTask{
 		trackIDString: "1",
-		quality:       TrackQualityMP3Mid,
+		quality:       media.QualityMP3Mid,
 		trackPath:     finalTrackPath,
 		audioCollection: &audioCollection{
 			embeddableCoverPath: embeddableCoverPath,
@@ -114,7 +114,7 @@ func TestWriteTrackMetadata_FallsBackToFinalCoverPath(t *testing.T) {
 
 	task := &downloadTrackTask{
 		trackIDString: "1",
-		quality:       TrackQualityMP3Mid,
+		quality:       media.QualityMP3Mid,
 		trackPath:     finalTrackPath,
 		audioCollection: &audioCollection{
 			embeddableCoverPath: embeddableCoverPath,

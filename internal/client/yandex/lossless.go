@@ -99,10 +99,6 @@ var (
 	ErrNoFLACDownloadInfo = errors.New("no flac download info available")
 	// ErrNoDownloadURLs is returned when download info contains no URLs.
 	ErrNoDownloadURLs = errors.New("no lossless download urls available")
-	// errLosslessNotFLAC is returned when decrypted lossless bytes are not FLAC.
-	errLosslessNotFLAC = errors.New("lossless response is not a FLAC stream")
-	// errFLACMP4MissingBoxes is returned when flac-mp4 lacks dfLa or mdat.
-	errFLACMP4MissingBoxes = errors.New("flac-mp4 payload is missing dfLa or mdat")
 )
 
 // BuildFileInfoURL builds a signed get-file-info endpoint URL for a track.
@@ -186,9 +182,13 @@ func DecryptData(data []byte, key string) ([]byte, error) {
 		return nil, fmt.Errorf("failed to initialize lossless decryptor: %w", err)
 	}
 
-	iv := make([]byte, aes.BlockSize)
-	stream := cipher.NewCTR(block, iv)
-	decrypted := make([]byte, len(data))
+	// Yandex encraw is AES-CTR with an all-zero IV; the web player uses the same nonce.
+	var (
+		iv        [aes.BlockSize]byte
+		stream    = cipher.NewCTR(block, iv[:])
+		decrypted = make([]byte, len(data))
+	)
+
 	stream.XORKeyStream(decrypted, data)
 
 	return decrypted, nil
@@ -293,9 +293,8 @@ func (d *losslessDownloader) getDownloadInfo(
 		return nil, err
 	}
 
-	if !isSupportedLosslessCodec(info.Codec) {
-		codec := media.ParseCodec(info.Codec)
-
+	codec := media.ParseCodec(info.Codec)
+	if !codec.IsFLACFamily() {
 		return nil, fmt.Errorf(
 			"%w: expected FLAC lossless, got %s",
 			ErrNoFLACDownloadInfo,
@@ -337,11 +336,6 @@ func buildFileInfoHeaders(userUID int) map[string]string {
 	}
 
 	return headers
-}
-
-// isSupportedLosslessCodec reports whether the codec is in the FLAC family.
-func isSupportedLosslessCodec(codec string) bool {
-	return media.ParseCodec(codec).IsFLACFamily()
 }
 
 // losslessTransports returns file-info transports in preference order.

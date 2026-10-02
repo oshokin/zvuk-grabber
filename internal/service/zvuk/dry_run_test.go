@@ -15,6 +15,7 @@ import (
 	mock_zvuk_client "github.com/oshokin/zvuk-grabber/internal/client/zvuk/mocks"
 	"github.com/oshokin/zvuk-grabber/internal/config"
 	"github.com/oshokin/zvuk-grabber/internal/logger"
+	"github.com/oshokin/zvuk-grabber/internal/media"
 )
 
 // TestDownloadTracks_DryRunMode tests that dry-run mode previews without downloading files.
@@ -81,7 +82,7 @@ func TestDownloadTracks_DryRunMode(t *testing.T) {
 	streamMetadata := &zvuk.StreamMetadata{Stream: "/streamfl?id=" + trackIDString}
 
 	mockClient.EXPECT().
-		GetStreamMetadata(gomock.Any(), trackIDString, TrackQualityFLACString).
+		GetStreamMetadata(gomock.Any(), trackIDString, media.QualityFLACString).
 		Return(streamMetadata, nil)
 
 	// Create fake audio data.
@@ -228,7 +229,7 @@ func TestDownloadTracks_DryRunSkipsExistingFiles(t *testing.T) {
 	streamMetadata := &zvuk.StreamMetadata{Stream: "/streamfl?id=" + trackIDString}
 
 	mockClient.EXPECT().
-		GetStreamMetadata(gomock.Any(), trackIDString, TrackQualityFLACString).
+		GetStreamMetadata(gomock.Any(), trackIDString, media.QualityFLACString).
 		Return(streamMetadata, nil)
 
 	audioData := []byte("test audio data")
@@ -263,7 +264,7 @@ func TestDownloadTracks_DryRunSkipsExistingFiles(t *testing.T) {
 
 	// Now run dry-run mode with the file already existing.
 	mockClient.EXPECT().
-		GetStreamMetadata(gomock.Any(), trackIDString, TrackQualityFLACString).
+		GetStreamMetadata(gomock.Any(), trackIDString, media.QualityFLACString).
 		Return(streamMetadata, nil)
 
 	impl, ok := service.(*ServiceImpl)

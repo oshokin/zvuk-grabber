@@ -161,21 +161,20 @@ func (s *Session) Clone() *Session {
 		return nil
 	}
 
-	clone := *s
-	clone.Errors = append([]*Error(nil), s.Errors...)
-	clone.Assets = make(map[AssetKey]*AssetCounters, len(s.Assets))
-
+	cloned := make(map[AssetKey]*AssetCounters, len(s.Assets))
 	for key, asset := range s.Assets {
-		if asset == nil {
-			clone.Assets[key] = nil
-			continue
-		}
-
-		assetCopy := *asset
-		clone.Assets[key] = &assetCopy
+		cloned[key] = asset.clone()
 	}
 
-	return &clone
+	return &Session{
+		StartTime:       s.StartTime,
+		EndTime:         s.EndTime,
+		IsDryRun:        s.IsDryRun,
+		Tracks:          s.Tracks,
+		BytesDownloaded: s.BytesDownloaded,
+		Assets:          cloned,
+		Errors:          append([]*Error(nil), s.Errors...),
+	}
 }
 
 // HasWork reports whether the session contains anything useful to print.
@@ -195,11 +194,10 @@ func (s *Session) Report(cfg *ReportConfig) *Report {
 
 	assets := make([]*AssetCounters, 0, len(cfg.Assets))
 	for _, spec := range cfg.Assets {
-		counter := s.asset(spec.Key)
-		counterCopy := *counter
+		counterCopy := s.asset(spec.Key).clone()
 		counterCopy.Title = spec.Title
 		counterCopy.LeadingBlankLine = spec.LeadingBlankLine
-		assets = append(assets, &counterCopy)
+		assets = append(assets, counterCopy)
 	}
 
 	return NewReport(cfg, &ReportSnapshot{

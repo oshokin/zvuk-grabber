@@ -3,10 +3,7 @@ package zvuk
 import (
 	"fmt"
 	"os"
-	"strings"
 	"time"
-
-	"github.com/oshokin/zvuk-grabber/internal/media"
 )
 
 // DownloadCategory represents the type of content being downloaded.
@@ -106,9 +103,6 @@ type DownloadTrackResult struct {
 	BytesDownloaded int64
 }
 
-// TrackQuality represents the audio quality level.
-type TrackQuality = media.Quality
-
 // audioCollection represents a collection of audio tracks with associated metadata.
 type audioCollection struct {
 	// category indicates the type of collection (album, playlist, etc.).
@@ -197,28 +191,6 @@ const (
 	SkipReasonDuration
 )
 
-// Enum values for TrackQuality.
-const (
-	// TrackQualityUnknown represents an unknown or unspecified audio quality.
-	TrackQualityUnknown = media.QualityUnknown
-	// TrackQualityMP3Mid represents MP3 format at 128 Kbps.
-	TrackQualityMP3Mid = media.QualityMP3Mid
-	// TrackQualityMP3High represents MP3 format at 320 Kbps.
-	TrackQualityMP3High = media.QualityMP3High
-	// TrackQualityFLAC represents FLAC lossless format.
-	TrackQualityFLAC = media.QualityFLAC
-)
-
-// Constants for repeated string literals.
-const (
-	// TrackQualityMP3MidString is the string representation for mid quality.
-	TrackQualityMP3MidString = media.QualityMP3MidString
-	// TrackQualityMP3HighString is the string representation for high quality.
-	TrackQualityMP3HighString = media.QualityMP3HighString
-	// TrackQualityFLACString is the string representation for FLAC quality.
-	TrackQualityFLACString = media.QualityFLACString
-)
-
 // downloadCategoryNames maps DownloadCategory values to display strings.
 var downloadCategoryNames = [...]struct {
 	// lower is the lowercase category name used in paths and logs.
@@ -302,9 +274,4 @@ func (di *DownloadItem) GetShortVersion() ShortDownloadItem {
 		Category: di.Category,
 		ItemID:   di.ItemID,
 	}
-}
-
-// ParseQuality converts a string to a Quality enum.
-func ParseQuality(s string) TrackQuality {
-	return media.ParseQuality(strings.ToLower(strings.TrimSpace(s)))
 }

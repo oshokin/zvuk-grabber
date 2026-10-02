@@ -43,16 +43,16 @@ Supported examples:
 - Yandex Music tracks, albums, legacy playlists and UUID playlists
 
 The application provides flexible naming templates, quality selection, and download speed limits.`,
-		Args:             cobra.MinimumNArgs(1),
-		PersistentPreRun: initConfig,
-		Run: func(cmd *cobra.Command, urls []string) {
+		Args:              cobra.MinimumNArgs(1),
+		PersistentPreRunE: initConfig,
+		RunE: func(cmd *cobra.Command, urls []string) error {
 			// If ZVUK_GRABBER_DUMP_CONFIG is set, dump config as JSON and exit (for E2E tests).
 			if os.Getenv("ZVUK_GRABBER_DUMP_CONFIG") == "1" {
 				dumpConfig(appConfig)
-				return
+				return nil
 			}
 
-			app.ExecuteRootCommand(cmd.Context(), appConfig, urls)
+			return app.ExecuteRootCommand(cmd.Context(), appConfig, urls)
 		},
 	}
 )
@@ -103,7 +103,7 @@ func init() {
 		"speed-limit",
 		"s",
 		"",
-		"set download speed limit, for example: 500 kbps, 1 mbps, 1.5 mbps.")
+		"set per-track download limit in bytes/second, for example: 115 KiB, 500 KB, 1 MB.")
 
 	rootCmdFlags.BoolP(
 		"dry-run",
@@ -113,51 +113,37 @@ func init() {
 }
 
 // Execute executes the root command.
-func Execute() {
+func Execute() error {
 	signals := []os.Signal{syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM}
+
 	ctx, stop := signal.NotifyContext(context.Background(), signals...)
-
-	defer func() {
-		_ = logger.Logger().Sync() //nolint:errcheck // No need to check the error here, application will exit anyway.
-	}()
-
 	defer stop()
+	//nolint:errcheck // Console streams can reject fsync at shutdown.
+	defer func() { _ = logger.Logger().Sync() }()
 
-	// We need to wait for the goroutine to finish so defers can run!
-	done := make(chan struct{})
+	rootCmd.SilenceUsage = true
+	rootCmd.SilenceErrors = true
 
-	go func() {
-		defer stop()
-
-		// Signal that ALL defers in this goroutine have finished.
-		defer close(done)
-
-		err := rootCmd.ExecuteContext(ctx)
-		cobra.CheckErr(err)
-	}()
-
-	// Wait for CTRL+C or signal.
-	<-ctx.Done()
-
-	// Wait for goroutine to finish (including ALL defers!).
-	<-done
+	return rootCmd.ExecuteContext(ctx)
 }
 
 // initConfig loads configuration from file and binds CLI flags to it.
-func initConfig(cmd *cobra.Command, _ []string) {
+func initConfig(cmd *cobra.Command, _ []string) error {
 	var err error
 
 	appConfig, err = config.LoadConfig(configFilenameFromFlag)
 	if err != nil {
-		logger.Fatalf(cmd.Context(), "Failed to load configuration: %v", err)
+		return fmt.Errorf("failed to load configuration: %w", err)
 	}
 
 	// Bind flags to config before validation.
 	if err = bindFlagsToConfig(cmd.Flags(), appConfig); err != nil {
-		logger.Fatalf(cmd.Context(), "Failed to parse flags: %v", err)
+		return fmt.Errorf("failed to parse flags: %w", err)
 	}
 
 	logger.SetLevel(appConfig.ParsedLogLevel)
+
+	return nil
 }
 
 // bindFlagsToConfig applies changed CLI flags to cfg and validates the configuration.

@@ -10,6 +10,7 @@ import (
 
 	"github.com/oshokin/zvuk-grabber/internal/client/zvuk"
 	"github.com/oshokin/zvuk-grabber/internal/logger"
+	"github.com/oshokin/zvuk-grabber/internal/media"
 )
 
 // BaseCollectionHandler provides default implementations for common collection logic.
@@ -17,7 +18,7 @@ type BaseCollectionHandler struct {
 	// Category is the category of the collection.
 	Category DownloadCategory
 	// TemplateManager is the template manager.
-	TemplateManager TemplateManager
+	TemplateManager media.TemplateManager
 	// SingleFolderHandling indicates if the collection should have a single folder.
 	SingleFolderHandling bool
 	// DescriptionSupport indicates if the collection should have description support.
@@ -83,7 +84,7 @@ type collectionHandler[T any] interface {
 // newBaseCollectionHandler creates a BaseCollectionHandler with the given settings.
 func newBaseCollectionHandler(
 	category DownloadCategory,
-	templateManager TemplateManager,
+	templateManager media.TemplateManager,
 	singleFolderHandling bool,
 	descriptionSupport bool,
 ) BaseCollectionHandler {
@@ -112,7 +113,13 @@ func (b *BaseCollectionHandler) GetCategory() DownloadCategory {
 
 // deriveCollectionTitle picks the best display title from collection tags.
 func deriveCollectionTitle(tags map[string]string) string {
-	for _, key := range []string{TagCollectionTitle, TagAlbumTitle, TagPlaylistTitle, TagAudiobookTitle, TagPodcastTitle} {
+	for _, key := range []string{
+		media.TagCollectionTitle,
+		media.TagAlbumTitle,
+		media.TagPlaylistTitle,
+		media.TagAudiobookTitle,
+		media.TagPodcastTitle,
+	} {
 		if title := tags[key]; title != "" {
 			return title
 		}
@@ -155,9 +162,9 @@ func handleDescription(
 
 	switch in.Category {
 	case DownloadCategoryAudiobook:
-		in.Tags[TagAudiobookDescription] = string(content)
+		in.Tags[media.TagAudiobookDescription] = string(content)
 	case DownloadCategoryPodcast:
-		in.Tags[TagPodcastDescription] = string(content)
+		in.Tags[media.TagPodcastDescription] = string(content)
 	}
 
 	logger.Infof(ctx, "Updated %s tags with description from existing file", in.Category.String())
@@ -236,7 +243,7 @@ func (b *BaseCollectionHandler) FillTrackTagsForTemplating(
 	if audioCollection.category.IsChapterCollection() {
 		result = maps.Clone(audioCollection.tags)
 
-		result[TagTrackGenre] = strings.Join(track.Genres, ", ")
+		result[media.TagTrackGenre] = strings.Join(track.Genres, ", ")
 	} else {
 		result = make(map[string]string, len(collectionTags)+len(audioCollection.tags))
 		maps.Copy(result, collectionTags)
@@ -246,9 +253,9 @@ func (b *BaseCollectionHandler) FillTrackTagsForTemplating(
 	}
 
 	// Add track-specific fields.
-	result[TagCollectionTitle] = audioCollection.title
+	result[media.TagCollectionTitle] = audioCollection.title
 	fillCommonTrackTags(result, trackNumber, track)
-	result[TagTrackCount] = strconv.FormatInt(audioCollection.tracksCount, 10)
+	result[media.TagTrackCount] = strconv.FormatInt(audioCollection.tracksCount, 10)
 
 	return result
 }

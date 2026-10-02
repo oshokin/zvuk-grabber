@@ -52,12 +52,12 @@ func TestResponsePreview_OnlyTextContentTypes(t *testing.T) {
 	t.Parallel()
 
 	jsonBody := []byte(`{"access_token":"secret-token","name":"ok"}`)
-	preview := responsePreview("application/json", jsonBody)
+	preview := httptransport.ResponsePreview("application/json", jsonBody)
 	assert.Contains(t, preview, "access_token")
 	assert.Contains(t, preview, "***")
 	assert.NotContains(t, preview, "secret-token")
 
-	binaryPreview := responsePreview("application/octet-stream", []byte{0x01, 0x02, 0x03})
+	binaryPreview := httptransport.ResponsePreview("application/octet-stream", []byte{0x01, 0x02, 0x03})
 	assert.Empty(t, binaryPreview)
 }
 
@@ -66,7 +66,7 @@ func TestResponsePreview_TruncatesTo512Bytes(t *testing.T) {
 	t.Parallel()
 
 	longValue := strings.Repeat("a", 600)
-	preview := responsePreview("text/plain", []byte(longValue))
+	preview := httptransport.ResponsePreview("text/plain", []byte(longValue))
 	assert.LessOrEqual(t, len(preview), 530)
 	assert.Contains(t, preview, "...(truncated)")
 }

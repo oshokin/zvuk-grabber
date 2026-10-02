@@ -309,6 +309,28 @@ func TestE2E_FlagOverrides_InvalidValues(t *testing.T) {
 	}
 }
 
+// TestExitStatusForAutomation exercises the actual process boundary.
+func TestExitStatusForAutomation(t *testing.T) {
+	cfg := filepath.Join(t.TempDir(), "empty.yaml")
+	require.NoError(t, os.WriteFile(cfg, []byte("quality: 3\nlog_level: fatal\n"), 0o600))
+
+	for _, args := range [][]string{
+		{"--config", cfg, "https://zvuk.com/track/123"},
+		{"--config", cfg, "https://unsupported.example/track/123"},
+		{"--config", cfg, "--speed-limit", "invalid", "https://zvuk.com/track/123"},
+	} {
+		output, err := execTestBinary(args...).CombinedOutput()
+
+		var exit *exec.ExitError
+		require.ErrorAs(t, err, &exit, "%s", output)
+		require.Equal(t, 1, exit.ExitCode())
+	}
+
+	output, err := execTestBinary("version").CombinedOutput()
+	require.NoError(t, err, "%s", output)
+	require.Contains(t, string(output), "1.9.7")
+}
+
 // getTestBinaryName returns the test binary name with the correct extension for the platform.
 func getTestBinaryName() string {
 	if runtime.GOOS == "windows" {

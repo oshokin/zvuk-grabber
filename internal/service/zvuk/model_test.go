@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/oshokin/zvuk-grabber/internal/media"
 )
 
 // TestDownloadCategory tests the DownloadCategory enum and String method.
@@ -144,11 +146,11 @@ func TestWriteTagsRequest(t *testing.T) {
 		"album":  "Test Album",
 	}
 
-	request := &WriteTagsRequest{
+	request := &media.WriteTagsRequest{
 		TrackPath: "/path/to/file.mp3",
 		Tags:      tags,
 		CoverPath: "/path/to/cover.jpg",
-		Quality:   TrackQualityMP3Mid,
+		Quality:   media.QualityMP3Mid,
 	}
 
 	assert.Equal(t, "/path/to/file.mp3", request.TrackPath)
@@ -157,7 +159,7 @@ func TestWriteTagsRequest(t *testing.T) {
 	assert.Equal(t, "Test Artist", request.Tags["artist"])
 	assert.Equal(t, "Test Album", request.Tags["album"])
 	assert.Equal(t, "/path/to/cover.jpg", request.CoverPath)
-	assert.Equal(t, TrackQualityMP3Mid, request.Quality)
+	assert.Equal(t, media.QualityMP3Mid, request.Quality)
 }
 
 // TestAudioCollection tests the audioCollection structure.

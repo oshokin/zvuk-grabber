@@ -6,10 +6,18 @@ It initializes and executes the root command defined in the cmd package.
 */
 package main
 
-import "github.com/oshokin/zvuk-grabber/cmd"
+import (
+	"fmt"
+	"os"
+
+	"github.com/oshokin/zvuk-grabber/cmd"
+)
 
 // main is the entry point of the application.
 // It calls the Execute function from the cmd package, which starts the CLI.
 func main() {
-	cmd.Execute()
+	if err := cmd.Execute(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 }

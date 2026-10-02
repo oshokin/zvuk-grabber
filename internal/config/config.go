@@ -18,6 +18,8 @@ import (
 
 // Config holds all configuration settings.
 type Config struct {
+	// ZvukDownloadHTTP configures the dedicated audio download client.
+	ZvukDownloadHTTP *DownloadHTTPConfig `mapstructure:"zvuk_download_http"`
 	// ZvukAuthToken is the authentication token for Zvuk API access.
 	ZvukAuthToken string `mapstructure:"zvuk_auth_token"`
 	// YandexMusicToken is the OAuth token for Yandex Music API access.
@@ -226,6 +228,7 @@ var (
 // DefaultConfig returns a fully-populated config with safe defaults and empty tokens.
 func DefaultConfig() *Config {
 	return &Config{
+		ZvukDownloadHTTP:                 DefaultDownloadHTTPConfig(),
 		ZvukAuthToken:                    "",
 		YandexMusicToken:                 "",
 		Quality:                          DefaultQuality,
@@ -280,6 +283,10 @@ func LoadConfig(configFilename string) (*Config, error) {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
 
+	if cfg.ZvukDownloadHTTP == nil {
+		cfg.ZvukDownloadHTTP = DefaultDownloadHTTPConfig()
+	}
+
 	return &cfg, nil
 }
 
@@ -292,6 +299,14 @@ func ValidateConfig(cfg *Config) error {
 		parsedDownloadSpeedLimit uint64
 		err                      error
 	)
+
+	if cfg.ZvukDownloadHTTP == nil {
+		cfg.ZvukDownloadHTTP = DefaultDownloadHTTPConfig()
+	}
+
+	if err = cfg.ZvukDownloadHTTP.Validate(); err != nil {
+		return err
+	}
 
 	cfg.ZvukBaseURL = ZvukBaseURL
 	if strings.TrimSpace(cfg.OutputPath) == "" {
@@ -418,6 +433,8 @@ func SaveConfigFields(cfg *Config, fields map[string]string) error {
 // applyViperDefaults registers default configuration values with viper.
 func applyViperDefaults() {
 	defaults := DefaultConfig()
+	setDownloadHTTPDefaults(defaults.ZvukDownloadHTTP)
+
 	viper.SetDefault(configKeyZvukAuthToken, defaults.ZvukAuthToken)
 	viper.SetDefault(configKeyYandexMusicToken, defaults.YandexMusicToken)
 	viper.SetDefault("quality", defaults.Quality)
@@ -509,10 +526,14 @@ func handleMissingConfigFile(configFile string, cfg *Config, err error) error {
 }
 
 // renderConfigContent renders the default YAML configuration file contents.
+//
+//nolint:funlen // YAML dump lists every config field.
 func renderConfigContent(cfg *Config) []byte {
 	if cfg == nil {
 		cfg = DefaultConfig()
 	}
+
+	httpCfg := downloadHTTPConfigOrDefault(cfg)
 
 	return fmt.Appendf(nil, `zvuk_auth_token: %q
 yandex_music_token: %q
@@ -543,6 +564,14 @@ max_download_pause: %q
 min_retry_pause: %q
 max_retry_pause: %q
 max_concurrent_downloads: %d
+zvuk_download_http:
+  timeout: %q
+  dial_timeout: %q
+  tls_handshake_timeout: %q
+  response_header_timeout: %q
+  read_idle_timeout: %q
+  receive_buffer_bytes: %d
+  http1_only: %t
 `,
 		cfg.ZvukAuthToken,
 		cfg.YandexMusicToken,
@@ -573,7 +602,22 @@ max_concurrent_downloads: %d
 		cfg.MinRetryPause,
 		cfg.MaxRetryPause,
 		cfg.MaxConcurrentDownloads,
+		httpCfg.Timeout.String(),
+		httpCfg.DialTimeout.String(),
+		httpCfg.TLSHandshakeTimeout.String(),
+		httpCfg.ResponseHeaderTimeout.String(),
+		httpCfg.ReadIdleTimeout.String(),
+		httpCfg.ReceiveBufferBytes,
+		httpCfg.HTTP1Only,
 	)
+}
+
+func downloadHTTPConfigOrDefault(cfg *Config) *DownloadHTTPConfig {
+	if cfg == nil || cfg.ZvukDownloadHTTP == nil {
+		return DefaultDownloadHTTPConfig()
+	}
+
+	return cfg.ZvukDownloadHTTP
 }
 
 // updateFieldsInNode updates or appends scalar string values in the YAML node tree.

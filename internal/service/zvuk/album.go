@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/oshokin/zvuk-grabber/internal/client/zvuk"
+	"github.com/oshokin/zvuk-grabber/internal/media"
 	"github.com/oshokin/zvuk-grabber/internal/utils"
 )
 
@@ -80,7 +81,7 @@ func (s *ServiceImpl) fetchAlbumData(ctx context.Context, albumID string) (*fetc
 }
 
 // NewAlbumCollectionHandler creates a handler for album downloads.
-func NewAlbumCollectionHandler(templateManager TemplateManager) *AlbumCollectionHandler {
+func NewAlbumCollectionHandler(templateManager media.TemplateManager) *AlbumCollectionHandler {
 	return &AlbumCollectionHandler{
 		BaseCollectionHandler: newBaseCollectionHandler(DownloadCategoryAlbum, templateManager, true, false),
 	}
@@ -91,9 +92,9 @@ func (h *AlbumCollectionHandler) LogMessage(ctx context.Context, item *zvuk.Rele
 	return fmt.Sprintf(
 		"Downloading %s: %s - %s (%s)",
 		h.Category.String(),
-		tags[TagAlbumArtist],
-		tags[TagAlbumTitle],
-		tags[TagReleaseYear],
+		tags[media.TagAlbumArtist],
+		tags[media.TagAlbumTitle],
+		tags[media.TagReleaseYear],
 	)
 }
 
@@ -119,14 +120,14 @@ func (h *AlbumCollectionHandler) FillTags(item *zvuk.Release) map[string]string 
 	}
 
 	return map[string]string{
-		TagAlbumArtist:      strings.Join(item.ArtistNames, ", "),
-		TagAlbumID:          strconv.FormatInt(item.ID, 10),
-		TagAlbumTitle:       item.Title,
-		TagAlbumTrackCount:  strconv.FormatInt(int64(len(item.TrackIDs)), 10),
-		TagReleaseDate:      albumDate,
-		TagReleaseTimestamp: releaseTimestamp,
-		TagReleaseYear:      albumYear,
-		TagType:             h.Category.String(),
+		media.TagAlbumArtist:      strings.Join(item.ArtistNames, ", "),
+		media.TagAlbumID:          strconv.FormatInt(item.ID, 10),
+		media.TagAlbumTitle:       item.Title,
+		media.TagAlbumTrackCount:  strconv.FormatInt(int64(len(item.TrackIDs)), 10),
+		media.TagReleaseDate:      albumDate,
+		media.TagReleaseTimestamp: releaseTimestamp,
+		media.TagReleaseYear:      albumYear,
+		media.TagType:             h.Category.String(),
 	}
 }
 

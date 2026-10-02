@@ -103,33 +103,12 @@ Pre-built binaries for **macOS**, **Windows**, and **Linux** (for both `arm64` a
     ```
 
 3. **Set Up Provider Tokens**:
-
-    **Automatic (Recommended)**:
-
-    ```bash
-    zvuk-grabber auth zvuk login
-    zvuk-grabber auth yandex login
-    ```
-
-    **Manual**: Open `.zvuk-grabber.yaml` and set:
-    - `zvuk_auth_token` for Zvuk URLs
-    - `yandex_music_token` for Yandex Music URLs
+    Same as Quick Start: `zvuk-grabber auth zvuk login` /
+    `zvuk-grabber auth yandex login`, or set `zvuk_auth_token` and
+    `yandex_music_token` in `.zvuk-grabber.yaml`. See Authentication.
 
 4. **Run the Binary**:
-    - **Linux/macOS**:
-      Make the binary executable and run it:
-
-      ```bash
-      chmod +x zvuk-grabber  # Make the file executable
-      ./zvuk-grabber https://zvuk.com/release/36599795 https://music.yandex.ru/album/2176030
-      ```
-
-    - **Windows**:
-      Run the executable with one or more URLs:
-
-      ```bash
-      zvuk-grabber https://zvuk.com/release/36599795 https://music.yandex.ru/album/2176030
-      ```
+    Same as Quick Start. On Linux/macOS run `chmod +x zvuk-grabber` first.
 
 ### Building from Source (Optional) 🛠️
 
@@ -426,6 +405,15 @@ zvuk-grabber -q 3 -o "/Music" -l -s 2MB https://zvuk.com/release/38858441
 - `zvuk-grabber version` - Show version information
 - `zvuk-grabber help` - Show help information
 
+### Exit Status
+
+- `0` — success, including intentional skips and dry-run previews
+- `1` — failure or interruption (invalid config, auth/subscription errors,
+  unsupported URLs, recorded download failures)
+
+A batch can finish remaining work and still return `1`. Best-effort asset
+warnings do not necessarily fail a run. Summaries are still printed.
+
 * * *
 
 ## Configuration ⚙️
@@ -487,22 +475,16 @@ zvuk_auth_token: "..."
   - `2` = Require best MP3 or FLAC
   - `3` = Require FLAC only
 
-    **Example 1** - Try FLAC first, accept best MP3 fallback:
+    `min_quality` must be less than or equal to `quality`.
+
+    **Example** - Try FLAC first, accept best MP3 fallback:
 
     ```yaml
     quality: 3
     min_quality: 2
     ```
 
-    **Example 2** - FLAC only, skip everything else:
-
-    ```yaml
-    quality: 3
-    min_quality: 3
-    ```
-
-    **Notes**: `min_quality` must be less than or equal to `quality`.\
-    For FLAC-only mode use:
+    **FLAC only**:
 
     ```yaml
     quality: 3
@@ -780,13 +762,83 @@ zvuk_auth_token: "..."
     replace_lyrics: false
     ```
 
+Native FLAC is saved as-is. If a `.flac` download starts with an MP4 `ftyp` box,
+the program remuxes supported unencrypted, non-fragmented FLAC into a temporary
+file before tagging. Audio is copied without decoding or re-encoding and without
+loading the whole track into RAM. Extra disk space is needed until conversion
+succeeds; the original download stays intact until then, and temps are removed
+on failure. The parser is not a general-purpose MP4 demuxer: it rejects
+multi-track, encrypted, fragmented, and malformed containers.
+
 - **`download_speed_limit`**: Limit download speed (e.g., `"1MB"` for 1 MB/s).\
-    Set to empty or `0` for unlimited speed.\
-    Applies to both Zvuk and Yandex Music downloads.\
-    Example:
+    The value is **bytes per second**, not bits per second.\
+    Empty or `0` means unlimited. Applies to both Zvuk and Yandex Music.\
+    The limit is **per track**; concurrent downloads can exceed it in aggregate.\
+    This is not a packet-level bandwidth guarantee: TCP, TLS, the token-bucket
+    burst and proxies can still buffer data.\
+    Example (unlimited):
 
     ```yaml
     download_speed_limit: ""
+    ```
+
+    Example (unattended lossless near listening speed):
+
+    ```yaml
+    quality: 3
+    max_concurrent_downloads: 1
+    download_speed_limit: "115 KiB"
+    ```
+
+    Pair this with `zvuk_download_http` below. `115 KiB` is an example, not an
+    automatic match to every FLAC bitrate.
+
+### Zvuk Audio Transport
+
+Zvuk track downloads use a dedicated HTTP client. API/GraphQL and cover requests
+keep their own 60-second total timeout. All durations use Go syntax (`30s`,
+`5m`). Negative values and `receive_buffer_bytes` outside `0..2147483647` are
+rejected. Existing configs inherit these defaults. There is no
+`ZVUK_GRABBER_RCVBUF` environment variable.
+
+`http1_only` and `receive_buffer_bytes` apply only when `download_speed_limit` is
+positive (including `--speed-limit`). Without a speed limit they are ignored.
+
+- **`zvuk_download_http.timeout`**: Total audio request deadline.\
+    `0s` (default) disables the overall deadline so a paced lossless transfer can
+    outlive 60 seconds.
+
+- **`zvuk_download_http.dial_timeout`**: TCP connect timeout. Default: `30s`.
+
+- **`zvuk_download_http.tls_handshake_timeout`**: TLS handshake timeout. Default: `10s`.
+
+- **`zvuk_download_http.response_header_timeout`**: Time to wait for response headers. Default: `60s`.
+
+- **`zvuk_download_http.read_idle_timeout`**: Timeout for a blocked socket read,
+    not time spent in the download speed limiter.\
+    Default: `60s`. `0s` disables idle read deadlines.
+
+- **`zvuk_download_http.receive_buffer_bytes`**: `SO_RCVBUF` requested before
+    connect when a speed limit is active.\
+    Default: `262144`. `0` keeps the OS default. Linux may double or clamp this
+    value; Windows and other Unix kernels account for it differently.\
+    An unsupported socket option is reported as a connection error.
+
+- **`zvuk_download_http.http1_only`**: Force HTTP/1.1 (and disable HTTP/2
+    read-ahead) when a speed limit is active.\
+    Default: `true`. Set `false` to allow HTTP/2.
+
+    Example:
+
+    ```yaml
+    zvuk_download_http:
+      timeout: "0s"
+      dial_timeout: "30s"
+      tls_handshake_timeout: "10s"
+      response_header_timeout: "60s"
+      read_idle_timeout: "60s"
+      receive_buffer_bytes: 262144
+      http1_only: true
     ```
 
 ### Retry and Pause Settings

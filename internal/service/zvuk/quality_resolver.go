@@ -14,7 +14,7 @@ import (
 // QualityResolutionResult contains the result of quality resolution.
 type QualityResolutionResult struct {
 	// Quality is the final quality determined for the track.
-	Quality TrackQuality
+	Quality media.Quality
 	// StreamURL is the URL to stream/download the track.
 	StreamURL string
 	// ShouldSkip indicates if the track should be skipped due to quality constraints.
@@ -31,8 +31,8 @@ type QualityResolver interface {
 		ctx context.Context,
 		trackID string,
 		track *zvuk.Track,
-		desiredQuality TrackQuality,
-		minQuality TrackQuality,
+		desiredQuality media.Quality,
+		minQuality media.Quality,
 	) (*QualityResolutionResult, error)
 }
 
@@ -58,13 +58,13 @@ func (r *trackQualityResolver) ResolveQuality(
 	ctx context.Context,
 	trackID string,
 	track *zvuk.Track,
-	desiredQuality TrackQuality,
-	minQuality TrackQuality,
+	desiredQuality media.Quality,
+	minQuality media.Quality,
 ) (*QualityResolutionResult, error) {
 	// Determine highest quality available for this track.
-	highestQuality := ParseQuality(track.HighestQuality)
-	if highestQuality == TrackQualityUnknown {
-		highestQuality = TrackQualityMP3Mid
+	highestQuality := media.ParseQuality(track.HighestQuality)
+	if highestQuality == media.QualityUnknown {
+		highestQuality = media.QualityMP3Mid
 
 		logger.Infof(ctx, "Failed to parse highest quality available: %s", track.HighestQuality)
 	}
@@ -100,8 +100,8 @@ func (r *audiobookQualityResolver) ResolveQuality(
 	ctx context.Context,
 	trackID string,
 	track *zvuk.Track,
-	desiredQuality TrackQuality,
-	minQuality TrackQuality,
+	desiredQuality media.Quality,
+	minQuality media.Quality,
 ) (*QualityResolutionResult, error) {
 	// Retrieve pre-fetched chapter stream metadata.
 	streamMetadata, ok := r.chapterStreams[trackID]
@@ -111,7 +111,7 @@ func (r *audiobookQualityResolver) ResolveQuality(
 
 	// Determine highest available quality for this chapter.
 	highestAvailable := getHighestAvailableQuality(streamMetadata)
-	if highestAvailable == TrackQualityUnknown {
+	if highestAvailable == media.QualityUnknown {
 		return nil, fmt.Errorf("%w: chapter '%s'", ErrChapterNoStreams, trackID)
 	}
 
@@ -145,10 +145,10 @@ func (r *audiobookQualityResolver) ResolveQuality(
 func skipBelowMinimumQuality(
 	ctx context.Context,
 	subject string,
-	quality TrackQuality,
-	minimum TrackQuality,
+	quality media.Quality,
+	minimum media.Quality,
 ) *QualityResolutionResult {
-	if minimum == TrackQualityUnknown || quality >= minimum {
+	if minimum == media.QualityUnknown || quality >= minimum {
 		return nil
 	}
 
@@ -172,8 +172,8 @@ func skipBelowMinimumQuality(
 }
 
 // qualityResult builds a successful quality resolution result from quality and stream URL.
-func qualityResult(quality TrackQuality, streamURL string) *QualityResolutionResult {
-	if actual := defineQualityByStreamURL(streamURL); actual != TrackQualityUnknown {
+func qualityResult(quality media.Quality, streamURL string) *QualityResolutionResult {
+	if actual := defineQualityByStreamURL(streamURL); actual != media.QualityUnknown {
 		quality = actual
 	}
 
@@ -181,35 +181,35 @@ func qualityResult(quality TrackQuality, streamURL string) *QualityResolutionRes
 }
 
 // getHighestAvailableQuality determines the highest available quality from chapter stream metadata.
-func getHighestAvailableQuality(streamMetadata *zvuk.StreamQualities) TrackQuality {
+func getHighestAvailableQuality(streamMetadata *zvuk.StreamQualities) media.Quality {
 	if streamMetadata.FLAC != "" {
-		return TrackQualityFLAC
+		return media.QualityFLAC
 	}
 
 	if streamMetadata.High != "" {
-		return TrackQualityMP3High
+		return media.QualityMP3High
 	}
 
 	if streamMetadata.Mid != "" {
-		return TrackQualityMP3Mid
+		return media.QualityMP3Mid
 	}
 
-	return TrackQualityUnknown
+	return media.QualityUnknown
 }
 
 // selectChapterStreamURL selects the appropriate stream URL based on desired quality with fallback.
 func selectChapterStreamURL(
 	streamMetadata *zvuk.StreamQualities,
-	desiredQuality TrackQuality,
+	desiredQuality media.Quality,
 ) string {
 	switch desiredQuality {
-	case TrackQualityFLAC:
+	case media.QualityFLAC:
 		if streamMetadata.FLAC != "" {
 			return streamMetadata.FLAC
 		}
 
 		fallthrough
-	case TrackQualityMP3High:
+	case media.QualityMP3High:
 		if streamMetadata.High != "" {
 			return streamMetadata.High
 		}
@@ -219,16 +219,16 @@ func selectChapterStreamURL(
 }
 
 // defineQualityByStreamURL determines quality by analyzing the stream URL pattern.
-func defineQualityByStreamURL(streamURL string) TrackQuality {
+func defineQualityByStreamURL(streamURL string) media.Quality {
 	switch {
 	case strings.Contains(streamURL, "/stream?"):
-		return TrackQualityMP3Mid
+		return media.QualityMP3Mid
 	case strings.Contains(streamURL, "/streamhq?"):
-		return TrackQualityMP3High
+		return media.QualityMP3High
 	case strings.Contains(streamURL, "/streamfl?"), strings.Contains(streamURL, "/streamhls?"):
-		return TrackQualityFLAC
+		return media.QualityFLAC
 	default:
-		return TrackQualityUnknown
+		return media.QualityUnknown
 	}
 }
 
@@ -253,8 +253,8 @@ func (s *ServiceImpl) resolveTrackQuality(
 	metadata *downloadTracksMetadata,
 ) (*QualityResolutionResult, error) {
 	var (
-		desiredQuality = TrackQuality(s.cfg.Quality)
-		minQuality     = TrackQuality(s.cfg.MinQuality)
+		desiredQuality = media.FromConfig(s.cfg.Quality)
+		minQuality     = media.FromConfig(s.cfg.MinQuality)
 		resolver       = createQualityResolver(metadata.category, s.zvukClient, metadata.chapterStreamsMetadata)
 	)
 

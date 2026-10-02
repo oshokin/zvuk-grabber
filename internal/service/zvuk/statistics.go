@@ -3,7 +3,6 @@ package zvuk
 import (
 	"context"
 	"errors"
-	"time"
 
 	"github.com/oshokin/zvuk-grabber/internal/service/stats"
 )
@@ -33,11 +32,6 @@ var zvukSummaryAssets = []*stats.AssetSpec{
 		Key:   stats.AssetDescription,
 		Title: "Description",
 	},
-}
-
-// formatDuration keeps the old package-level helper available for tests and delegates to the shared renderer.
-func formatDuration(d time.Duration) string {
-	return stats.FormatDuration(d)
 }
 
 // incrementTrackDownloaded atomically increments the downloaded tracks counter and adds bytes.

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/oshokin/zvuk-grabber/internal/client/zvuk"
+	"github.com/oshokin/zvuk-grabber/internal/media"
 )
 
 // AudiobookCollectionHandler handles audiobook collection logic.
@@ -17,7 +18,7 @@ type AudiobookCollectionHandler struct {
 }
 
 // NewAudiobookCollectionHandler creates a handler for audiobook downloads.
-func NewAudiobookCollectionHandler(templateManager TemplateManager) *AudiobookCollectionHandler {
+func NewAudiobookCollectionHandler(templateManager media.TemplateManager) *AudiobookCollectionHandler {
 	return &AudiobookCollectionHandler{
 		BaseCollectionHandler: newBaseCollectionHandler(DownloadCategoryAudiobook, templateManager, true, true),
 	}
@@ -32,8 +33,8 @@ func (h *AudiobookCollectionHandler) LogMessage(
 	return fmt.Sprintf(
 		"Downloading %s: %s by %s",
 		h.Category.ToTitleCase(),
-		tags[TagAudiobookTitle],
-		tags[TagAudiobookAuthors],
+		tags[media.TagAudiobookTitle],
+		tags[media.TagAudiobookAuthors],
 	)
 }
 
@@ -47,40 +48,40 @@ func (h *AudiobookCollectionHandler) FillTags(item *zvuk.Audiobook) map[string]s
 	}
 
 	tags := map[string]string{
-		TagType:                   h.Category.String(),
-		TagAudiobookID:            strconv.FormatInt(item.ID, 10),
-		TagAudiobookTitle:         item.Title,
-		TagAudiobookAuthors:       strings.Join(item.ArtistNames, ", "),
-		TagAudiobookTrackCount:    strconv.FormatInt(int64(len(item.TrackIDs)), 10),
-		TagAudiobookPublisher:     item.PublisherBrand,
-		TagAudiobookPublisherName: item.PublisherName,
-		TagAudiobookCopyright:     item.Copyright,
-		TagAudiobookDescription:   item.Description,
-		TagAudiobookGenres:        strings.Join(item.Genres, ", "),
-		TagPublishYear:            publishYear,
-		TagReleaseDate:            releaseDate,
-		TagReleaseYear:            publishYear,
+		media.TagType:                   h.Category.String(),
+		media.TagAudiobookID:            strconv.FormatInt(item.ID, 10),
+		media.TagAudiobookTitle:         item.Title,
+		media.TagAudiobookAuthors:       strings.Join(item.ArtistNames, ", "),
+		media.TagAudiobookTrackCount:    strconv.FormatInt(int64(len(item.TrackIDs)), 10),
+		media.TagAudiobookPublisher:     item.PublisherBrand,
+		media.TagAudiobookPublisherName: item.PublisherName,
+		media.TagAudiobookCopyright:     item.Copyright,
+		media.TagAudiobookDescription:   item.Description,
+		media.TagAudiobookGenres:        strings.Join(item.Genres, ", "),
+		media.TagPublishYear:            publishYear,
+		media.TagReleaseDate:            releaseDate,
+		media.TagReleaseYear:            publishYear,
 		// Tag processor compatibility fields.
-		TagAlbumID:     strconv.FormatInt(item.ID, 10),
-		TagAlbumArtist: strings.Join(item.ArtistNames, ", "),
-		TagTrackGenre:  genreTag,
-		TagRecordLabel: item.PublisherBrand,
+		media.TagAlbumID:     strconv.FormatInt(item.ID, 10),
+		media.TagAlbumArtist: strings.Join(item.ArtistNames, ", "),
+		media.TagTrackGenre:  genreTag,
+		media.TagRecordLabel: item.PublisherBrand,
 	}
 
 	if item.PublicationDate != "" {
-		tags[TagAudiobookPublicationDate] = item.PublicationDate
+		tags[media.TagAudiobookPublicationDate] = item.PublicationDate
 	}
 
 	if len(item.PerformerNames) > 0 {
-		tags[TagAudiobookPerformers] = strings.Join(item.PerformerNames, ", ")
+		tags[media.TagAudiobookPerformers] = strings.Join(item.PerformerNames, ", ")
 	}
 
 	if item.AgeLimit > 0 {
-		tags[TagAudiobookAgeLimit] = strconv.FormatInt(item.AgeLimit, 10)
+		tags[media.TagAudiobookAgeLimit] = strconv.FormatInt(item.AgeLimit, 10)
 	}
 
 	if item.FullDuration > 0 {
-		tags[TagAudiobookDuration] = strconv.FormatInt(item.FullDuration, 10)
+		tags[media.TagAudiobookDuration] = strconv.FormatInt(item.FullDuration, 10)
 	}
 
 	return tags

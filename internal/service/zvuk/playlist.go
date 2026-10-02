@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/oshokin/zvuk-grabber/internal/client/zvuk"
+	"github.com/oshokin/zvuk-grabber/internal/media"
 )
 
 // PlaylistCollectionHandler handles playlist collection logic.
@@ -15,7 +16,7 @@ type PlaylistCollectionHandler struct {
 }
 
 // NewPlaylistCollectionHandler creates a handler for playlist downloads.
-func NewPlaylistCollectionHandler(templateManager TemplateManager) *PlaylistCollectionHandler {
+func NewPlaylistCollectionHandler(templateManager media.TemplateManager) *PlaylistCollectionHandler {
 	return &PlaylistCollectionHandler{
 		BaseCollectionHandler: newBaseCollectionHandler(DownloadCategoryPlaylist, templateManager, false, false),
 	}
@@ -34,10 +35,10 @@ func (h *PlaylistCollectionHandler) LogMessage(
 func (h *PlaylistCollectionHandler) FillTags(item *zvuk.Playlist) map[string]string {
 	// Moved from fillPlaylistTags.
 	return map[string]string{
-		TagType:               h.Category.String(),
-		TagPlaylistID:         strconv.FormatInt(item.ID, 10),
-		TagPlaylistTitle:      item.Title,
-		TagPlaylistTrackCount: strconv.FormatInt(int64(len(item.TrackIDs)), 10),
+		media.TagType:               h.Category.String(),
+		media.TagPlaylistID:         strconv.FormatInt(item.ID, 10),
+		media.TagPlaylistTitle:      item.Title,
+		media.TagPlaylistTrackCount: strconv.FormatInt(int64(len(item.TrackIDs)), 10),
 	}
 }
 

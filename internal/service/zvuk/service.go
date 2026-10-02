@@ -12,12 +12,14 @@ import (
 	"github.com/oshokin/zvuk-grabber/internal/config"
 	"github.com/oshokin/zvuk-grabber/internal/files"
 	"github.com/oshokin/zvuk-grabber/internal/logger"
+	"github.com/oshokin/zvuk-grabber/internal/media"
+	"github.com/oshokin/zvuk-grabber/internal/service/stats"
 )
 
 // Service provides methods for downloading audio content from Zvuk URLs.
 type Service interface {
 	// DownloadURLs orchestrates the full download pipeline, from URL processing to file creation.
-	DownloadURLs(ctx context.Context, urls []string)
+	DownloadURLs(ctx context.Context, urls []string) error
 	// PrintDownloadSummary prints a formatted summary of download statistics.
 	PrintDownloadSummary(ctx context.Context)
 }
@@ -31,9 +33,9 @@ type ServiceImpl struct {
 	// urlProcessor handles URL parsing and categorization.
 	urlProcessor URLProcessor
 	// templateManager generates filenames and folder names.
-	templateManager TemplateManager
+	templateManager media.TemplateManager
 	// tagProcessor writes metadata tags to audio files.
-	tagProcessor TagProcessor
+	tagProcessor media.TagProcessor
 	// audioCollections stores download collections indexed by item.
 	audioCollections map[ShortDownloadItem]*audioCollection
 	// audioCollectionsMutex protects concurrent access to audioCollections.
@@ -61,8 +63,8 @@ func NewService(
 	cfg *config.Config,
 	zvukClient zvuk.Client,
 	urlProcessor URLProcessor,
-	templateManager TemplateManager,
-	tagProcessor TagProcessor,
+	templateManager media.TemplateManager,
+	tagProcessor media.TagProcessor,
 ) Service {
 	s := &ServiceImpl{
 		cfg:                   cfg,
@@ -92,7 +94,22 @@ func (s *ServiceImpl) outputPath() string {
 }
 
 // DownloadURLs orchestrates the full download pipeline, from URL processing to file creation.
-func (s *ServiceImpl) DownloadURLs(ctx context.Context, urls []string) {
+func (s *ServiceImpl) DownloadURLs(ctx context.Context, urls []string) (result error) {
+	defer func() {
+		snapshot := s.statsSnapshot()
+		if result == nil && (snapshot.TracksFailed > 0 || len(snapshot.Errors) > 0) {
+			result = fmt.Errorf(
+				"%w (Zvuk): %d failed tracks, %d recorded errors",
+				stats.ErrDownloadsFailed,
+				snapshot.TracksFailed,
+				len(snapshot.Errors),
+			)
+		}
+
+		if ctx.Err() != nil {
+			result = ctx.Err()
+		}
+	}()
 	// Record start time and dry-run mode for statistics.
 	s.statsMutex.Lock()
 	s.stats.StartTime = time.Now()
@@ -105,20 +122,22 @@ func (s *ServiceImpl) DownloadURLs(ctx context.Context, urls []string) {
 		err := os.MkdirAll(outputPath, defaultFolderPermissions)
 		if err != nil {
 			logger.Errorf(ctx, "Failed to create output path: %v", err)
-			return
+			return err
 		}
 	} else {
 		logger.Infof(ctx, "[DRY-RUN] Would create output directory: %s", outputPath)
 	}
 
 	// Verify the user's subscription status before proceeding.
-	s.checkUserSubscription(ctx)
+	if err := s.checkUserSubscription(ctx); err != nil {
+		return err
+	}
 
 	// Extract and categorize download items from the provided URLs.
 	downloadItemsByCategories, err := s.urlProcessor.ExtractDownloadItems(ctx, urls)
 	if err != nil {
 		logger.Errorf(ctx, "Failed to extract items to download: %v", err)
-		return
+		return err
 	}
 
 	logger.Info(ctx, "Starting Zvuk download process")
@@ -140,6 +159,8 @@ func (s *ServiceImpl) DownloadURLs(ctx context.Context, urls []string) {
 	s.statsMutex.Lock()
 	s.stats.EndTime = time.Now()
 	s.statsMutex.Unlock()
+
+	return nil
 }
 
 // fetchAndDeduplicateStandaloneItems processes artist URLs to fetch their albums and removes duplicate entries.

@@ -34,7 +34,7 @@ Use explicit provider commands:
 		Long: `Opens a browser window for Zvuk login.
 
 After successful login, the auth cookie is extracted and saved to zvuk_auth_token.`,
-		PersistentPreRun: initConfig,
+		PersistentPreRunE: initConfig,
 		Run: func(cmd *cobra.Command, args []string) {
 			app.ExecuteZvukAuthLoginCommand(cmd.Context(), appConfig)
 		},
@@ -55,7 +55,7 @@ After successful login, the auth cookie is extracted and saved to zvuk_auth_toke
 Log in to Yandex Music in that browser. The command watches the browser session
 with go-rod and saves the detected Yandex Music OAuth token to yandex_music_token.
 The token value is never printed to logs.`,
-		PersistentPreRun: initConfig,
+		PersistentPreRunE: initConfig,
 		Run: func(cmd *cobra.Command, args []string) {
 			app.ExecuteYandexAuthLoginCommand(cmd.Context(), appConfig)
 		},

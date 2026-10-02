@@ -143,11 +143,6 @@ func (c *HttpClient) DownloadBytesWithContext(reqCtx *httptransport.RequestLogCo
 	return c.transport.DownloadBytesWithContext(reqCtx, url)
 }
 
-// responsePreview returns a redacted text preview of an HTTP response body.
-func responsePreview(contentType string, body []byte) string {
-	return httptransport.ResponsePreview(contentType, body)
-}
-
 // Decode parses a Yandex Music API error response body.
 func (*yandexAPIErrorDecoder) Decode(body []byte) *httptransport.DecodedAPIError {
 	var errorResp model.ErrorResponse
