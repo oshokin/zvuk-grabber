@@ -51,7 +51,7 @@ func TestCollectionReleaseYear_UsesTrackPubDateWhenAlbumYearMissing(t *testing.T
 func TestBuildTags_UsesTrackPubDateForPodcastEpisode(t *testing.T) {
 	t.Parallel()
 
-	service := &ServiceImpl{}
+	service := new(ServiceImpl)
 	tags := service.buildTags(&trackJob{
 		kind:            collectionPodcast,
 		collectionTitle: "Совсем другое дело",
@@ -77,7 +77,7 @@ func TestBuildTags_UsesTrackPubDateForPodcastEpisode(t *testing.T) {
 func TestBuildTags_OmitsMissingAudiobookYear(t *testing.T) {
 	t.Parallel()
 
-	service := &ServiceImpl{}
+	service := new(ServiceImpl)
 	tags := service.buildTags(&trackJob{
 		kind:            collectionAudiobook,
 		collectionTitle: "Татьяна Столяр. «Я есть жир»",

@@ -11,6 +11,10 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/oshokin/zvuk-grabber/internal/config"
+	"github.com/oshokin/zvuk-grabber/internal/files"
+	"github.com/oshokin/zvuk-grabber/internal/transport/download"
 )
 
 // APIErrorDecoder parses provider-specific error payloads.
@@ -32,6 +36,10 @@ type DecodedAPIError struct {
 
 // ClientOptions controls transport client behavior.
 type ClientOptions struct {
+	// AudioHTTPClient isolates audio timeouts and socket policy from API and cover requests.
+	AudioHTTPClient *http.Client
+	// AudioConfig controls the audio retry budget.
+	AudioConfig *config.DownloadHTTPConfig
 	// HTTPClient is the underlying net/http client.
 	HTTPClient *http.Client
 	// DefaultHeaders are applied to every outgoing request.
@@ -71,6 +79,10 @@ type cancelReadCloser struct {
 
 // Client provides reusable HTTP operations with request logging.
 type Client struct {
+	// audioHTTPClient performs dedicated audio requests.
+	audioHTTPClient *http.Client
+	// audioConfig controls retries for each audio URL.
+	audioConfig *config.DownloadHTTPConfig
 	// httpClient performs the actual HTTP round trips.
 	httpClient *http.Client
 	// headers are default headers applied to every request.
@@ -111,12 +123,12 @@ func (c *cancelReadCloser) Close() error {
 // NewClient creates a transport HTTP client.
 func NewClient(options *ClientOptions) *Client {
 	if options == nil {
-		options = &ClientOptions{}
+		options = new(ClientOptions)
 	}
 
 	httpClient := options.HTTPClient
 	if httpClient == nil {
-		httpClient = &http.Client{}
+		httpClient = new(http.Client)
 	}
 
 	requestTimeout := options.RequestTimeout
@@ -128,7 +140,14 @@ func NewClient(options *ClientOptions) *Client {
 
 	ctx, cancel := context.WithCancel(context.Background())
 
+	audioClient := options.AudioHTTPClient
+	if audioClient == nil {
+		audioClient = httpClient
+	}
+
 	client := &Client{
+		audioHTTPClient: audioClient,
+		audioConfig:     options.AudioConfig,
 		httpClient:      httpClient,
 		headers:         make(map[string]string, len(options.DefaultHeaders)),
 		ctx:             ctx,
@@ -203,7 +222,7 @@ func (c *Client) SetDownloadTimeout(timeout time.Duration) {
 
 // Get sends a GET request without an explicit log context.
 func (c *Client) Get(url string) ([]byte, error) {
-	return c.GetWithContext(&RequestLogContext{}, url)
+	return c.GetWithContext(new(RequestLogContext), url)
 }
 
 // GetWithContext sends a GET request with structured request logging.
@@ -222,7 +241,7 @@ func (c *Client) GetWithContextAndHeaders(
 
 // Post sends a POST request without an explicit log context.
 func (c *Client) Post(url string, data []byte) ([]byte, error) {
-	return c.PostWithContext(&RequestLogContext{}, url, data)
+	return c.PostWithContext(new(RequestLogContext), url, data)
 }
 
 // PostWithContext sends a POST request with structured request logging.
@@ -307,62 +326,37 @@ func (c *Client) OpenStreamWithContext(reqCtx *RequestLogContext, url string) (*
 
 	startedAt := time.Now()
 
-	c.logRequest(RequestLogLevelDebug, reqCtx, "Stream request started", http.MethodGet, url,
-		"headers", SanitizeHeaders(req.Header),
-	)
+	c.logRequest(RequestLogLevelDebug, reqCtx, "Audio stream request started", http.MethodGet, url,
+		"headers", SanitizeHeaders(req.Header))
 
-	resp, err := c.httpClient.Do(req)
+	stream, err := download.Open(c.audioHTTPClient, req, c.audioConfig)
 	if err != nil {
 		cancel()
-		c.logRequest(RequestLogLevelError, reqCtx, "Stream request failed", http.MethodGet, url,
-			"duration_ms", time.Since(startedAt).Milliseconds(),
-			"error", err,
-		)
+		c.logRequest(RequestLogLevelError, reqCtx, "Audio stream request failed", http.MethodGet, url,
+			"duration_ms", time.Since(startedAt).Milliseconds(), "error", err)
 
-		return nil, fmt.Errorf("failed to open stream: %w", err)
+		return nil, err
 	}
 
-	if resp.StatusCode != http.StatusOK {
-		body, readErr := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
-		_ = resp.Body.Close()
-
-		cancel()
-
-		if readErr != nil {
-			c.logRequest(RequestLogLevelError, reqCtx, "Stream error response read failed", http.MethodGet, url,
-				"status_code", resp.StatusCode,
-				"error", readErr,
-			)
-
-			body = nil
-		}
-
-		c.logRequest(RequestLogLevelError, reqCtx, "Stream request finished with bad status", http.MethodGet, url,
-			"status_code", resp.StatusCode,
-			"duration_ms", time.Since(startedAt).Milliseconds(),
-			"response_size", FormatByteSize(int64(len(body))),
-			"response_preview", ResponsePreview(resp.Header.Get("Content-Type"), body),
-		)
-
-		return nil, fmt.Errorf("failed to open stream: status code %d", resp.StatusCode)
-	}
-
-	c.logRequest(RequestLogLevelDebug, reqCtx, "Stream request opened", http.MethodGet, url,
-		"status_code", resp.StatusCode,
-		"duration_ms", time.Since(startedAt).Milliseconds(),
-		"content_length", FormatByteSize(resp.ContentLength),
-		"content_type", resp.Header.Get("Content-Type"),
-	)
+	c.logRequest(RequestLogLevelDebug, reqCtx, "Audio stream opened", http.MethodGet, url,
+		"status_code", stream.StatusCode(), "duration_ms", time.Since(startedAt).Milliseconds(),
+		"content_length", FormatByteSize(stream.TotalBytes()), "content_type", stream.ContentType())
 
 	return &RemoteStream{
-		Body: &cancelReadCloser{
-			ReadCloser: resp.Body,
-			cancel:     cancel,
-		},
-		ContentLength: resp.ContentLength,
-		ContentType:   resp.Header.Get("Content-Type"),
-		StatusCode:    resp.StatusCode,
+		Body:          &cancelReadCloser{ReadCloser: stream, cancel: cancel},
+		ContentLength: stream.TotalBytes(),
+		ContentType:   stream.ContentType(),
+		StatusCode:    stream.StatusCode(),
 	}, nil
+}
+
+// CopyTo preserves resumable transfer behavior through the context-lifetime wrapper.
+func (c *cancelReadCloser) CopyTo(
+	ctx context.Context,
+	destination io.Writer,
+	opts *files.CopyStreamOptions,
+) (int64, error) {
+	return download.Copy(ctx, destination, c.ReadCloser, opts)
 }
 
 // sendRequest sends an HTTP request using default headers only.
@@ -608,11 +602,7 @@ func (c *Client) logRequest(
 
 // requestContext resolves the effective context for an outgoing request.
 func (c *Client) requestContext(reqCtx *RequestLogContext) context.Context {
-	if reqCtx != nil && reqCtx.Ctx != nil {
-		return reqCtx.Ctx
-	}
-
-	return c.baseContext()
+	return reqCtx.ContextOr(c.baseContext())
 }
 
 // withOptionalTimeout wraps a context with a timeout when duration is positive.

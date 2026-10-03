@@ -78,7 +78,7 @@ func init() {
 		"quality",
 		"q",
 		1,
-		"audio quality: 1 = MP3, 128 Kbps, 2 = MP3, 320 Kbps, 3 = FLAC, 16-bit/44.1kHz.")
+		"audio quality: 1 = MP3, 128 Kbps, 2 = MP3, 320 Kbps, 3 = FLAC lossless.")
 
 	rootCmdFlags.IntP(
 		"min-quality",

@@ -6,4 +6,6 @@
 //     caller code must provide safe concurrent access to them.
 //  4. Request is intended for a single Run call and must not be mutated concurrently.
 //  5. In EngineConfig.MaxRetries, a value of 0 means unlimited retries.
+//  6. WaitIfRetryable reuses an Engine when the caller owns the attempt loop
+//     and must share one retry budget across multiple steps of one operation.
 package retry

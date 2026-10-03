@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -76,31 +77,49 @@ func TestClientImpl_GetStreamMetadata_DoesNotRetryNonTeapot(t *testing.T) {
 func TestClientImpl_GetStreamMetadata_CancelledDuringRetryPause(t *testing.T) {
 	t.Parallel()
 
-	var calls atomic.Int64
+	synctest.Test(t, func(t *testing.T) {
+		var calls atomic.Int64
 
-	client := newRetryTestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/"+zvukAPIStreamMetadataURI {
-			t.Errorf("unexpected path: %s", r.URL.Path)
-		}
+		cfg := new(config.Config)
+		cfg.ZvukAuthToken = "test_token"
+		cfg.ZvukBaseURL = "https://zvuk.example"
+		cfg.APIRetryAttemptsCount = 5
+		cfg.ParsedAPIMinRetryPause = 500 * time.Millisecond
+		cfg.ParsedAPIMaxRetryPause = 500 * time.Millisecond
 
-		calls.Add(1)
-		w.WriteHeader(http.StatusTeapot)
-	}, 5, 500*time.Millisecond, 500*time.Millisecond)
+		client, err := NewClient(cfg)
+		require.NoError(t, err)
 
-	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
+		typedClient, ok := client.(*ClientImpl)
+		require.True(t, ok)
 
-	go func() {
-		time.Sleep(25 * time.Millisecond)
-		cancel()
-	}()
+		typedClient.httpClient.Transport = transportFunc(func(r *http.Request) (*http.Response, error) {
+			calls.Add(1)
 
-	startedAt := time.Now()
-	_, err := client.GetStreamMetadata(ctx, "track-id", defaultStreamQuality)
-	require.Error(t, err)
-	assert.True(t, errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded))
-	assert.EqualValues(t, 1, calls.Load())
-	assert.Less(t, time.Since(startedAt), 300*time.Millisecond)
+			resp := new(http.Response)
+			resp.StatusCode = http.StatusTeapot
+			resp.Body = http.NoBody
+			resp.Header = make(http.Header)
+			resp.Request = r
+
+			return resp, nil
+		})
+
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+
+		go func() {
+			time.Sleep(25 * time.Millisecond)
+			cancel()
+		}()
+
+		startedAt := time.Now()
+		_, err = typedClient.GetStreamMetadata(ctx, "track-id", defaultStreamQuality)
+		require.Error(t, err)
+		assert.True(t, errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded))
+		assert.EqualValues(t, 1, calls.Load())
+		assert.Equal(t, 25*time.Millisecond, time.Since(startedAt))
+	})
 }
 
 // newRetryTestClient builds a client backed by an httptest server for retry behavior tests.
@@ -116,11 +135,11 @@ func newRetryTestClient(
 	t.Cleanup(server.Close)
 
 	client, err := NewClient(&config.Config{
-		ZvukAuthToken:       "test_token",
-		ZvukBaseURL:         server.URL,
-		RetryAttemptsCount:  attempts,
-		ParsedMinRetryPause: minPause,
-		ParsedMaxRetryPause: maxPause,
+		ZvukAuthToken:          "test_token",
+		ZvukBaseURL:            server.URL,
+		APIRetryAttemptsCount:  attempts,
+		ParsedAPIMinRetryPause: minPause,
+		ParsedAPIMaxRetryPause: maxPause,
 	})
 	require.NoError(t, err)
 

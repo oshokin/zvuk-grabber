@@ -20,6 +20,8 @@ import (
 type Config struct {
 	// ZvukDownloadHTTP configures the dedicated audio download client.
 	ZvukDownloadHTTP *DownloadHTTPConfig `mapstructure:"zvuk_download_http"`
+	// YandexMusicDownloadHTTP configures Yandex audio transfers independently of API calls.
+	YandexMusicDownloadHTTP *DownloadHTTPConfig `mapstructure:"yandex_music_download_http"`
 	// ZvukAuthToken is the authentication token for Zvuk API access.
 	ZvukAuthToken string `mapstructure:"zvuk_auth_token"`
 	// YandexMusicToken is the OAuth token for Yandex Music API access.
@@ -71,14 +73,14 @@ type Config struct {
 	CreateFolderForSingles bool `mapstructure:"create_folder_for_singles"`
 	// MaxFolderNameLength is the maximum length for folder names.
 	MaxFolderNameLength int64 `mapstructure:"max_folder_name_length"`
-	// RetryAttemptsCount is the number of retry attempts for failed downloads.
-	RetryAttemptsCount int64 `mapstructure:"retry_attempts_count"`
+	// APIRetryAttemptsCount is the number of attempts for provider API requests.
+	APIRetryAttemptsCount int64 `mapstructure:"api_retry_attempts_count"`
 	// MaxDownloadPause is the maximum pause duration between downloads.
 	MaxDownloadPause string `mapstructure:"max_download_pause"`
-	// MinRetryPause is the minimum pause duration before retrying.
-	MinRetryPause string `mapstructure:"min_retry_pause"`
-	// MaxRetryPause is the maximum pause duration before retrying.
-	MaxRetryPause string `mapstructure:"max_retry_pause"`
+	// APIMinRetryPause is the minimum pause duration before retrying an API request.
+	APIMinRetryPause string `mapstructure:"api_min_retry_pause"`
+	// APIMaxRetryPause is the maximum pause duration before retrying an API request.
+	APIMaxRetryPause string `mapstructure:"api_max_retry_pause"`
 	// MaxConcurrentDownloads is the maximum number of tracks to download simultaneously.
 	MaxConcurrentDownloads int64 `mapstructure:"max_concurrent_downloads"`
 	// ZvukBaseURL is the base URL for the Zvuk API (set automatically).
@@ -95,10 +97,10 @@ type Config struct {
 	ParsedLogLevel zapcore.Level
 	// ParsedMaxDownloadPause is the parsed maximum download pause duration.
 	ParsedMaxDownloadPause time.Duration
-	// ParsedMinRetryPause is the parsed minimum retry pause duration.
-	ParsedMinRetryPause time.Duration
-	// ParsedMaxRetryPause is the parsed maximum retry pause duration.
-	ParsedMaxRetryPause time.Duration
+	// ParsedAPIMinRetryPause is the parsed minimum API retry pause duration.
+	ParsedAPIMinRetryPause time.Duration
+	// ParsedAPIMaxRetryPause is the parsed maximum API retry pause duration.
+	ParsedAPIMaxRetryPause time.Duration
 }
 
 const (
@@ -141,14 +143,14 @@ const (
 	DefaultCreateFolderForSingles = false
 	// DefaultMaxFolderNameLength limits generated folder names.
 	DefaultMaxFolderNameLength int64 = 100
-	// DefaultRetryAttemptsCount is the default retry count.
-	DefaultRetryAttemptsCount int64 = 5
+	// DefaultAPIRetryAttemptsCount is the default provider API retry count.
+	DefaultAPIRetryAttemptsCount int64 = 5
 	// DefaultMaxDownloadPause controls pause between downloads.
 	DefaultMaxDownloadPause = "2s"
-	// DefaultMinRetryPause controls minimum retry pause.
-	DefaultMinRetryPause = "3s"
-	// DefaultMaxRetryPause controls maximum retry pause.
-	DefaultMaxRetryPause = "7s"
+	// DefaultAPIMinRetryPause controls the minimum API retry pause.
+	DefaultAPIMinRetryPause = "3s"
+	// DefaultAPIMaxRetryPause controls the maximum API retry pause.
+	DefaultAPIMaxRetryPause = "7s"
 	// DefaultMaxConcurrentDownloads defaults to safe sequential mode.
 	DefaultMaxConcurrentDownloads int64 = 1
 
@@ -189,6 +191,12 @@ const (
 	//
 	//nolint:gosec // These are YAML keys, not credentials.
 	configKeyYandexMusicToken = "yandex_music_token"
+	// configKeyAPIRetryAttemptsCount is the YAML key for provider API retry attempts.
+	configKeyAPIRetryAttemptsCount = "api_retry_attempts_count"
+	// configKeyAPIMinRetryPause is the YAML key for the minimum API retry pause.
+	configKeyAPIMinRetryPause = "api_min_retry_pause"
+	// configKeyAPIMaxRetryPause is the YAML key for the maximum API retry pause.
+	configKeyAPIMaxRetryPause = "api_max_retry_pause"
 	// yamlStringTag is the YAML scalar tag used when writing quoted string values.
 	yamlStringTag = "!!str"
 )
@@ -213,14 +221,14 @@ var (
 	ErrMaxDurationTooLow = errors.New("max_duration must be greater than min_duration")
 	// ErrUnknownLogLevel indicates that the log level is not recognized.
 	ErrUnknownLogLevel = errors.New("unknown log level")
-	// ErrInvalidRetryAttempts indicates that the retry attempts count is invalid.
-	ErrInvalidRetryAttempts = errors.New("retry attempts count must a positive integer")
+	// ErrInvalidAPIRetryAttempts indicates that the API retry attempts count is invalid.
+	ErrInvalidAPIRetryAttempts = errors.New("api_retry_attempts_count must be a positive integer")
 	// ErrInvalidMaxDownloadPause indicates that the max download pause duration is invalid.
 	ErrInvalidMaxDownloadPause = errors.New("max_download_pause must be positive")
-	// ErrInvalidMinRetryPause indicates that the min retry pause duration is invalid.
-	ErrInvalidMinRetryPause = errors.New("min_retry_pause must be positive")
-	// ErrInvalidMaxRetryPause indicates that the max retry pause duration is invalid.
-	ErrInvalidMaxRetryPause = errors.New("max_retry_pause must be positive")
+	// ErrInvalidAPIMinRetryPause indicates that the API min retry pause duration is invalid.
+	ErrInvalidAPIMinRetryPause = errors.New("api_min_retry_pause must be positive")
+	// ErrInvalidAPIMaxRetryPause indicates that the API max retry pause duration is invalid.
+	ErrInvalidAPIMaxRetryPause = errors.New("api_max_retry_pause must be positive")
 	// ErrInvalidConcurrentDownloads indicates that the concurrent downloads count is invalid.
 	ErrInvalidConcurrentDownloads = errors.New("max concurrent downloads must be a positive integer")
 )
@@ -229,6 +237,7 @@ var (
 func DefaultConfig() *Config {
 	return &Config{
 		ZvukDownloadHTTP:                 DefaultDownloadHTTPConfig(),
+		YandexMusicDownloadHTTP:          DefaultDownloadHTTPConfig(),
 		ZvukAuthToken:                    "",
 		YandexMusicToken:                 "",
 		Quality:                          DefaultQuality,
@@ -253,11 +262,61 @@ func DefaultConfig() *Config {
 		DownloadSpeedLimit:               DefaultDownloadSpeedLimit,
 		CreateFolderForSingles:           DefaultCreateFolderForSingles,
 		MaxFolderNameLength:              DefaultMaxFolderNameLength,
-		RetryAttemptsCount:               DefaultRetryAttemptsCount,
+		APIRetryAttemptsCount:            DefaultAPIRetryAttemptsCount,
 		MaxDownloadPause:                 DefaultMaxDownloadPause,
-		MinRetryPause:                    DefaultMinRetryPause,
-		MaxRetryPause:                    DefaultMaxRetryPause,
+		APIMinRetryPause:                 DefaultAPIMinRetryPause,
+		APIMaxRetryPause:                 DefaultAPIMaxRetryPause,
 		MaxConcurrentDownloads:           DefaultMaxConcurrentDownloads,
+	}
+}
+
+// Clone returns a detached copy, including nested download HTTP settings.
+func (c *Config) Clone() *Config {
+	if c == nil {
+		return nil
+	}
+
+	return &Config{
+		ZvukDownloadHTTP:                 c.ZvukDownloadHTTP.Clone(),
+		YandexMusicDownloadHTTP:          c.YandexMusicDownloadHTTP.Clone(),
+		ZvukAuthToken:                    c.ZvukAuthToken,
+		YandexMusicToken:                 c.YandexMusicToken,
+		Quality:                          c.Quality,
+		MinQuality:                       c.MinQuality,
+		MinDuration:                      c.MinDuration,
+		MaxDuration:                      c.MaxDuration,
+		OutputPath:                       c.OutputPath,
+		GroupByProvider:                  c.GroupByProvider,
+		TrackFilenameTemplate:            c.TrackFilenameTemplate,
+		AlbumFolderTemplate:              c.AlbumFolderTemplate,
+		PlaylistFilenameTemplate:         c.PlaylistFilenameTemplate,
+		AudiobookFolderTemplate:          c.AudiobookFolderTemplate,
+		AudiobookChapterFilenameTemplate: c.AudiobookChapterFilenameTemplate,
+		PodcastFolderTemplate:            c.PodcastFolderTemplate,
+		PodcastEpisodeFilenameTemplate:   c.PodcastEpisodeFilenameTemplate,
+		DownloadLyrics:                   c.DownloadLyrics,
+		ReplaceTracks:                    c.ReplaceTracks,
+		ReplaceCovers:                    c.ReplaceCovers,
+		ReplaceDescriptions:              c.ReplaceDescriptions,
+		ReplaceLyrics:                    c.ReplaceLyrics,
+		LogLevel:                         c.LogLevel,
+		DownloadSpeedLimit:               c.DownloadSpeedLimit,
+		CreateFolderForSingles:           c.CreateFolderForSingles,
+		MaxFolderNameLength:              c.MaxFolderNameLength,
+		APIRetryAttemptsCount:            c.APIRetryAttemptsCount,
+		MaxDownloadPause:                 c.MaxDownloadPause,
+		APIMinRetryPause:                 c.APIMinRetryPause,
+		APIMaxRetryPause:                 c.APIMaxRetryPause,
+		MaxConcurrentDownloads:           c.MaxConcurrentDownloads,
+		ZvukBaseURL:                      c.ZvukBaseURL,
+		DryRun:                           c.DryRun,
+		ParsedMinDuration:                c.ParsedMinDuration,
+		ParsedMaxDuration:                c.ParsedMaxDuration,
+		ParsedDownloadSpeedLimit:         c.ParsedDownloadSpeedLimit,
+		ParsedLogLevel:                   c.ParsedLogLevel,
+		ParsedMaxDownloadPause:           c.ParsedMaxDownloadPause,
+		ParsedAPIMinRetryPause:           c.ParsedAPIMinRetryPause,
+		ParsedAPIMaxRetryPause:           c.ParsedAPIMaxRetryPause,
 	}
 }
 
@@ -283,8 +342,20 @@ func LoadConfig(configFilename string) (*Config, error) {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
 
+	if cfg.YandexMusicDownloadHTTP == nil {
+		cfg.YandexMusicDownloadHTTP = DefaultDownloadHTTPConfig()
+	}
+
 	if cfg.ZvukDownloadHTTP == nil {
 		cfg.ZvukDownloadHTTP = DefaultDownloadHTTPConfig()
+	}
+
+	if err := cfg.ZvukDownloadHTTP.parseReceiveBuffer(); err != nil {
+		return nil, fmt.Errorf("zvuk_download_http: %w", err)
+	}
+
+	if err := cfg.YandexMusicDownloadHTTP.parseReceiveBuffer(); err != nil {
+		return nil, fmt.Errorf("yandex_music_download_http: %w", err)
 	}
 
 	return &cfg, nil
@@ -300,12 +371,20 @@ func ValidateConfig(cfg *Config) error {
 		err                      error
 	)
 
+	if cfg.YandexMusicDownloadHTTP == nil {
+		cfg.YandexMusicDownloadHTTP = DefaultDownloadHTTPConfig()
+	}
+
 	if cfg.ZvukDownloadHTTP == nil {
 		cfg.ZvukDownloadHTTP = DefaultDownloadHTTPConfig()
 	}
 
 	if err = cfg.ZvukDownloadHTTP.Validate(); err != nil {
-		return err
+		return fmt.Errorf("zvuk_download_http: %w", err)
+	}
+
+	if err = cfg.YandexMusicDownloadHTTP.Validate(); err != nil {
+		return fmt.Errorf("yandex_music_download_http: %w", err)
 	}
 
 	cfg.ZvukBaseURL = ZvukBaseURL
@@ -360,8 +439,8 @@ func ValidateConfig(cfg *Config) error {
 	// io.CopyN accepts only int64 so we transform it safely in order to use it later.
 	cfg.ParsedDownloadSpeedLimit = utils.SafeUint64ToInt64(parsedDownloadSpeedLimit)
 
-	if cfg.RetryAttemptsCount <= 0 {
-		return ErrInvalidRetryAttempts
+	if cfg.APIRetryAttemptsCount <= 0 {
+		return ErrInvalidAPIRetryAttempts
 	}
 
 	cfg.ParsedMaxDownloadPause, err = parsePositiveDuration(
@@ -373,12 +452,20 @@ func ValidateConfig(cfg *Config) error {
 		return err
 	}
 
-	cfg.ParsedMinRetryPause, err = parsePositiveDuration(cfg.MinRetryPause, "min retry pause", ErrInvalidMinRetryPause)
+	cfg.ParsedAPIMinRetryPause, err = parsePositiveDuration(
+		cfg.APIMinRetryPause,
+		configKeyAPIMinRetryPause,
+		ErrInvalidAPIMinRetryPause,
+	)
 	if err != nil {
 		return err
 	}
 
-	cfg.ParsedMaxRetryPause, err = parsePositiveDuration(cfg.MaxRetryPause, "max retry pause", ErrInvalidMaxRetryPause)
+	cfg.ParsedAPIMaxRetryPause, err = parsePositiveDuration(
+		cfg.APIMaxRetryPause,
+		configKeyAPIMaxRetryPause,
+		ErrInvalidAPIMaxRetryPause,
+	)
 	if err != nil {
 		return err
 	}
@@ -433,7 +520,8 @@ func SaveConfigFields(cfg *Config, fields map[string]string) error {
 // applyViperDefaults registers default configuration values with viper.
 func applyViperDefaults() {
 	defaults := DefaultConfig()
-	setDownloadHTTPDefaults(defaults.ZvukDownloadHTTP)
+	setDownloadHTTPDefaults(viperPrefixDownloadHTTP, defaults.ZvukDownloadHTTP)
+	setDownloadHTTPDefaults(viperPrefixYandexDownloadHTTP, defaults.YandexMusicDownloadHTTP)
 
 	viper.SetDefault(configKeyZvukAuthToken, defaults.ZvukAuthToken)
 	viper.SetDefault(configKeyYandexMusicToken, defaults.YandexMusicToken)
@@ -459,10 +547,10 @@ func applyViperDefaults() {
 	viper.SetDefault("download_speed_limit", defaults.DownloadSpeedLimit)
 	viper.SetDefault("create_folder_for_singles", defaults.CreateFolderForSingles)
 	viper.SetDefault("max_folder_name_length", defaults.MaxFolderNameLength)
-	viper.SetDefault("retry_attempts_count", defaults.RetryAttemptsCount)
+	viper.SetDefault(configKeyAPIRetryAttemptsCount, defaults.APIRetryAttemptsCount)
 	viper.SetDefault("max_download_pause", defaults.MaxDownloadPause)
-	viper.SetDefault("min_retry_pause", defaults.MinRetryPause)
-	viper.SetDefault("max_retry_pause", defaults.MaxRetryPause)
+	viper.SetDefault(configKeyAPIMinRetryPause, defaults.APIMinRetryPause)
+	viper.SetDefault(configKeyAPIMaxRetryPause, defaults.APIMaxRetryPause)
 	viper.SetDefault("max_concurrent_downloads", defaults.MaxConcurrentDownloads)
 }
 
@@ -533,9 +621,19 @@ func renderConfigContent(cfg *Config) []byte {
 		cfg = DefaultConfig()
 	}
 
-	httpCfg := downloadHTTPConfigOrDefault(cfg)
+	httpCfg := cfg.ZvukDownloadHTTP
+	if httpCfg == nil {
+		httpCfg = DefaultDownloadHTTPConfig()
+	}
 
-	return fmt.Appendf(nil, `zvuk_auth_token: %q
+	yandexHTTP := cfg.YandexMusicDownloadHTTP
+	if yandexHTTP == nil {
+		yandexHTTP = DefaultDownloadHTTPConfig()
+	}
+
+	return fmt.Appendf(
+		nil,
+		`zvuk_auth_token: %q
 yandex_music_token: %q
 quality: %d
 min_quality: %d
@@ -559,10 +657,10 @@ log_level: %q
 download_speed_limit: %q
 create_folder_for_singles: %t
 max_folder_name_length: %d
-retry_attempts_count: %d
+api_retry_attempts_count: %d
 max_download_pause: %q
-min_retry_pause: %q
-max_retry_pause: %q
+api_min_retry_pause: %q
+api_max_retry_pause: %q
 max_concurrent_downloads: %d
 zvuk_download_http:
   timeout: %q
@@ -570,8 +668,24 @@ zvuk_download_http:
   tls_handshake_timeout: %q
   response_header_timeout: %q
   read_idle_timeout: %q
-  receive_buffer_bytes: %d
+  receive_buffer: %q
   http1_only: %t
+  max_retries: %d
+  retry_initial_delay: %q
+  retry_max_delay: %q
+  resume: %t
+yandex_music_download_http:
+  timeout: %q
+  dial_timeout: %q
+  tls_handshake_timeout: %q
+  response_header_timeout: %q
+  read_idle_timeout: %q
+  receive_buffer: %q
+  http1_only: %t
+  max_retries: %d
+  retry_initial_delay: %q
+  retry_max_delay: %q
+  resume: %t
 `,
 		cfg.ZvukAuthToken,
 		cfg.YandexMusicToken,
@@ -597,27 +711,34 @@ zvuk_download_http:
 		cfg.DownloadSpeedLimit,
 		cfg.CreateFolderForSingles,
 		cfg.MaxFolderNameLength,
-		cfg.RetryAttemptsCount,
+		cfg.APIRetryAttemptsCount,
 		cfg.MaxDownloadPause,
-		cfg.MinRetryPause,
-		cfg.MaxRetryPause,
+		cfg.APIMinRetryPause,
+		cfg.APIMaxRetryPause,
 		cfg.MaxConcurrentDownloads,
 		httpCfg.Timeout.String(),
 		httpCfg.DialTimeout.String(),
 		httpCfg.TLSHandshakeTimeout.String(),
 		httpCfg.ResponseHeaderTimeout.String(),
 		httpCfg.ReadIdleTimeout.String(),
-		httpCfg.ReceiveBufferBytes,
+		httpCfg.ReceiveBuffer,
 		httpCfg.HTTP1Only,
+		httpCfg.MaxRetries,
+		httpCfg.RetryInitialDelay.String(),
+		httpCfg.RetryMaxDelay.String(),
+		httpCfg.Resume,
+		yandexHTTP.Timeout.String(),
+		yandexHTTP.DialTimeout.String(),
+		yandexHTTP.TLSHandshakeTimeout.String(),
+		yandexHTTP.ResponseHeaderTimeout.String(),
+		yandexHTTP.ReadIdleTimeout.String(),
+		yandexHTTP.ReceiveBuffer,
+		yandexHTTP.HTTP1Only,
+		yandexHTTP.MaxRetries,
+		yandexHTTP.RetryInitialDelay.String(),
+		yandexHTTP.RetryMaxDelay.String(),
+		yandexHTTP.Resume,
 	)
-}
-
-func downloadHTTPConfigOrDefault(cfg *Config) *DownloadHTTPConfig {
-	if cfg == nil || cfg.ZvukDownloadHTTP == nil {
-		return DefaultDownloadHTTPConfig()
-	}
-
-	return cfg.ZvukDownloadHTTP
 }
 
 // updateFieldsInNode updates or appends scalar string values in the YAML node tree.

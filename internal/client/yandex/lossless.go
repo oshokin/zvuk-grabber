@@ -42,8 +42,8 @@ type losslessHTTPClient interface {
 		url string,
 		headers map[string]string,
 	) ([]byte, error)
-	// DownloadBytesWithContext downloads a remote resource as bytes.
-	DownloadBytesWithContext(reqCtx *httptransport.RequestLogContext, url string) ([]byte, error)
+	// DownloadAudioBytesWithContext downloads a remote resource as bytes.
+	DownloadAudioBytesWithContext(reqCtx *httptransport.RequestLogContext, url string) ([]byte, error)
 }
 
 // losslessDownloader resolves and downloads lossless audio from Yandex Music.
@@ -247,7 +247,11 @@ func (d *losslessDownloader) DownloadAudio(
 	var errs []error
 
 	for _, rawURL := range info.URLs {
-		data, err := d.httpClient.DownloadBytesWithContext(reqCtx, rawURL)
+		if err := reqCtx.Err(); err != nil {
+			return nil, err
+		}
+
+		data, err := d.httpClient.DownloadAudioBytesWithContext(reqCtx, rawURL)
 		if err != nil {
 			errs = append(
 				errs,

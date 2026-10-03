@@ -55,7 +55,7 @@ var (
 // Open creates and connects a browser session.
 func Open(ctx context.Context, opts *Options) (*Session, error) {
 	if opts == nil {
-		opts = &Options{}
+		opts = new(Options)
 	}
 
 	prefix := opts.ProfileDirPrefix

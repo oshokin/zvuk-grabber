@@ -46,3 +46,17 @@ func TestRandomDelayInRange_EqualBounds(t *testing.T) {
 	expectedDelay := 42 * time.Millisecond
 	assert.Equal(t, expectedDelay, randomDelayInRange(expectedDelay, expectedDelay))
 }
+
+// TestEqualJitter stays in the half-to-full interval used by audio download retries.
+func TestEqualJitter(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, time.Duration(1), equalJitter(1))
+
+	delay := 16 * time.Millisecond
+	for range 500 {
+		got := equalJitter(delay)
+		assert.GreaterOrEqual(t, got, delay/2)
+		assert.Less(t, got, delay)
+	}
+}

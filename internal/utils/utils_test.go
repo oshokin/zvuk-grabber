@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -150,24 +151,28 @@ func TestSanitizeFilename(t *testing.T) {
 func TestRandomPause(t *testing.T) {
 	t.Parallel()
 
-	// Test that RandomPause doesn't panic and returns within reasonable time.
-	start := time.Now()
+	synctest.Test(t, func(t *testing.T) {
+		start := time.Now()
 
-	RandomPause(100*time.Millisecond, 150*time.Millisecond)
+		RandomPause(100*time.Millisecond, 150*time.Millisecond)
 
-	duration := time.Since(start)
-
-	// Should pause for at least 100ms but not more than 200ms (allowing some overhead).
-	assert.GreaterOrEqual(t, duration, 100*time.Millisecond)
-	assert.Less(t, duration, 200*time.Millisecond)
+		duration := time.Since(start)
+		assert.GreaterOrEqual(t, duration, 100*time.Millisecond)
+		assert.Less(t, duration, 150*time.Millisecond)
+	})
 }
 
 // TestRandomPauseWithEqualBounds verifies that a fixed pause does not panic.
 func TestRandomPauseWithEqualBounds(t *testing.T) {
 	t.Parallel()
 
-	assert.NotPanics(t, func() {
-		RandomPause(time.Millisecond, time.Millisecond)
+	synctest.Test(t, func(t *testing.T) {
+		assert.NotPanics(t, func() {
+			start := time.Now()
+
+			RandomPause(time.Millisecond, time.Millisecond)
+			assert.Equal(t, time.Millisecond, time.Since(start))
+		})
 	})
 }
 

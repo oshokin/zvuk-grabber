@@ -16,6 +16,7 @@ import (
 	"github.com/oshokin/zvuk-grabber/internal/files"
 	"github.com/oshokin/zvuk-grabber/internal/logger"
 	"github.com/oshokin/zvuk-grabber/internal/media"
+	"github.com/oshokin/zvuk-grabber/internal/transport/download"
 	"github.com/oshokin/zvuk-grabber/internal/utils"
 )
 
@@ -97,7 +98,22 @@ func (s *ServiceImpl) writeAudioFile(
 		defer sourceCloser.Close()
 	}
 
-	written, err := s.copyAudioStream(ctx, tempFile, source, expectedBytes)
+	speedLimit := s.cfg.ParsedDownloadSpeedLimit
+	if len(payload.data) > 0 {
+		speedLimit = 0
+	}
+
+	showProgress := len(payload.data) == 0 &&
+		logger.Level() <= zap.InfoLevel &&
+		s.cfg.MaxConcurrentDownloads == 1
+	opts := &files.CopyStreamOptions{
+		ExpectedBytes:       expectedBytes,
+		SpeedLimitBytes:     speedLimit,
+		ShowProgress:        showProgress,
+		ProgressDescription: files.DefaultCopyProgressDescription,
+	}
+
+	written, err := download.Copy(ctx, tempFile, source, opts)
 	if err != nil {
 		return 0, err
 	}
@@ -107,14 +123,16 @@ func (s *ServiceImpl) writeAudioFile(
 	}
 
 	cover := s.downloadCover(ctx, targetPath, job)
-	if err = s.tagProcessor.WriteTags(ctx, &media.WriteTagsRequest{
+	writeTagsRequest := &media.WriteTagsRequest{
 		TrackPath:  tempPath,
 		CoverPath:  cover.path,
 		Quality:    payload.quality,
 		Tags:       tags,
 		Lyrics:     strings.TrimSpace(lyrics),
 		EmbedCover: cover.path != "",
-	}); err != nil {
+	}
+
+	if err = s.tagProcessor.WriteTags(ctx, writeTagsRequest); err != nil {
 		return 0, err
 	}
 
@@ -127,33 +145,18 @@ func (s *ServiceImpl) writeAudioFile(
 	return written, nil
 }
 
-// copyAudioStream copies source audio into destination with optional progress and throttling.
-func (s *ServiceImpl) copyAudioStream(
-	ctx context.Context,
-	destination io.Writer,
-	source io.Reader,
-	expectedBytes int64,
-) (int64, error) {
-	return files.CopyStream(ctx, destination, source, &files.CopyStreamOptions{
-		ExpectedBytes:       expectedBytes,
-		SpeedLimitBytes:     s.cfg.ParsedDownloadSpeedLimit,
-		ShowProgress:        logger.Level() <= zap.InfoLevel && s.cfg.MaxConcurrentDownloads == 1,
-		ProgressDescription: "Downloading",
-	})
-}
-
 // downloadCover fetches or reuses a cover image and returns its local path.
 func (s *ServiceImpl) downloadCover(ctx context.Context, targetPath string, job *trackJob) *coverResult {
 	coverURL := coverURL(job)
 	if coverURL == "" {
 		s.recordCoverSkipped()
-		return &coverResult{}
+		return new(coverResult)
 	}
 
 	coverPath := s.buildCoverPath(targetPath, job)
 	if strings.TrimSpace(coverPath) == "" {
 		s.recordCoverSkipped()
-		return &coverResult{}
+		return new(coverResult)
 	}
 
 	unlock := s.pathLocks.Lock(coverPath)
@@ -177,7 +180,7 @@ func (s *ServiceImpl) downloadCover(ctx context.Context, targetPath string, job 
 		s.recordCoverSkipped()
 		logger.Errorf(ctx, "Yandex download client is not configured for cover download")
 
-		return &coverResult{}
+		return new(coverResult)
 	}
 
 	data, err := s.downloadCoverBytesWithRetry(ctx, coverURL)
@@ -185,21 +188,21 @@ func (s *ServiceImpl) downloadCover(ctx context.Context, targetPath string, job 
 		s.recordCoverSkipped()
 		logger.Errorf(ctx, "Failed to download Yandex cover for %q: %v", job.track.FullTitle(), err)
 
-		return &coverResult{}
+		return new(coverResult)
 	}
 
 	if contentType := http.DetectContentType(data); !strings.HasPrefix(contentType, "image/") {
 		s.recordCoverSkipped()
 		logger.Errorf(ctx, "Yandex cover response is not an image for %q: %s", job.track.FullTitle(), contentType)
 
-		return &coverResult{}
+		return new(coverResult)
 	}
 
 	if err = os.WriteFile(coverPath, data, files.DefaultFilePermissions); err != nil {
 		s.recordCoverSkipped()
 		logger.Errorf(ctx, "Failed to write Yandex cover for %q: %v", job.track.FullTitle(), err)
 
-		return &coverResult{}
+		return new(coverResult)
 	}
 
 	s.recordCoverDownloaded()

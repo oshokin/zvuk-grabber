@@ -124,20 +124,18 @@ func (s *ServiceImpl) statsSnapshot() *DownloadStatistics {
 	s.statsMutex.Lock()
 	defer s.statsMutex.Unlock()
 
-	snapshot := *s.stats
-	snapshot.Errors = append([]*DownloadError(nil), s.stats.Errors...)
-
-	return &snapshot
+	return s.stats.Clone()
 }
 
 // downloadStatsReport adapts Zvuk-specific statistics to the shared summary renderer.
 func (s *ServiceImpl) downloadStatsReport(ctx context.Context, snapshot *DownloadStatistics) *stats.Report {
-	return stats.NewReport(&stats.ReportConfig{
+	cfg := &stats.ReportConfig{
 		Provider:         summaryProviderName,
 		WasInterrupted:   ctx.Err() != nil,
 		RetryCommandBase: retryCommandBase,
 		DryRunSuggestion: dryRunSuggestion,
-	}, &stats.ReportSnapshot{
+	}
+	reportSnapshot := &stats.ReportSnapshot{
 		IsDryRun:        snapshot.IsDryRun,
 		StartTime:       snapshot.StartTime,
 		EndTime:         snapshot.EndTime,
@@ -145,7 +143,37 @@ func (s *ServiceImpl) downloadStatsReport(ctx context.Context, snapshot *Downloa
 		BytesDownloaded: snapshot.TotalBytesDownloaded,
 		Assets:          snapshot.AssetCounters(zvukSummaryAssets),
 		Errors:          zvukErrors(snapshot.Errors),
-	})
+	}
+
+	return stats.NewReport(cfg, reportSnapshot)
+}
+
+// Clone returns a detached copy so summary rendering cannot observe later mutations.
+func (d *DownloadStatistics) Clone() *DownloadStatistics {
+	if d == nil {
+		return nil
+	}
+
+	return &DownloadStatistics{
+		StartTime:             d.StartTime,
+		EndTime:               d.EndTime,
+		IsDryRun:              d.IsDryRun,
+		TotalTracksProcessed:  d.TotalTracksProcessed,
+		TracksDownloaded:      d.TracksDownloaded,
+		TracksSkipped:         d.TracksSkipped,
+		TracksSkippedExists:   d.TracksSkippedExists,
+		TracksSkippedQuality:  d.TracksSkippedQuality,
+		TracksSkippedDuration: d.TracksSkippedDuration,
+		TracksFailed:          d.TracksFailed,
+		TotalBytesDownloaded:  d.TotalBytesDownloaded,
+		LyricsDownloaded:      d.LyricsDownloaded,
+		LyricsSkipped:         d.LyricsSkipped,
+		CoversDownloaded:      d.CoversDownloaded,
+		CoversSkipped:         d.CoversSkipped,
+		DescriptionsSaved:     d.DescriptionsSaved,
+		DescriptionsSkipped:   d.DescriptionsSkipped,
+		Errors:                append([]*DownloadError(nil), d.Errors...),
+	}
 }
 
 // TrackCounters returns provider-independent track counters for the shared renderer.

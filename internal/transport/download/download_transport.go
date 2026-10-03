@@ -1,4 +1,4 @@
-package zvuk
+package download
 
 import (
 	"context"
@@ -21,6 +21,9 @@ type idleReadConn struct {
 	timeout time.Duration
 }
 
+// defaultKeepAlive probes otherwise idle audio connections.
+const defaultKeepAlive = 30 * time.Second
+
 // Read refreshes the idle deadline, then reads from the wrapped connection.
 func (c *idleReadConn) Read(p []byte) (int, error) {
 	if err := c.SetReadDeadline(time.Now().Add(c.timeout)); err != nil {
@@ -30,9 +33,9 @@ func (c *idleReadConn) Read(p []byte) (int, error) {
 	return c.Conn.Read(p)
 }
 
-// newDownloadTransport keeps connection setup bounded without putting a total
+// NewTransport keeps connection setup bounded without putting a total
 // deadline on the response body. Each client owns its transport and socket policy.
-func newDownloadTransport(cfg *config.DownloadHTTPConfig, paced bool) *http.Transport {
+func NewTransport(cfg *config.DownloadHTTPConfig, paced bool) *http.Transport {
 	if cfg == nil {
 		cfg = config.DefaultDownloadHTTPConfig()
 	}
@@ -56,7 +59,7 @@ func newDownloadTransport(cfg *config.DownloadHTTPConfig, paced bool) *http.Tran
 		transport.TLSClientConfig.NextProtos = []string{"http/1.1"}
 	}
 
-	dialer := &net.Dialer{Timeout: cfg.DialTimeout, KeepAlive: 30 * time.Second}
+	dialer := &net.Dialer{Timeout: cfg.DialTimeout, KeepAlive: defaultKeepAlive}
 	if paced && cfg.ReceiveBufferBytes > 0 {
 		dialer.Control = receiveBufferControl(cfg.ReceiveBufferBytes)
 	}

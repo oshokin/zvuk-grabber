@@ -62,9 +62,40 @@ var (
 	)
 )
 
+// Context returns the request context, or context.Background when unset.
+func (r *RequestLogContext) Context() context.Context {
+	if r == nil || r.Ctx == nil {
+		return context.Background()
+	}
+
+	return r.Ctx
+}
+
+// ContextOr returns the request context, or fallback when the request context is unset.
+func (r *RequestLogContext) ContextOr(fallback context.Context) context.Context {
+	if r != nil && r.Ctx != nil {
+		return r.Ctx
+	}
+
+	if fallback != nil {
+		return fallback
+	}
+
+	return context.Background()
+}
+
+// Err reports cancellation or deadline from the request context.
+func (r *RequestLogContext) Err() error {
+	if r == nil || r.Ctx == nil {
+		return nil
+	}
+
+	return r.Ctx.Err()
+}
+
 // WriteRequestLog writes request logs with standard structured attributes.
 func WriteRequestLog(level RequestLogLevel, reqCtx *RequestLogContext, msg string, args ...any) {
-	ctx := requestContext(reqCtx)
+	ctx := reqCtx.Context()
 	attrs := requestLogAttrs(reqCtx, args...)
 
 	switch level {
@@ -170,15 +201,6 @@ func FormatByteSize(size int64) string {
 	}
 
 	return humanize.IBytes(uint64(size))
-}
-
-// requestContext resolves the effective context for request logging.
-func requestContext(reqCtx *RequestLogContext) context.Context {
-	if reqCtx != nil && reqCtx.Ctx != nil {
-		return reqCtx.Ctx
-	}
-
-	return context.Background()
 }
 
 // requestSensitiveFieldKeys returns source-specific structured fields that must be redacted.

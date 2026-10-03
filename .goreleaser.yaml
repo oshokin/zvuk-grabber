@@ -28,11 +28,13 @@ archives:
         formats: ["zip"]
     # Do not wrap files in a directory inside the archive.
     wrap_in_directory: false
-    # Files to include in the archive (binary, safe example config, LICENSE, README.md).
+    # Files to include in the archive (binary, safe example config, LICENSE, README, docs).
     files:
       - .zvuk-grabber.example.yaml # Include safe example config without tokens
       - LICENSE # Include the license file
       - README.md # Include the README file
+      - src: docs/*
+        dst: docs
 
 # Release configuration.
 release:

@@ -1,12 +1,11 @@
 package yandex
 
 import (
-	"fmt"
 	"io"
 	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -14,6 +13,12 @@ import (
 
 	httptransport "github.com/oshokin/zvuk-grabber/internal/transport/http"
 )
+
+// roundTripFunc is an http.RoundTripper backed by a function.
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+// RoundTrip calls the wrapped function.
+func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
 
 // TestSanitizeHeaders_RedactsSensitiveHeaders verifies sensitive HTTP headers are redacted in logs.
 func TestSanitizeHeaders_RedactsSensitiveHeaders(t *testing.T) {
@@ -75,76 +80,69 @@ func TestResponsePreview_TruncatesTo512Bytes(t *testing.T) {
 func TestOpenStreamWithContext_KeepStreamAliveUntilCallerClose(t *testing.T) {
 	t.Parallel()
 
-	firstChunkWritten := make(chan struct{})
-	requestCancelledEarly := make(chan struct{}, 1)
-	handlerErr := make(chan error, 1)
+	synctest.Test(t, func(t *testing.T) {
+		requestCancelledEarly := make(chan struct{}, 1)
+		writeSecond := make(chan struct{})
 
-	reportHandlerErr := func(err error) {
-		if err == nil {
-			return
-		}
+		opts := new(httptransport.ClientOptions)
+		opts.DownloadTimeout = 2 * time.Second
+		opts.ProviderName = providerNameYandex
+		opts.AudioHTTPClient = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+			reader, writer := io.Pipe()
+
+			go func() {
+				defer writer.Close()
+
+				_, writeErr := writer.Write([]byte("a"))
+				assert.NoError(t, writeErr)
+
+				select {
+				case <-r.Context().Done():
+					requestCancelledEarly <- struct{}{}
+					return
+				case <-writeSecond:
+				}
+
+				_, writeErr = writer.Write([]byte("b"))
+				assert.NoError(t, writeErr)
+			}()
+
+			resp := new(http.Response)
+			resp.StatusCode = http.StatusOK
+			resp.Body = reader
+			resp.ContentLength = 2
+			resp.Header = make(http.Header)
+			resp.Request = r
+
+			return resp, nil
+		})}
+
+		client := new(HttpClient)
+		client.transport = httptransport.NewClient(opts)
+
+		reqCtx := new(httptransport.RequestLogContext)
+		reqCtx.Ctx = t.Context()
+		stream, err := client.OpenStreamWithContext(reqCtx, "https://example.test/audio")
+		require.NoError(t, err)
+
+		defer stream.Body.Close()
+
+		first := make([]byte, 1)
+		n, err := stream.Body.Read(first)
+		require.NoError(t, err)
+		require.Equal(t, "a", string(first[:n]))
+		synctest.Wait()
 
 		select {
-		case handlerErr <- err:
+		case <-requestCancelledEarly:
+			t.Fatal("stream request context canceled before caller closed response body")
 		default:
 		}
-	}
 
-	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		flusher, hasFlusher := writer.(http.Flusher)
+		close(writeSecond)
 
-		if _, err := writer.Write([]byte("a")); err != nil {
-			reportHandlerErr(fmt.Errorf("failed to write first chunk: %w", err))
-			return
-		}
-
-		if hasFlusher {
-			flusher.Flush()
-		}
-
-		close(firstChunkWritten)
-
-		select {
-		case <-request.Context().Done():
-			requestCancelledEarly <- struct{}{}
-			return
-		case <-time.After(120 * time.Millisecond):
-		}
-
-		if _, err := writer.Write([]byte("b")); err != nil {
-			reportHandlerErr(fmt.Errorf("failed to write second chunk: %w", err))
-			return
-		}
-
-		if hasFlusher {
-			flusher.Flush()
-		}
-	}))
-	defer server.Close()
-
-	client := NewHttpClient()
-	client.SetDownloadTimeout(2 * time.Second)
-
-	stream, err := client.OpenStreamWithContext(&httptransport.RequestLogContext{}, server.URL)
-	require.NoError(t, err)
-
-	defer stream.Body.Close()
-
-	<-firstChunkWritten
-
-	select {
-	case <-requestCancelledEarly:
-		t.Fatal("stream request context canceled before caller closed response body")
-	case <-time.After(60 * time.Millisecond):
-	}
-
-	body, err := io.ReadAll(stream.Body)
-	require.NoError(t, err)
-	assert.Equal(t, "ab", string(body))
-
-	select {
-	case err = <-handlerErr:
+		rest, err := io.ReadAll(stream.Body)
 		require.NoError(t, err)
-	default:
-	}
+		assert.Equal(t, "ab", string(first)+string(rest))
+	})
 }

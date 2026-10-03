@@ -1,6 +1,6 @@
-//go:build windows
+//go:build unix
 
-package zvuk
+package download
 
 import (
 	"fmt"
@@ -12,14 +12,17 @@ import (
 func receiveBufferControl(size int) func(string, string, syscall.RawConn) error {
 	return func(_, _ string, raw syscall.RawConn) error {
 		var socketErr error
+
 		if err := raw.Control(func(fd uintptr) {
-			socketErr = syscall.SetsockoptInt(syscall.Handle(fd), syscall.SOL_SOCKET, syscall.SO_RCVBUF, size)
+			socketErr = syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_RCVBUF, size)
 		}); err != nil {
 			return fmt.Errorf("control download socket: %w", err)
 		}
+
 		if socketErr != nil {
 			return fmt.Errorf("set download receive buffer: %w", socketErr)
 		}
+
 		return nil
 	}
 }

@@ -5,7 +5,6 @@ import (
 	"os"
 	"testing"
 	"testing/synctest"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -69,8 +68,7 @@ func TestDownloadTracks_PartFileCleanupOnFailure(t *testing.T) {
 
 		setup.impl(t).downloadTracks(t.Context(), metadata)
 
-		// Allow deferred cleanup paths to complete before assertions.
-		time.Sleep(50 * time.Millisecond)
+		synctest.Wait()
 
 		assert.Empty(t, findPartFiles(t, setup.tempDir), ".part files should be cleaned up after failed download")
 		assert.Empty(t, findAudioFiles(t, setup.tempDir), "No audio files should exist after failed download")

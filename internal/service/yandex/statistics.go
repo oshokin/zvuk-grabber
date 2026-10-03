@@ -160,13 +160,15 @@ func (s *ServiceImpl) PrintDownloadSummary(ctx context.Context) {
 
 // yandexStatsReport adapts Yandex-specific settings to the shared summary renderer.
 func yandexStatsReport(ctx context.Context, snapshot *stats.Session) *stats.Report {
-	return snapshot.Report(&stats.ReportConfig{
+	cfg := &stats.ReportConfig{
 		Provider:         providerName,
 		WasInterrupted:   ctx.Err() != nil,
 		Assets:           yandexSummaryAssets,
 		RetryCommandBase: retryCommandBase,
 		DryRunSuggestion: dryRunSuggestion,
-	})
+	}
+
+	return snapshot.Report(cfg)
 }
 
 // yandexStatsSkipReason converts provider-local skip reasons to shared statistics reasons.

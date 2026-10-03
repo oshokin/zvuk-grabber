@@ -27,7 +27,7 @@ func TestParseGraphQLChildTracksReturnsEmptyResultForUnexpectedFieldType(t *test
 		map[string]any{"chapters": "unexpected value"},
 		"chapters",
 		"chapter",
-		&Audiobook{},
+		new(Audiobook),
 		func(map[string]any, *Audiobook) (*Track, error) {
 			t.Fatal("parser must not be called for an unexpected child-list type")
 

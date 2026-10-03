@@ -21,8 +21,8 @@ func TestDownloadAndSaveLyrics_SkipsWhenLyricsUnavailable(t *testing.T) {
 
 	service := &ServiceImpl{
 		cfg: &config.Config{
-			DownloadLyrics:     true,
-			RetryAttemptsCount: 5,
+			DownloadLyrics:        true,
+			APIRetryAttemptsCount: 5,
 		},
 		client:       client,
 		sessionStats: stats.NewSession(time.Time{}, false),
@@ -42,7 +42,7 @@ func TestDownloadAndSaveLyrics_SkipsWhenLyricsUnavailable(t *testing.T) {
 func TestIsYandexLyricsMissing_NoLyricsFoundForTrack(t *testing.T) {
 	t.Parallel()
 
-	apiErr := &model.ErrorResponse{}
+	apiErr := new(model.ErrorResponse)
 	apiErr.APIError.Name = "No lyrics found for track"
 
 	assert.True(t, isYandexLyricsMissing(apiErr))

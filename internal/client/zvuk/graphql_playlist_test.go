@@ -93,11 +93,11 @@ func newPlaylistTestClient(t *testing.T, baseURL string) *ClientImpl {
 	t.Helper()
 
 	client, err := NewClient(&config.Config{
-		ZvukAuthToken:       "test_token",
-		ZvukBaseURL:         baseURL,
-		RetryAttemptsCount:  1,
-		ParsedMinRetryPause: 0,
-		ParsedMaxRetryPause: 0,
+		ZvukAuthToken:          "test_token",
+		ZvukBaseURL:            baseURL,
+		APIRetryAttemptsCount:  1,
+		ParsedAPIMinRetryPause: 0,
+		ParsedAPIMaxRetryPause: 0,
 	})
 	require.NoError(t, err)
 

@@ -3,6 +3,7 @@ package yandex
 
 import (
 	"errors"
+	"io"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -13,6 +14,7 @@ import (
 	"github.com/oshokin/zvuk-grabber/internal/config"
 	"github.com/oshokin/zvuk-grabber/internal/media"
 	mock_yandex "github.com/oshokin/zvuk-grabber/internal/service/yandex/mocks"
+	"github.com/oshokin/zvuk-grabber/internal/transport/download"
 )
 
 // TestResolveAudioQuality_FLACPreferredAvailable verifies FLAC is selected when available and preferred.
@@ -128,6 +130,21 @@ func TestResolveAudioQuality_MP3192DoesNotMeetHighMinimum(t *testing.T) {
 	require.NotNil(t, result)
 	assert.True(t, result.shouldSkip)
 	assert.Error(t, result.skipReason)
+}
+
+// TestTransferFailureIsNotRetriedOrDowngraded keeps the completed transport budget authoritative.
+func TestTransferFailureIsNotRetriedOrDowngraded(t *testing.T) {
+	for _, minimum := range []media.Quality{media.QualityUnknown, media.QualityFLAC} {
+		ctrl := gomock.NewController(t)
+		client := mock_yandex.NewMockMusicClient(ctrl)
+		failure := &download.Error{Err: io.ErrUnexpectedEOF}
+		client.EXPECT().DownloadFLACBytes(gomock.Any(), "123").Return(nil, failure).Times(1)
+		service := newQualityTestService(client, media.QualityFLAC, minimum)
+		service.cfg.APIRetryAttemptsCount = 5
+		result, err := resolveTestAudioQuality(t, service)
+		require.ErrorIs(t, err, failure)
+		require.Nil(t, result)
+	}
 }
 
 // newQualityTestService builds a service configured for quality resolution tests.

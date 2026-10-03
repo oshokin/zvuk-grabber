@@ -34,24 +34,24 @@ func TestNewClient(t *testing.T) {
 		{
 			name: "valid config",
 			config: &config.Config{
-				ZvukAuthToken:       "test_token",
-				Quality:             2,
-				ZvukBaseURL:         "https://zvuk.com",
-				RetryAttemptsCount:  3,
-				ParsedMaxRetryPause: 1000000000, // 1 second.
-				ParsedMinRetryPause: 100000000,  // 100ms.
+				ZvukAuthToken:          "test_token",
+				Quality:                2,
+				ZvukBaseURL:            "https://zvuk.com",
+				APIRetryAttemptsCount:  3,
+				ParsedAPIMaxRetryPause: 1000000000, // 1 second.
+				ParsedAPIMinRetryPause: 100000000,  // 100ms.
 			},
 			expectError: false,
 		},
 		{
 			name: "invalid base URL",
 			config: &config.Config{
-				ZvukAuthToken:       "test_token",
-				Quality:             2,
-				ZvukBaseURL:         "://invalid-url",
-				RetryAttemptsCount:  3,
-				ParsedMaxRetryPause: 1000000000,
-				ParsedMinRetryPause: 100000000,
+				ZvukAuthToken:          "test_token",
+				Quality:                2,
+				ZvukBaseURL:            "://invalid-url",
+				APIRetryAttemptsCount:  3,
+				ParsedAPIMaxRetryPause: 1000000000,
+				ParsedAPIMinRetryPause: 100000000,
 			},
 			expectError: true,
 		},

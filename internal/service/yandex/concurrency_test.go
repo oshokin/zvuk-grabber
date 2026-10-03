@@ -139,7 +139,7 @@ func TestDownloadJobs_StatsCorrectUnderParallelExecution(t *testing.T) {
 func makeJobs(count int) []*trackJob {
 	jobs := make([]*trackJob, 0, count)
 	for range count {
-		jobs = append(jobs, &trackJob{})
+		jobs = append(jobs, new(trackJob))
 	}
 
 	return jobs

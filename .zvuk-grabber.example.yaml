@@ -22,10 +22,10 @@ log_level: "info"
 download_speed_limit: ""
 create_folder_for_singles: false
 max_folder_name_length: 100
-retry_attempts_count: 5
+api_retry_attempts_count: 5
 max_download_pause: "2s"
-min_retry_pause: "3s"
-max_retry_pause: "7s"
+api_min_retry_pause: "3s"
+api_max_retry_pause: "7s"
 max_concurrent_downloads: 1
 
 zvuk_download_http:
@@ -34,5 +34,22 @@ zvuk_download_http:
   tls_handshake_timeout: "10s"
   response_header_timeout: "60s"
   read_idle_timeout: "60s"
-  receive_buffer_bytes: 262144
+  receive_buffer: "256KiB"
   http1_only: true
+  max_retries: 3
+  retry_initial_delay: "1s"
+  retry_max_delay: "30s"
+  resume: true
+
+yandex_music_download_http:
+  timeout: "0s"
+  dial_timeout: "30s"
+  tls_handshake_timeout: "10s"
+  response_header_timeout: "60s"
+  read_idle_timeout: "60s"
+  receive_buffer: "256KiB"
+  http1_only: true
+  max_retries: 3
+  retry_initial_delay: "1s"
+  retry_max_delay: "30s"
+  resume: true

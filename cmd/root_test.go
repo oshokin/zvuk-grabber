@@ -33,10 +33,10 @@ replace_covers: false
 replace_lyrics: false
 create_folder_for_singles: false
 max_folder_name_length: 100
-retry_attempts_count: 3
+api_retry_attempts_count: 3
 max_download_pause: "5s"
-min_retry_pause: "1s"
-max_retry_pause: "3s"
+api_min_retry_pause: "1s"
+api_max_retry_pause: "3s"
 max_concurrent_downloads: 1
 `
 
@@ -325,7 +325,7 @@ func TestFlagOverrides_AllQualityValues(t *testing.T) {
 	}{
 		{"quality 1 - MP3 128 Kbps", 1, 1},
 		{"quality 2 - MP3 320 Kbps", 2, 2},
-		{"quality 3 - FLAC 16-bit/44.1kHz", 3, 3},
+		{"quality 3 - FLAC lossless", 3, 3},
 	}
 
 	for _, tt := range qualityTests {
@@ -539,10 +539,10 @@ func TestBindFlagsToConfig_EmptyFlagSet(t *testing.T) {
 		ZvukAuthToken:          "test_token",
 		Quality:                2,
 		LogLevel:               "info",
-		RetryAttemptsCount:     3,
+		APIRetryAttemptsCount:  3,
 		MaxDownloadPause:       "5s",
-		MinRetryPause:          "1s",
-		MaxRetryPause:          "3s",
+		APIMinRetryPause:       "1s",
+		APIMaxRetryPause:       "3s",
 		MaxConcurrentDownloads: 1,
 	}
 

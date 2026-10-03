@@ -25,7 +25,7 @@ func TestRetryValue_NoRetryOnNoFLACError(t *testing.T) {
 
 	service := &ServiceImpl{
 		cfg: &config.Config{
-			RetryAttemptsCount: 5,
+			APIRetryAttemptsCount: 5,
 		},
 	}
 
@@ -49,11 +49,11 @@ func TestRetryValue_NoRetryOnValidationError(t *testing.T) {
 
 	service := &ServiceImpl{
 		cfg: &config.Config{
-			RetryAttemptsCount: 5,
+			APIRetryAttemptsCount: 5,
 		},
 	}
 
-	validationErr := &model.ErrorResponse{}
+	validationErr := new(model.ErrorResponse)
 	validationErr.APIError.Name = "validate"
 	validationErr.APIError.Message = "Parameters requirements are not met."
 
@@ -73,11 +73,11 @@ func TestRetryValue_NoRetryOnInvalidSignError(t *testing.T) {
 
 	service := &ServiceImpl{
 		cfg: &config.Config{
-			RetryAttemptsCount: 5,
+			APIRetryAttemptsCount: 5,
 		},
 	}
 
-	invalidSignErr := &model.ErrorResponse{}
+	invalidSignErr := new(model.ErrorResponse)
 	invalidSignErr.APIError.Name = "Invalid Sign"
 
 	calls := 0
@@ -96,11 +96,11 @@ func TestRetryValue_NoRetryOnNoLyricsFound(t *testing.T) {
 
 	service := &ServiceImpl{
 		cfg: &config.Config{
-			RetryAttemptsCount: 5,
+			APIRetryAttemptsCount: 5,
 		},
 	}
 
-	missingLyricsErr := &model.ErrorResponse{}
+	missingLyricsErr := new(model.ErrorResponse)
 	missingLyricsErr.APIError.Name = "No lyrics found for track"
 
 	calls := 0
@@ -119,7 +119,7 @@ func TestRetryValue_RetriesTransientError(t *testing.T) {
 
 	service := &ServiceImpl{
 		cfg: &config.Config{
-			RetryAttemptsCount: 5,
+			APIRetryAttemptsCount: 5,
 		},
 	}
 
@@ -144,9 +144,9 @@ func TestRetryValue_CancelDuringRetryPause(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		service := &ServiceImpl{
 			cfg: &config.Config{
-				RetryAttemptsCount:  5,
-				ParsedMinRetryPause: 500 * time.Millisecond,
-				ParsedMaxRetryPause: 500 * time.Millisecond,
+				APIRetryAttemptsCount:  5,
+				ParsedAPIMinRetryPause: 500 * time.Millisecond,
+				ParsedAPIMaxRetryPause: 500 * time.Millisecond,
 			},
 		}
 

@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/oshokin/zvuk-grabber/internal/media"
+	"github.com/oshokin/zvuk-grabber/internal/transport/download"
 )
 
 // qualityResolutionResult holds the outcome of audio quality resolution for a track.
@@ -53,32 +54,15 @@ func (s *ServiceImpl) resolveAudioQuality(ctx context.Context, job *trackJob) (*
 		desired = media.QualityMP3High
 	}
 
-	if desired == media.QualityFLAC {
-		if s.client == nil {
-			return nil, errors.New("yandex client is not configured")
-		}
-
-		data, err := retryValue(ctx, s, "downloading Yandex FLAC audio", func() ([]byte, error) {
-			return s.client.DownloadFLACBytes(ctx, trackID)
-		})
-		if err == nil {
-			return qualityPayload(&audioPayload{
-				quality:       media.QualityFLAC,
-				data:          data,
-				contentLength: int64(len(data)),
-				codec:         media.CodecFLAC.String(),
-			}), nil
-		}
-
-		if minimum >= media.QualityFLAC {
-			return qualitySkip(fmt.Errorf("FLAC is required but unavailable: %w", err)), nil
-		}
-
-		s.warnLosslessFallbackOnce(ctx, job, err)
-	}
-
 	if s.client == nil {
 		return nil, errors.New("yandex client is not configured")
+	}
+
+	if desired == media.QualityFLAC {
+		result, err := s.resolveLosslessAudio(ctx, job, trackID, minimum)
+		if err != nil || result.payload != nil || result.shouldSkip {
+			return result, err
+		}
 	}
 
 	link, bitrate, err := s.resolveMP3LinkWithRetry(ctx, trackID, s.cfg.Quality)
@@ -103,4 +87,39 @@ func (s *ServiceImpl) resolveAudioQuality(ctx context.Context, job *trackJob) (*
 		bitrate:   bitrate,
 		codec:     media.CodecMP3.String(),
 	}), nil
+}
+
+// resolveLosslessAudio returns an empty resolution only when an availability failure permits MP3 fallback.
+func (s *ServiceImpl) resolveLosslessAudio(
+	ctx context.Context,
+	job *trackJob,
+	trackID string,
+	minimum media.Quality,
+) (*qualityResolutionResult, error) {
+	data, err := retryValue(ctx, s, "downloading Yandex FLAC audio", func() ([]byte, error) {
+		return s.client.DownloadFLACBytes(ctx, trackID)
+	})
+	if err == nil {
+		return qualityPayload(
+			&audioPayload{
+				quality:       media.QualityFLAC,
+				data:          data,
+				contentLength: int64(len(data)),
+				codec:         media.CodecFLAC.String(),
+			},
+		), nil
+	}
+
+	var transferErr *download.Error
+	if errors.As(err, &transferErr) || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return nil, err
+	}
+
+	if minimum >= media.QualityFLAC {
+		return qualitySkip(fmt.Errorf("FLAC is required but unavailable: %w", err)), nil
+	}
+
+	s.warnLosslessFallbackOnce(ctx, job, err)
+
+	return new(qualityResolutionResult), nil
 }

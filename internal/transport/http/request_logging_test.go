@@ -1,6 +1,7 @@
 package http
 
 import (
+	"context"
 	"net/url"
 	"testing"
 
@@ -18,17 +19,13 @@ func TestLogRequest_UsesInternalLoggerAndRequestContext(t *testing.T) {
 
 	core, observedLogs := observer.New(zap.DebugLevel)
 	ctx := applogger.ToContext(t.Context(), zap.New(core).Sugar())
+	reqCtx := &RequestLogContext{
+		Ctx:       ctx,
+		Stage:     "download",
+		Operation: "open_stream",
+	}
 
-	WriteRequestLog(
-		RequestLogLevelInfo,
-		&RequestLogContext{
-			Ctx:       ctx,
-			Stage:     "download",
-			Operation: "open_stream",
-		},
-		"test request",
-		"custom_attr", "value",
-	)
+	WriteRequestLog(RequestLogLevelInfo, reqCtx, "test request", "custom_attr", "value")
 
 	entries := observedLogs.AllUntimed()
 	require.Len(t, entries, 1)
@@ -44,14 +41,9 @@ func TestLogRequest_DoesNotRedactWithoutSensitiveAttributes(t *testing.T) {
 
 	core, observedLogs := observer.New(zap.DebugLevel)
 	ctx := applogger.ToContext(t.Context(), zap.New(core).Sugar())
+	reqCtx := &RequestLogContext{Ctx: ctx}
 
-	WriteRequestLog(
-		RequestLogLevelInfo,
-		&RequestLogContext{Ctx: ctx},
-		"test request",
-		"token", "secret-token",
-		"name", "visible",
-	)
+	WriteRequestLog(RequestLogLevelInfo, reqCtx, "test request", "token", "secret-token", "name", "visible")
 
 	entries := observedLogs.AllUntimed()
 	require.Len(t, entries, 1)
@@ -65,13 +57,14 @@ func TestLogRequest_RedactsSourceSpecificSensitiveAttributes(t *testing.T) {
 
 	core, observedLogs := observer.New(zap.DebugLevel)
 	ctx := applogger.ToContext(t.Context(), zap.New(core).Sugar())
+	reqCtx := &RequestLogContext{
+		Ctx:                ctx,
+		SensitiveFieldKeys: []string{"api_key", "signature_hint"},
+	}
 
 	WriteRequestLog(
 		RequestLogLevelInfo,
-		&RequestLogContext{
-			Ctx:                ctx,
-			SensitiveFieldKeys: []string{"api_key", "signature_hint"},
-		},
+		reqCtx,
 		"test request",
 		"api_key", "custom-secret",
 		"signature_hint", "provider-signature",
@@ -83,6 +76,25 @@ func TestLogRequest_RedactsSourceSpecificSensitiveAttributes(t *testing.T) {
 	assert.Equal(t, "***", entries[0].ContextMap()["api_key"])
 	assert.Equal(t, "***", entries[0].ContextMap()["signature_hint"])
 	assert.Equal(t, "visible", entries[0].ContextMap()["name"])
+}
+
+// TestRequestLogContext_NilSafe resolves context and cancellation without nil checks at call sites.
+func TestRequestLogContext_NilSafe(t *testing.T) {
+	t.Parallel()
+
+	var unset *RequestLogContext
+
+	require.Equal(t, context.Background(), unset.Context())
+	require.NoError(t, unset.Err())
+	require.Equal(t, t.Context(), unset.ContextOr(t.Context()))
+
+	canceled, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	reqCtx := &RequestLogContext{Ctx: canceled}
+	require.Equal(t, canceled, reqCtx.Context())
+	require.ErrorIs(t, reqCtx.Err(), context.Canceled)
+	require.Equal(t, canceled, reqCtx.ContextOr(context.Background()))
 }
 
 // TestSanitizeURL_DoesNotRedactWithoutSensitiveKeys verifies default URL sanitization does not guess keys.

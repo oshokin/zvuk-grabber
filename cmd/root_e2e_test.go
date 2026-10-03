@@ -48,10 +48,10 @@ replace_covers: false
 replace_lyrics: false
 create_folder_for_singles: false
 max_folder_name_length: 100
-retry_attempts_count: 3
+api_retry_attempts_count: 3
 max_download_pause: "5s"
-min_retry_pause: "1s"
-max_retry_pause: "3s"
+api_min_retry_pause: "1s"
+api_max_retry_pause: "3s"
 max_concurrent_downloads: 1
 `
 )
@@ -328,7 +328,7 @@ func TestExitStatusForAutomation(t *testing.T) {
 
 	output, err := execTestBinary("version").CombinedOutput()
 	require.NoError(t, err, "%s", output)
-	require.Contains(t, string(output), "1.9.7")
+	require.Contains(t, string(output), "1.9.8")
 }
 
 // getTestBinaryName returns the test binary name with the correct extension for the platform.

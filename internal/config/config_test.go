@@ -36,10 +36,10 @@ func TestConfigStruct(t *testing.T) {
 		DownloadSpeedLimit:       "1MB",
 		CreateFolderForSingles:   true,
 		MaxFolderNameLength:      100,
-		RetryAttemptsCount:       3,
+		APIRetryAttemptsCount:    3,
 		MaxDownloadPause:         "5s",
-		MinRetryPause:            "1s",
-		MaxRetryPause:            "3s",
+		APIMinRetryPause:         "1s",
+		APIMaxRetryPause:         "3s",
 		MaxConcurrentDownloads:   1,
 	}
 
@@ -59,10 +59,10 @@ func TestConfigStruct(t *testing.T) {
 	assert.Equal(t, "1MB", cfg.DownloadSpeedLimit)
 	assert.True(t, cfg.CreateFolderForSingles)
 	assert.Equal(t, int64(100), cfg.MaxFolderNameLength)
-	assert.Equal(t, int64(3), cfg.RetryAttemptsCount)
+	assert.Equal(t, int64(3), cfg.APIRetryAttemptsCount)
 	assert.Equal(t, "5s", cfg.MaxDownloadPause)
-	assert.Equal(t, "1s", cfg.MinRetryPause)
-	assert.Equal(t, "3s", cfg.MaxRetryPause)
+	assert.Equal(t, "1s", cfg.APIMinRetryPause)
+	assert.Equal(t, "3s", cfg.APIMaxRetryPause)
 	assert.Equal(t, int64(1), cfg.MaxConcurrentDownloads)
 }
 
@@ -109,10 +109,10 @@ log_level: "info"
 download_speed_limit: "1MB"
 create_folder_for_singles: true
 max_folder_name_length: 100
-retry_attempts_count: 3
+api_retry_attempts_count: 3
 max_download_pause: "5s"
-min_retry_pause: "1s"
-max_retry_pause: "3s"
+api_min_retry_pause: "1s"
+api_max_retry_pause: "3s"
 `,
 			expectError: false,
 		},
@@ -238,10 +238,10 @@ func TestValidateConfig(t *testing.T) {
 		{
 			name: "invalid retry attempts count",
 			config: validationConfig(func(cfg *Config) {
-				cfg.RetryAttemptsCount = 0
+				cfg.APIRetryAttemptsCount = 0
 			}),
 			expectError: true,
-			errorMsg:    "retry attempts count must a positive integer",
+			errorMsg:    "api_retry_attempts_count must be a positive integer",
 		},
 		{
 			name: "invalid max download pause",
@@ -254,18 +254,18 @@ func TestValidateConfig(t *testing.T) {
 		{
 			name: "invalid min retry pause",
 			config: validationConfig(func(cfg *Config) {
-				cfg.MinRetryPause = "invalid"
+				cfg.APIMinRetryPause = "invalid"
 			}),
 			expectError: true,
-			errorMsg:    "failed to parse min retry pause:",
+			errorMsg:    "failed to parse api_min_retry_pause:",
 		},
 		{
 			name: "invalid max retry pause",
 			config: validationConfig(func(cfg *Config) {
-				cfg.MaxRetryPause = "invalid"
+				cfg.APIMaxRetryPause = "invalid"
 			}),
 			expectError: true,
-			errorMsg:    "failed to parse max retry pause:",
+			errorMsg:    "failed to parse api_max_retry_pause:",
 		},
 		{
 			name: "invalid download speed limit",
@@ -416,10 +416,10 @@ func TestConfigValidation_MinQuality(t *testing.T) {
 				PlaylistFilenameTemplate: "{{.trackTitle}}",
 				LogLevel:                 "info",
 				DownloadSpeedLimit:       "",
-				RetryAttemptsCount:       1,
+				APIRetryAttemptsCount:    1,
 				MaxDownloadPause:         "1s",
-				MinRetryPause:            "1s",
-				MaxRetryPause:            "5s",
+				APIMinRetryPause:         "1s",
+				APIMaxRetryPause:         "5s",
 				MaxConcurrentDownloads:   1,
 			}
 
@@ -543,10 +543,10 @@ func TestConfigValidation_DurationSettings(t *testing.T) {
 				PlaylistFilenameTemplate: "{{.trackTitle}}",
 				LogLevel:                 "info",
 				DownloadSpeedLimit:       "",
-				RetryAttemptsCount:       1,
+				APIRetryAttemptsCount:    1,
 				MaxDownloadPause:         "1s",
-				MinRetryPause:            "1s",
-				MaxRetryPause:            "5s",
+				APIMinRetryPause:         "1s",
+				APIMaxRetryPause:         "5s",
 				MaxConcurrentDownloads:   1,
 			}
 
@@ -611,36 +611,36 @@ func TestConfigValidation_PauseDurations(t *testing.T) {
 			errorContains:    "max_download_pause must be positive",
 		},
 		{
-			name:             "Zero min_retry_pause",
+			name:             "Zero api_min_retry_pause",
 			maxDownloadPause: "2s",
 			minRetryPause:    "0s",
 			maxRetryPause:    "5s",
 			expectError:      true,
-			errorContains:    "min_retry_pause must be positive",
+			errorContains:    "api_min_retry_pause must be positive",
 		},
 		{
-			name:             "Negative min_retry_pause",
+			name:             "Negative api_min_retry_pause",
 			maxDownloadPause: "2s",
 			minRetryPause:    "-1s",
 			maxRetryPause:    "5s",
 			expectError:      true,
-			errorContains:    "min_retry_pause must be positive",
+			errorContains:    "api_min_retry_pause must be positive",
 		},
 		{
-			name:             "Zero max_retry_pause",
+			name:             "Zero api_max_retry_pause",
 			maxDownloadPause: "2s",
 			minRetryPause:    "1s",
 			maxRetryPause:    "0s",
 			expectError:      true,
-			errorContains:    "max_retry_pause must be positive",
+			errorContains:    "api_max_retry_pause must be positive",
 		},
 		{
-			name:             "Negative max_retry_pause",
+			name:             "Negative api_max_retry_pause",
 			maxDownloadPause: "2s",
 			minRetryPause:    "1s",
 			maxRetryPause:    "-5s",
 			expectError:      true,
-			errorContains:    "max_retry_pause must be positive",
+			errorContains:    "api_max_retry_pause must be positive",
 		},
 		{
 			name:             "Invalid max_download_pause format",
@@ -651,20 +651,20 @@ func TestConfigValidation_PauseDurations(t *testing.T) {
 			errorContains:    "failed to parse max download pause",
 		},
 		{
-			name:             "Invalid min_retry_pause format",
+			name:             "Invalid api_min_retry_pause format",
 			maxDownloadPause: "2s",
 			minRetryPause:    "notaduration",
 			maxRetryPause:    "5s",
 			expectError:      true,
-			errorContains:    "failed to parse min retry pause",
+			errorContains:    "failed to parse api_min_retry_pause",
 		},
 		{
-			name:             "Invalid max_retry_pause format",
+			name:             "Invalid api_max_retry_pause format",
 			maxDownloadPause: "2s",
 			minRetryPause:    "1s",
 			maxRetryPause:    "xyz",
 			expectError:      true,
-			errorContains:    "failed to parse max retry pause",
+			errorContains:    "failed to parse api_max_retry_pause",
 		},
 	}
 
@@ -682,10 +682,10 @@ func TestConfigValidation_PauseDurations(t *testing.T) {
 				PlaylistFilenameTemplate: "{{.trackTitle}}",
 				LogLevel:                 "info",
 				DownloadSpeedLimit:       "",
-				RetryAttemptsCount:       1,
+				APIRetryAttemptsCount:    1,
 				MaxDownloadPause:         tt.maxDownloadPause,
-				MinRetryPause:            tt.minRetryPause,
-				MaxRetryPause:            tt.maxRetryPause,
+				APIMinRetryPause:         tt.minRetryPause,
+				APIMaxRetryPause:         tt.maxRetryPause,
 				MaxConcurrentDownloads:   1,
 			}
 
@@ -706,8 +706,8 @@ func TestConfigValidation_PauseDurations(t *testing.T) {
 				require.NoError(t, parseErr)
 
 				assert.Equal(t, expectedMaxDownload, cfg.ParsedMaxDownloadPause)
-				assert.Equal(t, expectedMinRetry, cfg.ParsedMinRetryPause)
-				assert.Equal(t, expectedMaxRetry, cfg.ParsedMaxRetryPause)
+				assert.Equal(t, expectedMinRetry, cfg.ParsedAPIMinRetryPause)
+				assert.Equal(t, expectedMaxRetry, cfg.ParsedAPIMaxRetryPause)
 			}
 		})
 	}
@@ -741,7 +741,7 @@ func TestSaveConfigFields_CreatesFullDefaultConfigWhenMissing(t *testing.T) {
 	assert.Contains(t, contentString, `yandex_music_token: "yandex-token"`)
 	assert.Contains(t, contentString, "quality: 3")
 	assert.Contains(t, contentString, `log_level: "info"`)
-	assert.Contains(t, contentString, "retry_attempts_count: 5")
+	assert.Contains(t, contentString, "api_retry_attempts_count: 5")
 	assert.Contains(t, contentString, "max_concurrent_downloads: 1")
 
 	info, err := os.Stat(configPath)
@@ -756,6 +756,27 @@ func TestSaveConfigFields_CreatesFullDefaultConfigWhenMissing(t *testing.T) {
 	}
 }
 
+// TestConfigClone detaches nested download HTTP settings from the original config.
+func TestConfigClone(t *testing.T) {
+	t.Parallel()
+
+	original := DefaultConfig()
+	original.ZvukAuthToken = "token"
+	original.ZvukDownloadHTTP.MaxRetries = 4
+	cloned := original.Clone()
+	require.Equal(t, original, cloned)
+	require.NotSame(t, original, cloned)
+	require.NotSame(t, original.ZvukDownloadHTTP, cloned.ZvukDownloadHTTP)
+	require.NotSame(t, original.YandexMusicDownloadHTTP, cloned.YandexMusicDownloadHTTP)
+
+	cloned.ZvukAuthToken = "other"
+	cloned.ZvukDownloadHTTP.MaxRetries = 9
+
+	require.Equal(t, "token", original.ZvukAuthToken)
+	require.Equal(t, 4, original.ZvukDownloadHTTP.MaxRetries)
+	require.Nil(t, (*Config)(nil).Clone())
+}
+
 // validationConfig returns a valid baseline config for validation tests.
 func validationConfig(mutators ...func(*Config)) *Config {
 	cfg := &Config{
@@ -763,10 +784,10 @@ func validationConfig(mutators ...func(*Config)) *Config {
 		Quality:                2,
 		DownloadSpeedLimit:     "1MB",
 		LogLevel:               "info",
-		RetryAttemptsCount:     3,
+		APIRetryAttemptsCount:  3,
 		MaxDownloadPause:       "5s",
-		MinRetryPause:          "1s",
-		MaxRetryPause:          "3s",
+		APIMinRetryPause:       "1s",
+		APIMaxRetryPause:       "3s",
 		MaxConcurrentDownloads: 1,
 	}
 

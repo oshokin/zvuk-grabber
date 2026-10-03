@@ -23,6 +23,26 @@ func TestDownloadStatistics_InitialState(t *testing.T) {
 	assert.Equal(t, int64(0), impl.stats.TracksFailed)
 }
 
+// TestDownloadStatistics_Clone detaches error slices from the live counters.
+func TestDownloadStatistics_Clone(t *testing.T) {
+	t.Parallel()
+
+	original := &DownloadStatistics{
+		TracksDownloaded: 2,
+		Errors:           []*DownloadError{{ItemID: "1"}},
+	}
+	cloned := original.Clone()
+	assert.Equal(t, original.TracksDownloaded, cloned.TracksDownloaded)
+	cloned.TracksDownloaded = 9
+	cloned.Errors[0] = &DownloadError{ItemID: "2"}
+	cloned.Errors = append(cloned.Errors, &DownloadError{ItemID: "3"})
+
+	assert.Equal(t, int64(2), original.TracksDownloaded)
+	assert.Equal(t, "1", original.Errors[0].ItemID)
+	assert.Len(t, original.Errors, 1)
+	assert.Nil(t, (*DownloadStatistics)(nil).Clone())
+}
+
 // TestDownloadStatistics_IncrementTrackDownloaded verifies downloaded track and byte counters increment correctly.
 func TestDownloadStatistics_IncrementTrackDownloaded(t *testing.T) {
 	t.Parallel()

@@ -81,7 +81,7 @@ func TestValidateTrackJob_MissingTrackID(t *testing.T) {
 	t.Parallel()
 
 	s := &ServiceImpl{
-		cfg: &config.Config{},
+		cfg: new(config.Config),
 	}
 	job := &trackJob{
 		track: &model.Track{

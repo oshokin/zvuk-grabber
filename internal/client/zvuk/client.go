@@ -20,6 +20,7 @@ import (
 	"github.com/oshokin/zvuk-grabber/internal/config"
 	"github.com/oshokin/zvuk-grabber/internal/logger"
 	"github.com/oshokin/zvuk-grabber/internal/retry"
+	"github.com/oshokin/zvuk-grabber/internal/transport/download"
 	http_transport "github.com/oshokin/zvuk-grabber/internal/transport/http"
 	"github.com/oshokin/zvuk-grabber/internal/utils"
 )
@@ -162,7 +163,7 @@ func NewClient(cfg *config.Config) (Client, error) {
 	}
 
 	if cfg.ZvukDownloadHTTP == nil {
-		cfg.ZvukDownloadHTTP = new(config.DownloadHTTPConfig)
+		cfg.ZvukDownloadHTTP = config.DefaultDownloadHTTPConfig()
 	}
 
 	if err = cfg.ZvukDownloadHTTP.Validate(); err != nil {
@@ -172,7 +173,7 @@ func NewClient(cfg *config.Config) (Client, error) {
 	downloadClient := &http.Client{
 		Transport: http_transport.NewUserAgentInjector(
 			http_transport.NewLogTransport(
-				newDownloadTransport(cfg.ZvukDownloadHTTP, cfg.ParsedDownloadSpeedLimit > 0),
+				download.NewTransport(cfg.ZvukDownloadHTTP, cfg.ParsedDownloadSpeedLimit > 0),
 				0,
 			),
 			utils.NewSimpleUserAgentProvider(http_transport.DefaultUserAgent),
@@ -222,17 +223,17 @@ func newStreamMetadataRetryEngine(cfg *config.Config) (*retry.Engine, error) {
 		return errors.As(err, &retryableErr)
 	}
 
-	if cfg.RetryAttemptsCount <= 1 {
+	if cfg.APIRetryAttemptsCount <= 1 {
 		retryClassifier = func(error) bool {
 			return false
 		}
 	} else {
-		maxRetries = uint64(cfg.RetryAttemptsCount - 1)
+		maxRetries = uint64(cfg.APIRetryAttemptsCount - 1)
 	}
 
 	return retry.NewEngine(&retry.EngineConfig{
 		MaxRetries:  maxRetries,
-		DelayPolicy: retry.NewRandomRangePolicy(cfg.ParsedMinRetryPause, cfg.ParsedMaxRetryPause),
+		DelayPolicy: retry.NewRandomRangePolicy(cfg.ParsedAPIMinRetryPause, cfg.ParsedAPIMaxRetryPause),
 		IsRetryable: retryClassifier,
 	})
 }
@@ -436,18 +437,24 @@ func (c *ClientImpl) FetchTrack(ctx context.Context, trackURL string) (*FetchTra
 		downloadClient = c.httpClient
 	}
 
-	body, totalBytes, err := c.openDownloadResponse(ctx, downloadClient, trackURL,
-		func(request *http.Request) {
-			request.Header.Add("Range", "bytes=0-")
-		}, http.StatusOK, http.StatusPartialContent)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, trackURL, http.NoBody)
 	if err != nil {
 		return nil, err
 	}
 
-	return &FetchTrackResult{
-		Body:       body,
-		TotalBytes: totalBytes,
-	}, nil
+	req.Header.Set("Range", "bytes=0-")
+
+	var cfg *config.DownloadHTTPConfig
+	if c.cfg != nil {
+		cfg = c.cfg.ZvukDownloadHTTP
+	}
+
+	stream, err := download.Open(downloadClient, req, cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	return &FetchTrackResult{Body: stream, TotalBytes: stream.TotalBytes()}, nil
 }
 
 // GetAlbumsMetadata retrieves metadata for the specified album IDs.
@@ -623,7 +630,7 @@ func (c *ClientImpl) GetStreamMetadata(ctx context.Context, trackID, quality str
 			return nil
 		},
 		OnRetry: func(ctx context.Context, info *retry.AttemptInfo) {
-			attemptsLeft := max(c.cfg.RetryAttemptsCount-utils.SafeUint64ToInt64(info.Retry), 0)
+			attemptsLeft := max(c.cfg.APIRetryAttemptsCount-utils.SafeUint64ToInt64(info.Retry), 0)
 
 			logger.Infof(ctx, "Retrying due to error (%d attempts left): %v", attemptsLeft, info.Err)
 		},

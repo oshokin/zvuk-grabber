@@ -38,7 +38,7 @@ func (s *fakeDownloadService) PrintDownloadSummary(context.Context) {
 func TestRunDownloadsPropagatesFailuresAndPrintsSummary(t *testing.T) {
 	expected := io.ErrUnexpectedEOF
 
-	ok := &fakeDownloadService{}
+	ok := new(fakeDownloadService)
 	require.NoError(t, runDownloads(t.Context(), ok, nil))
 	require.True(t, ok.summarized)
 

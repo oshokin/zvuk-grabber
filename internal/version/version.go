@@ -4,7 +4,7 @@ import "fmt"
 
 var (
 	// Version is the semantic version of the build. It can be overridden via ldflags.
-	Version = "1.9.7"
+	Version = "1.9.8"
 	// Commit is the short git SHA embedded at build time (or "none").
 	Commit = "none"
 	// BuildTime is the UTC build timestamp embedded at build time.

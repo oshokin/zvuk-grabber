@@ -18,6 +18,7 @@ import (
 	"github.com/oshokin/zvuk-grabber/internal/files"
 	"github.com/oshokin/zvuk-grabber/internal/logger"
 	"github.com/oshokin/zvuk-grabber/internal/media"
+	"github.com/oshokin/zvuk-grabber/internal/transport/download"
 	"github.com/oshokin/zvuk-grabber/internal/utils"
 )
 
@@ -809,12 +810,14 @@ func (s *ServiceImpl) downloadAndSaveTrack(
 		}
 	}()
 
-	bytesWritten, err := files.CopyStream(ctx, f, fetchResult.Body, &files.CopyStreamOptions{
+	opts := &files.CopyStreamOptions{
 		ExpectedBytes:       fetchResult.TotalBytes,
 		SpeedLimitBytes:     s.cfg.ParsedDownloadSpeedLimit,
 		ShowProgress:        logger.Level() <= zap.InfoLevel && s.cfg.MaxConcurrentDownloads == 1,
-		ProgressDescription: "Downloading",
-	})
+		ProgressDescription: files.DefaultCopyProgressDescription,
+	}
+
+	bytesWritten, err := download.Copy(ctx, f, fetchResult.Body, opts)
 	if err != nil {
 		if errors.Is(err, files.ErrIncompleteCopy) {
 			return nil, fmt.Errorf("%w: %w", ErrIncompleteDownload, err)

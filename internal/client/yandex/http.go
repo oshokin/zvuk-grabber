@@ -6,12 +6,22 @@ import (
 	"net/http"
 	"time"
 
+	"go.uber.org/zap"
+
 	"github.com/oshokin/zvuk-grabber/internal/client/yandex/model"
+	"github.com/oshokin/zvuk-grabber/internal/config"
+	"github.com/oshokin/zvuk-grabber/internal/files"
+	"github.com/oshokin/zvuk-grabber/internal/logger"
+	"github.com/oshokin/zvuk-grabber/internal/transport/download"
 	httptransport "github.com/oshokin/zvuk-grabber/internal/transport/http"
 )
 
 // HttpClient wraps the shared transport HTTP client for Yandex Music API calls.
 type HttpClient struct {
+	// speedLimit limits encrypted and plain audio network transfers in bytes per second.
+	speedLimit int64
+	// showProgress enables a single transfer's progress display.
+	showProgress bool
 	// transport performs authenticated API and download requests.
 	transport *httptransport.Client
 }
@@ -32,26 +42,51 @@ const (
 	headerUserAgent = "User-Agent"
 	// headerYandexMusicClient is the Yandex API client identity header.
 	headerYandexMusicClient = "X-Yandex-Music-Client"
+	// headerContentType is the HTTP Content-Type header name.
+	headerContentType = "Content-Type"
+	// contentTypeJSON is the JSON MIME type sent on API requests.
+	contentTypeJSON = "application/json"
 )
 
 // errHTTPClientNotConfigured is returned when HttpClient transport is nil.
 var errHTTPClientNotConfigured = errors.New("yandex http client is not configured")
 
 // NewHttpClient creates a Yandex Music HTTP client with default settings.
-func NewHttpClient() *HttpClient {
+func NewHttpClient(cfg *config.Config) *HttpClient {
+	if cfg == nil {
+		cfg = config.DefaultConfig()
+	}
+
+	audioConfig := cfg.YandexMusicDownloadHTTP
+	if audioConfig == nil {
+		audioConfig = config.DefaultDownloadHTTPConfig()
+	}
+
+	apiClient := &http.Client{Timeout: DefaultRequestTimeout}
+	audioClient := &http.Client{
+		Transport: download.NewTransport(audioConfig, cfg.ParsedDownloadSpeedLimit > 0),
+		Timeout:   audioConfig.Timeout,
+	}
+	headers := map[string]string{
+		headerUserAgent:         UserAgent,
+		headerYandexMusicClient: yandexMusicClientHeaderValue,
+		headerContentType:       contentTypeJSON,
+	}
+	opts := &httptransport.ClientOptions{
+		HTTPClient:      apiClient,
+		AudioHTTPClient: audioClient,
+		AudioConfig:     audioConfig,
+		DefaultHeaders:  headers,
+		ProviderName:    providerNameYandex,
+		RequestTimeout:  DefaultRequestTimeout,
+		DownloadTimeout: 0,
+		APIErrorDecoder: new(yandexAPIErrorDecoder),
+	}
+
 	return &HttpClient{
-		transport: httptransport.NewClient(&httptransport.ClientOptions{
-			HTTPClient: &http.Client{},
-			DefaultHeaders: map[string]string{
-				headerUserAgent:         UserAgent,
-				headerYandexMusicClient: yandexMusicClientHeaderValue,
-				"Content-Type":          "application/json",
-			},
-			ProviderName:    providerNameYandex,
-			RequestTimeout:  DefaultRequestTimeout,
-			DownloadTimeout: 0,
-			APIErrorDecoder: new(yandexAPIErrorDecoder),
-		}),
+		speedLimit:   cfg.ParsedDownloadSpeedLimit,
+		showProgress: cfg.MaxConcurrentDownloads == 1,
+		transport:    httptransport.NewClient(opts),
 	}
 }
 
@@ -157,4 +192,25 @@ func (*yandexAPIErrorDecoder) Decode(body []byte) *httptransport.DecodedAPIError
 			"api_message", errorResp.APIError.Message,
 		},
 	}
+}
+
+// DownloadAudioBytesWithContext retries and paces audio before decryption or normalization.
+func (c *HttpClient) DownloadAudioBytesWithContext(
+	reqCtx *httptransport.RequestLogContext,
+	url string,
+) ([]byte, error) {
+	stream, err := c.OpenStreamWithContext(reqCtx, url)
+	if err != nil {
+		return nil, err
+	}
+	defer stream.Body.Close()
+
+	opts := &files.CopyStreamOptions{
+		ExpectedBytes:       stream.ContentLength,
+		SpeedLimitBytes:     c.speedLimit,
+		ShowProgress:        c.showProgress && logger.Level() <= zap.InfoLevel,
+		ProgressDescription: files.DefaultCopyProgressDescription,
+	}
+
+	return download.ReadAll(reqCtx.Context(), stream.Body, opts)
 }

@@ -37,6 +37,12 @@ type (
 		// basePolicy is the base exponential policy without jitter.
 		basePolicy *exponentialByAttemptPolicy
 	}
+
+	// exponentialEqualJitterPolicy samples delay in [base/2, base) after exponential growth.
+	exponentialEqualJitterPolicy struct {
+		// basePolicy is the base exponential policy without jitter.
+		basePolicy *exponentialByAttemptPolicy
+	}
 )
 
 // NewRandomRangePolicy returns a random-range delay policy.
@@ -77,6 +83,16 @@ func NewExponentialFullJitterPolicy(baseDelay, maxDelay time.Duration) DelayPoli
 	}
 }
 
+// NewExponentialEqualJitterPolicy returns an exponential policy with equal jitter.
+func NewExponentialEqualJitterPolicy(baseDelay, maxDelay time.Duration) DelayPolicy {
+	return &exponentialEqualJitterPolicy{
+		basePolicy: &exponentialByAttemptPolicy{
+			baseDelay: baseDelay,
+			maxDelay:  maxDelay,
+		},
+	}
+}
+
 // Delay returns exponential delay for the given attempt.
 func (p *exponentialByAttemptPolicy) Delay(attempt uint64) time.Duration {
 	return exponentialDelayByAttempt(p.baseDelay, p.maxDelay, attempt)
@@ -94,6 +110,11 @@ func (p *exponentialFullJitterPolicy) Delay(attempt uint64) time.Duration {
 	return fullJitter(p.basePolicy.Delay(attempt))
 }
 
+// Delay returns equal-jitter delay for the given attempt.
+func (p *exponentialEqualJitterPolicy) Delay(attempt uint64) time.Duration {
+	return equalJitter(p.basePolicy.Delay(attempt))
+}
+
 // Delay returns a random delay in the configured range.
 func (p *randomRangePolicy) Delay(uint64) time.Duration {
 	return randomDelayInRange(p.minDelay, p.maxDelay)
@@ -107,6 +128,18 @@ func fullJitter(delay time.Duration) time.Duration {
 
 	//nolint:gosec // A regular PRNG is sufficient for jitter.
 	return time.Duration(rand.Int64N(int64(delay)))
+}
+
+// equalJitter picks a random delay in the range [delay/2, delay).
+func equalJitter(delay time.Duration) time.Duration {
+	if delay <= 1 {
+		return delay
+	}
+
+	half := delay / 2
+
+	//nolint:gosec // A regular PRNG is sufficient for jitter.
+	return half + time.Duration(rand.Int64N(int64(delay-half)))
 }
 
 // exponentialDelayByAttempt computes exponential delay by attempt number.

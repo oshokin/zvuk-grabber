@@ -13,6 +13,10 @@ import (
 
 // CopyStreamOptions configures CopyStream.
 type CopyStreamOptions struct {
+	// InitialBytes sets the progress offset when continuing a partially written file.
+	InitialBytes int64
+	// limiter preserves the pacing budget when the same options are reused for retries.
+	limiter *byteTokenBucket
 	// ExpectedBytes enables a final byte-count check when greater than zero.
 	ExpectedBytes int64
 	// SpeedLimitBytes limits copying to this number of bytes per second when greater than zero.
@@ -35,8 +39,28 @@ type byteTokenBucket struct {
 	lastRefill time.Time
 }
 
+// DefaultCopyProgressDescription is shown next to the transfer progress bar.
+const DefaultCopyProgressDescription = "Downloading"
+
 // ErrIncompleteCopy indicates that fewer bytes were copied than the caller expected.
 var ErrIncompleteCopy = errors.New("incomplete stream copy")
+
+// Clone returns a detached copy. The token bucket is cloned so retries keep pacing
+// without sharing mutable limiter state with the caller.
+func (opts *CopyStreamOptions) Clone() *CopyStreamOptions {
+	if opts == nil {
+		return new(CopyStreamOptions)
+	}
+
+	return &CopyStreamOptions{
+		InitialBytes:        opts.InitialBytes,
+		limiter:             opts.limiter.clone(),
+		ExpectedBytes:       opts.ExpectedBytes,
+		SpeedLimitBytes:     opts.SpeedLimitBytes,
+		ShowProgress:        opts.ShowProgress,
+		ProgressDescription: opts.ProgressDescription,
+	}
+}
 
 // CopyStream copies bytes from source to destination with optional progress, throttling and size validation.
 func CopyStream(ctx context.Context, destination io.Writer, source io.Reader, opts *CopyStreamOptions) (int64, error) {
@@ -54,13 +78,19 @@ func CopyStream(ctx context.Context, destination io.Writer, source io.Reader, op
 	writer := destination
 
 	if options.ShowProgress && options.ExpectedBytes > 0 {
-		writer = io.MultiWriter(
-			destination,
-			progressbar.DefaultBytes(options.ExpectedBytes, options.ProgressDescription),
-		)
+		bar := progressbar.DefaultBytes(options.ExpectedBytes+options.InitialBytes, options.ProgressDescription)
+
+		_ = bar.Add64(options.InitialBytes) //nolint:errcheck // Progress rendering must not fail an audio transfer.
+		defer bar.Exit()                    //nolint:errcheck // Exit leaves an interrupted bar incomplete without changing the transfer result.
+
+		writer = io.MultiWriter(destination, bar)
 	}
 
-	written, err := copyStream(ctx, writer, source, options.SpeedLimitBytes)
+	if options.SpeedLimitBytes > 0 && options.limiter == nil {
+		options.limiter = newByteTokenBucket(options.SpeedLimitBytes)
+	}
+
+	written, err := copyStream(ctx, writer, source, options)
 	if err != nil {
 		return written, err
 	}
@@ -89,13 +119,18 @@ func (opts *CopyStreamOptions) normalize() {
 }
 
 // copyStream copies source to destination with optional byte-rate throttling.
-func copyStream(ctx context.Context, destination io.Writer, source io.Reader, speedLimitBytes int64) (int64, error) {
-	if speedLimitBytes <= 0 {
+func copyStream(
+	ctx context.Context,
+	destination io.Writer,
+	source io.Reader,
+	options *CopyStreamOptions,
+) (int64, error) {
+	if options.SpeedLimitBytes <= 0 {
 		return copyStreamWithoutLimit(ctx, destination, source)
 	}
 
-	limiter := newByteTokenBucket(speedLimitBytes)
-	buffer := make([]byte, limitedCopyBufferSize(speedLimitBytes))
+	limiter := options.limiter
+	buffer := make([]byte, limitedCopyBufferSize(options.SpeedLimitBytes))
 
 	var totalWritten int64
 
@@ -184,6 +219,20 @@ func limitedCopyBufferSize(speedLimitBytes int64) int {
 	}
 
 	return defaultCopyBufferSize
+}
+
+// clone returns a detached copy of the token bucket, or nil when the limiter is unset.
+func (bucket *byteTokenBucket) clone() *byteTokenBucket {
+	if bucket == nil {
+		return nil
+	}
+
+	return &byteTokenBucket{
+		capacity:   bucket.capacity,
+		tokens:     bucket.tokens,
+		refillRate: bucket.refillRate,
+		lastRefill: bucket.lastRefill,
+	}
 }
 
 // newByteTokenBucket creates a token bucket sized for the given bytes-per-second limit.

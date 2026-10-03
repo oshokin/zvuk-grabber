@@ -8,14 +8,19 @@ import (
 	"strings"
 
 	"github.com/oshokin/zvuk-grabber/internal/client/yandex/model"
+	"github.com/oshokin/zvuk-grabber/internal/config"
 	"github.com/oshokin/zvuk-grabber/internal/media"
 	"github.com/oshokin/zvuk-grabber/internal/media/lossless"
 )
 
 // NewAuthorizedClient creates a Yandex Music client with an OAuth token.
-func NewAuthorizedClient(token string) *Client {
-	client := NewClient(nil)
-	client.SetToken(strings.TrimSpace(token))
+func NewAuthorizedClient(cfg *config.Config) *Client {
+	if cfg == nil {
+		cfg = config.DefaultConfig()
+	}
+
+	client := NewClient(NewHttpClient(cfg))
+	client.SetToken(strings.TrimSpace(cfg.YandexMusicToken))
 
 	return client
 }

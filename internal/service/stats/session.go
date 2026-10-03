@@ -200,7 +200,7 @@ func (s *Session) Report(cfg *ReportConfig) *Report {
 		assets = append(assets, counterCopy)
 	}
 
-	return NewReport(cfg, &ReportSnapshot{
+	snapshot := &ReportSnapshot{
 		IsDryRun:        s.IsDryRun,
 		StartTime:       s.StartTime,
 		EndTime:         s.EndTime,
@@ -208,7 +208,9 @@ func (s *Session) Report(cfg *ReportConfig) *Report {
 		BytesDownloaded: s.BytesDownloaded,
 		Assets:          assets,
 		Errors:          append([]*Error(nil), s.Errors...),
-	})
+	}
+
+	return NewReport(cfg, snapshot)
 }
 
 // ensureAssets lazily initializes sidecar counters for zero-value sessions.
@@ -221,7 +223,7 @@ func (s *Session) ensureAssets() {
 // asset returns an initialized sidecar counter for key.
 func (s *Session) asset(key AssetKey) *AssetCounters {
 	if s == nil || s.Assets == nil {
-		return &AssetCounters{}
+		return new(AssetCounters)
 	}
 
 	asset := s.Assets[key]
@@ -229,5 +231,5 @@ func (s *Session) asset(key AssetKey) *AssetCounters {
 		return asset
 	}
 
-	return &AssetCounters{}
+	return new(AssetCounters)
 }

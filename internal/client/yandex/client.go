@@ -131,7 +131,7 @@ var (
 // NewClient creates a Yandex Music client with the given HTTP client.
 func NewClient(httpClient *HttpClient) *Client {
 	if httpClient == nil {
-		httpClient = NewHttpClient()
+		httpClient = NewHttpClient(nil)
 	}
 
 	return &Client{

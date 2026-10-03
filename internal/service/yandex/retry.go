@@ -12,6 +12,7 @@ import (
 	"github.com/oshokin/zvuk-grabber/internal/config"
 	"github.com/oshokin/zvuk-grabber/internal/logger"
 	"github.com/oshokin/zvuk-grabber/internal/retry"
+	"github.com/oshokin/zvuk-grabber/internal/transport/download"
 )
 
 // mp3Resolution holds the resolved MP3 download link and bitrate.
@@ -22,13 +23,13 @@ type mp3Resolution struct {
 	bitrate int
 }
 
-// retryAttemptsFromConfig returns the configured retry attempt count, defaulting to one.
+// retryAttemptsFromConfig returns the configured API retry attempt count, defaulting to one.
 func retryAttemptsFromConfig(cfg *config.Config) int64 {
-	if cfg == nil || cfg.RetryAttemptsCount <= 0 {
+	if cfg == nil || cfg.APIRetryAttemptsCount <= 0 {
 		return 1
 	}
 
-	return cfg.RetryAttemptsCount
+	return cfg.APIRetryAttemptsCount
 }
 
 // buildYandexRetryEngine constructs the retry engine used by the Yandex service.
@@ -48,8 +49,8 @@ func buildYandexRetryEngine(cfg *config.Config) (*retry.Engine, error) {
 
 	minPause, maxPause := time.Duration(0), time.Duration(0)
 	if cfg != nil {
-		minPause = cfg.ParsedMinRetryPause
-		maxPause = cfg.ParsedMaxRetryPause
+		minPause = cfg.ParsedAPIMinRetryPause
+		maxPause = cfg.ParsedAPIMaxRetryPause
 	}
 
 	return retry.NewEngine(&retry.EngineConfig{
@@ -157,6 +158,10 @@ func (s *ServiceImpl) trackLyricsWithRetry(ctx context.Context, trackID string) 
 // isRetryableYandexError reports whether a Yandex API error should trigger a retry.
 func isRetryableYandexError(err error) bool {
 	if err == nil || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return false
+	}
+
+	if transferErr, ok := errors.AsType[*download.Error](err); ok && transferErr != nil {
 		return false
 	}
 

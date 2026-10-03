@@ -102,7 +102,7 @@ func executeYandexDownloads(
 		return fmt.Errorf("%w; run: zvuk-grabber auth yandex login", config.ErrEmptyYandexMusicToken)
 	}
 
-	yandexClient := yandex_client.NewAuthorizedClient(cfg.YandexMusicToken)
+	yandexClient := yandex_client.NewAuthorizedClient(cfg)
 
 	s := yandex_service.NewService(cfg, yandexClient, templateManager, tagProcessor)
 

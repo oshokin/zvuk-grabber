@@ -161,6 +161,23 @@ func (e *Engine) Run(ctx context.Context, req *Request) error {
 	}
 }
 
+// WaitIfRetryable sleeps before another attempt when err is retryable and budget remains.
+// retries is the number of retries already consumed for this operation.
+func (e *Engine) WaitIfRetryable(ctx context.Context, retries uint64, err error, onRetry OnRetry) error {
+	if err == nil {
+		return nil
+	}
+
+	if stopErr := e.retryStopError(ctx, err, retries); stopErr != nil {
+		return stopErr
+	}
+
+	req := new(Request)
+	req.OnRetry = onRetry
+
+	return e.scheduleRetry(ctx, req, retries+1, err)
+}
+
 // retryStopError determines whether retries should stop and return an error.
 func (e *Engine) retryStopError(ctx context.Context, operationErr error, retries uint64) error {
 	// Context errors take priority and are never retried.

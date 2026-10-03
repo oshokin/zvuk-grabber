@@ -256,7 +256,7 @@ func TestQualityLogFormatting_UsesActualMP3Bitrate(t *testing.T) {
 func TestBuildTags_PodcastFallbacksForMissingMetadata(t *testing.T) {
 	t.Parallel()
 
-	service := &ServiceImpl{}
+	service := new(ServiceImpl)
 	job := &trackJob{
 		kind:            collectionPodcast,
 		collectionTitle: "MINAEV LIVE",

@@ -156,3 +156,29 @@ func TestCopyStream_ExactMultipleOfSpeedLimit_NoExtraWindowDelay(t *testing.T) {
 		}
 	})
 }
+
+// TestCopyStreamOptionsClone detaches limiter state from the original options.
+func TestCopyStreamOptionsClone(t *testing.T) {
+	original := &CopyStreamOptions{
+		InitialBytes:        3,
+		limiter:             newByteTokenBucket(8),
+		ExpectedBytes:       10,
+		SpeedLimitBytes:     8,
+		ShowProgress:        true,
+		ProgressDescription: "track",
+	}
+
+	cloned := original.Clone()
+	if cloned.InitialBytes != original.InitialBytes || cloned.limiter == original.limiter {
+		t.Fatalf("Clone must copy fields and detach the limiter")
+	}
+
+	cloned.limiter.tokens = 0
+	if original.limiter.tokens == 0 {
+		t.Fatalf("cloned limiter must not mutate the original bucket")
+	}
+
+	if (*CopyStreamOptions)(nil).Clone() == nil {
+		t.Fatalf("nil options must clone to an empty value")
+	}
+}
