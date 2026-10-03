@@ -81,6 +81,7 @@ func (c *ClientImpl) runGraphQL(ctx context.Context, request *graphql.Request) (
 	request.Header.Add(graphQLAuthHeader, c.cfg.ZvukAuthToken)
 
 	var response map[string]any
+
 	if err := c.graphQLClient.Run(ctx, request, &response); err != nil {
 		return nil, err
 	}

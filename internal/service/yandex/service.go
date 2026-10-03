@@ -476,6 +476,7 @@ func (s *ServiceImpl) downloadJob(ctx context.Context, job *trackJob) {
 
 	if result.shouldSkip {
 		s.recordSkipped(yandexSkipReasonQuality)
+
 		minQuality := media.FromConfig(s.cfg.MinQuality).Description()
 		logger.Warnf(ctx, "%s quality is below minimum threshold %s, skipping", job.track.FullTitle(), minQuality)
 		logger.DebugKV(

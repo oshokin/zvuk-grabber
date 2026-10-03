@@ -3,7 +3,6 @@ package zvuk
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
@@ -61,7 +60,11 @@ func TestFetchAlbumData_FetchesTracksByIDs(t *testing.T) {
 	result, err := service.fetchAlbumData(t.Context(), albumID)
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	require.Contains(t, result.tracks, trackID)
-	assert.Equal(t, "Лето", result.tracks[trackID].Title)
-	assert.Equal(t, int64(52420521), result.tracks[trackID].ReleaseID)
+
+	want := &zvuk.Track{
+		ID:        185766210,
+		Title:     "Лето",
+		ReleaseID: 52420521,
+	}
+	require.Equal(t, want, result.tracks[trackID])
 }

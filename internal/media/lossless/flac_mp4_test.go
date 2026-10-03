@@ -27,11 +27,13 @@ type boundedReader struct {
 func TestNormalizeRealMP4(t *testing.T) {
 	data, err := os.ReadFile("testdata/tone.mp4")
 	require.NoError(t, err)
+
 	normalized, err := Normalize(data)
 	require.NoError(t, err)
 	require.True(t, HasFLACMarker(normalized))
 	require.Less(t, len(normalized), len(data))
 	require.Equal(t, flacLastMetadataFlag, normalized[len(flacMagic)])
+
 	native, err := Normalize(normalized)
 	require.NoError(t, err)
 	require.Equal(t, normalized, native)

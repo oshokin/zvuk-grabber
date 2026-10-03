@@ -9,21 +9,21 @@ import (
 func TestCollapseTemplateName(t *testing.T) {
 	t.Parallel()
 
-	assert.Equal(t, "Author - Title", CollapseTemplateName("0000 - Author - Title"))
-	assert.Equal(t, "Author - Title", CollapseTemplateName(" - Author - Title"))
-	assert.Equal(t, "Совсем другое дело", CollapseTemplateName("Совсем другое дело - Совсем другое дело"))
-	assert.Equal(t, "01 - Title", CollapseTemplateName("01 - Title"))
-	assert.Equal(t, "Title", CollapseTemplateName("0000 - Title"))
-	assert.Equal(
-		t,
-		"Татьяна Столяр. «Я есть жир»",
-		CollapseTemplateName("Татьяна Столяр - Татьяна Столяр. «Я есть жир»"),
-	)
-	assert.Equal(
-		t,
-		"2026-09-15 - Вишневая девятка",
-		CollapseTemplateName("2026-09-15 - Вишневая девятка"),
-	)
+	cases := []struct {
+		in, want string
+	}{
+		{"0000 - Author - Title", "Author - Title"},
+		{" - Author - Title", "Author - Title"},
+		{"Совсем другое дело - Совсем другое дело", "Совсем другое дело"},
+		{"01 - Title", "01 - Title"},
+		{"0000 - Title", "Title"},
+		{"Татьяна Столяр - Татьяна Столяр. «Я есть жир»", "Татьяна Столяр. «Я есть жир»"},
+		{"2026-09-15 - Вишневая девятка", "2026-09-15 - Вишневая девятка"},
+	}
+
+	for _, tc := range cases {
+		assert.Equal(t, tc.want, CollapseTemplateName(tc.in), tc.in)
+	}
 }
 
 func TestSanitizeTemplateName_DropsUnknownYear(t *testing.T) {

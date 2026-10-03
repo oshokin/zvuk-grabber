@@ -220,6 +220,7 @@ func newStreamMetadataRetryEngine(cfg *config.Config) (*retry.Engine, error) {
 	maxRetries := uint64(1)
 	retryClassifier := func(err error) bool {
 		var retryableErr *retryableStreamMetadataError
+
 		return errors.As(err, &retryableErr)
 	}
 
@@ -337,6 +338,7 @@ func splitCachedMetadata[T any](
 func storeCachedMetadata[T any](cache *lru.Cache[string, T], destination, source map[string]T) {
 	for id, entity := range source {
 		cache.Add(id, entity)
+
 		destination[id] = entity
 	}
 }
@@ -445,6 +447,7 @@ func (c *ClientImpl) FetchTrack(ctx context.Context, trackURL string) (*FetchTra
 	req.Header.Set("Range", "bytes=0-")
 
 	var cfg *config.DownloadHTTPConfig
+
 	if c.cfg != nil {
 		cfg = c.cfg.ZvukDownloadHTTP
 	}

@@ -50,10 +50,15 @@ func TestBuildFileInfoURL_UsesEncRawTransport(t *testing.T) {
 	require.NoError(t, err)
 
 	query := parsed.Query()
-	assert.Equal(t, "lossless", query.Get("quality"))
-	assert.Equal(t, transportEncRaw, query.Get("transports"))
-	assert.Equal(t, "flac,aac,he-aac,mp3,flac-mp4,aac-mp4,he-aac-mp4", query.Get("codecs"))
-	assert.Equal(t, SignRequest(1789466815, "18930267", transportEncRaw), query.Get("sign"))
+	want := url.Values{
+		"ts":         []string{"1789466815"},
+		"trackId":    []string{"18930267"},
+		"quality":    []string{"lossless"},
+		"transports": []string{transportEncRaw},
+		"codecs":     []string{"flac,aac,he-aac,mp3,flac-mp4,aac-mp4,he-aac-mp4"},
+		"sign":       []string{SignRequest(1789466815, "18930267", transportEncRaw)},
+	}
+	assert.Equal(t, want, query)
 }
 
 // TestParseDownloadInfo_FLACMP4EncRaw reads camelCase downloadInfo for a flac-mp4 encraw stream.
@@ -72,11 +77,14 @@ func TestParseDownloadInfo_FLACMP4EncRaw(t *testing.T) {
 		}
 	}`))
 	require.NoError(t, err)
-	require.NotNil(t, info)
-	assert.Equal(t, "lossless", info.Quality)
-	assert.Equal(t, "flac-mp4", info.Codec)
-	assert.Equal(t, "6b10ee77e7fb0a377c937f139bd369d9", info.Key)
-	assert.Equal(t, []string{"https://example.test/flac-mp4"}, info.URLs)
+
+	want := &DownloadInfo{
+		Quality: "lossless",
+		Codec:   "flac-mp4",
+		Key:     "6b10ee77e7fb0a377c937f139bd369d9",
+		URLs:    []string{"https://example.test/flac-mp4"},
+	}
+	require.Equal(t, want, info)
 }
 
 // TestNormalizeLosslessFLAC_PassesThroughNativeFLAC leaves an already-native stream unchanged.

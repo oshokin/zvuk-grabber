@@ -36,9 +36,13 @@ func TestBuildTrackLyricsURL_ContainsSignedQueryParams(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, "/tracks/19326613/lyrics", parsed.Path)
-	assert.Equal(t, lyricsFormatLRC, parsed.Query().Get("format"))
-	assert.Equal(t, "1783159639", parsed.Query().Get("timeStamp"))
-	assert.Equal(t, signLyricsRequest("19326613", timestamp), parsed.Query().Get("sign"))
+
+	want := url.Values{
+		"format":    []string{lyricsFormatLRC},
+		"timeStamp": []string{"1783159639"},
+		"sign":      []string{signLyricsRequest("19326613", timestamp)},
+	}
+	assert.Equal(t, want, parsed.Query())
 }
 
 // TestBuildTrackLyricsURL_NormalizesTrackIDInPath verifies album suffixes are stripped from the URL path.

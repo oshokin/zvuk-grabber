@@ -65,6 +65,7 @@ func TestDownloadAndSaveRemuxesBeforeTagging(t *testing.T) {
 func TestNormalizeLeavesSourceUntouched(t *testing.T) {
 	data, readErr := os.ReadFile("../../media/lossless/testdata/tone.mp4")
 	require.NoError(t, readErr)
+
 	f, err := os.CreateTemp(t.TempDir(), "source")
 	require.NoError(t, err)
 
@@ -72,11 +73,13 @@ func TestNormalizeLeavesSourceUntouched(t *testing.T) {
 
 	_, err = f.Write(data)
 	require.NoError(t, err)
+
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
 	_, err = normalizeDownloadedFLAC(ctx, f, "track.flac")
 	require.ErrorIs(t, err, context.Canceled)
+
 	original, err := os.ReadFile(f.Name())
 	require.NoError(t, err)
 	require.Equal(t, data, original)
@@ -84,6 +87,7 @@ func TestNormalizeLeavesSourceUntouched(t *testing.T) {
 	entries, err := os.ReadDir(filepath.Dir(f.Name()))
 	require.NoError(t, err)
 	require.Len(t, entries, 1)
+
 	result, err := normalizeDownloadedFLAC(t.Context(), f, "track.mp3")
 	require.NoError(t, err)
 	require.Empty(t, result)

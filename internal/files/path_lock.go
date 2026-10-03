@@ -65,6 +65,7 @@ func (l *PathLocks) Lock(path string) func() {
 		if lock.refCount == 0 {
 			delete(l.locks, cleanPath)
 		}
+
 		l.mu.Unlock()
 	}
 }

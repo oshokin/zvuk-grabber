@@ -134,6 +134,7 @@ func isYandexLyricsMissing(err error) bool {
 	}
 
 	var apiErr *model.ErrorResponse
+
 	if errors.As(err, &apiErr) && apiErr.IsNotFound() {
 		return true
 	}

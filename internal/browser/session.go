@@ -79,6 +79,7 @@ func Open(ctx context.Context, opts *Options) (*Session, error) {
 
 	if chromePath, exists := launcher.LookPath(); exists {
 		logger.Debugf(ctx, "Using system Chrome installation at: %s", chromePath)
+
 		browserLauncher = browserLauncher.Bin(chromePath)
 	} else {
 		logger.Debug(ctx, "System Chrome not found, rod may download Chromium")
@@ -105,6 +106,7 @@ func Open(ctx context.Context, opts *Options) (*Session, error) {
 	connectedBrowser := browserInstance
 
 	var page *rod.Page
+
 	if opts.UseStealth {
 		page, err = stealth.Page(connectedBrowser)
 	} else {
@@ -173,6 +175,7 @@ func (s *Session) CurrentURL(ctx context.Context) (url string, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			logger.Debugf(ctx, "CurrentURL panic recovered: %v", r)
+
 			err = fmt.Errorf("%w: %v", errPageInspectionPanic, r)
 		}
 	}()

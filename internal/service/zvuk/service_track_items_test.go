@@ -40,10 +40,18 @@ func TestDownloadTrackItems_RecordsMetadataFetchError(t *testing.T) {
 	})
 
 	require.Len(t, impl.stats.Errors, 1)
-	assert.Equal(t, DownloadCategoryTrack, impl.stats.Errors[0].Category)
-	assert.Equal(t, trackID, impl.stats.Errors[0].ItemID)
-	assert.Equal(t, "fetching track metadata", impl.stats.Errors[0].Phase)
-	assert.ErrorIs(t, impl.stats.Errors[0].Error, errTrackMetadataFetch)
+
+	want := &DownloadError{
+		Category:       DownloadCategoryTrack,
+		ItemID:         trackID,
+		ItemTitle:      "Standalone track",
+		ParentCategory: DownloadCategoryTrack,
+		ParentID:       "standalone-tracks",
+		ParentTitle:    "standalone track URLs",
+		Phase:          "fetching track metadata",
+		Error:          errTrackMetadataFetch,
+	}
+	assert.Equal(t, want, impl.stats.Errors[0])
 }
 
 // TestDownloadTrackItems_SkipsTracksCoveredByRegisteredCollections verifies duplicate tracks are skipped.
@@ -82,10 +90,12 @@ func TestDownloadTrackItems_SkipsTracksCoveredByRegisteredCollections(t *testing
 		},
 	})
 
-	assert.Equal(t, int64(1), impl.stats.TotalTracksProcessed)
-	assert.Equal(t, int64(1), impl.stats.TracksSkipped)
-	assert.Equal(t, int64(1), impl.stats.TracksSkippedExists)
-	assert.Empty(t, impl.stats.Errors)
+	want := &DownloadStatistics{
+		TotalTracksProcessed: 1,
+		TracksSkipped:        1,
+		TracksSkippedExists:  1,
+	}
+	assert.Equal(t, want, impl.stats)
 }
 
 // TestFinalizeCollectionAssets_TrackModeFinalizesRegisteredCollectionCover verifies

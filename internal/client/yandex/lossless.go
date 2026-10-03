@@ -133,6 +133,7 @@ func SignRequest(timestamp int64, trackID, transport string) string {
 	)
 	mac := hmac.New(sha256.New, []byte(defaultSignKey))
 	mac.Write([]byte(signData))
+
 	sign := base64.StdEncoding.EncodeToString(mac.Sum(nil))
 
 	return strings.TrimRight(sign, "=")
@@ -141,6 +142,7 @@ func SignRequest(timestamp int64, trackID, transport string) string {
 // ParseDownloadInfo extracts DownloadInfo from a get-file-info response body.
 func ParseDownloadInfo(body []byte) (*DownloadInfo, error) {
 	var response fileInfoResponse
+
 	if err := json.Unmarshal(body, &response); err != nil {
 		return nil, fmt.Errorf("failed to parse lossless download info: %w", err)
 	}

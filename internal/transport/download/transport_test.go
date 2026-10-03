@@ -49,6 +49,7 @@ func TestPacedTransportNegotiatesHTTP1OverTLS(t *testing.T) {
 
 		resp, err := (&http.Client{Transport: tr}).Get(server.URL)
 		require.NoError(t, err)
+
 		body, err := io.ReadAll(resp.Body)
 		_ = resp.Body.Close()
 
@@ -99,6 +100,7 @@ func TestDownloadSurvivesBeyondOldTotalTimeout(t *testing.T) {
 
 		resp, err := (&http.Client{Transport: tr}).Get("http://example.test/track")
 		require.NoError(t, err)
+
 		body, err := io.ReadAll(resp.Body)
 		_ = resp.Body.Close()
 
@@ -128,9 +130,11 @@ func TestIdleReadTimeoutAndLimiterPause(t *testing.T) {
 		_, err = conn.Read(b)
 		require.NoError(t, err)
 		require.Equal(t, byte('b'), b[0])
+
 		_, err = conn.Read(b) // No writer: actual stalled I/O must time out.
 
 		var timeout net.Error
+
 		require.ErrorAs(t, err, &timeout)
 		require.True(t, timeout.Timeout())
 	})
@@ -141,6 +145,7 @@ func TestDownloadHeaderTimeoutAndCancellation(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/body" {
 			w.Header().Set("Content-Length", "2")
+
 			_, writeErr := w.Write([]byte("a"))
 			assert.NoError(t, writeErr)
 			assert.NoError(t, http.NewResponseController(w).Flush())
@@ -164,9 +169,11 @@ func TestDownloadHeaderTimeoutAndCancellation(t *testing.T) {
 	}
 
 	require.Error(t, err)
+
 	ctx, cancel := context.WithCancel(t.Context())
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, server.URL+"/body", nil)
 	require.NoError(t, err)
+
 	resp, err := c.Do(req)
 	require.NoError(t, err)
 	cancel()

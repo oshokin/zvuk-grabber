@@ -322,6 +322,7 @@ func TestExitStatusForAutomation(t *testing.T) {
 		output, err := execTestBinary(args...).CombinedOutput()
 
 		var exit *exec.ExitError
+
 		require.ErrorAs(t, err, &exit, "%s", output)
 		require.Equal(t, 1, exit.ExitCode())
 	}
@@ -387,6 +388,7 @@ func runWithConfigDump(t *testing.T, configPath string, flags []string) *ConfigD
 
 	// Parse JSON config dump from output.
 	var config ConfigDump
+
 	if err = json.Unmarshal(output, &config); err != nil {
 		t.Logf("Failed to parse config: %v, output: %s", err, string(output))
 		return nil

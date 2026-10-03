@@ -19,6 +19,7 @@ func TestParseResponse_InvalidJSONReturnsError(t *testing.T) {
 	assert.Contains(t, err.Error(), "error parsing response")
 
 	var syntaxErr *json.SyntaxError
+
 	require.ErrorAs(t, err, &syntaxErr)
 }
 

@@ -131,6 +131,7 @@ func (s *ServiceImpl) waitForLoginComplete(ctx context.Context) (string, error) 
 			// Log URL changes for debugging.
 			if currentURL != lastURL {
 				s.logURLChange(ctx, currentURL)
+
 				lastURL = currentURL
 			}
 

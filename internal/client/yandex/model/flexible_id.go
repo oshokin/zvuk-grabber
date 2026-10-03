@@ -59,6 +59,7 @@ func parseFlexibleIDJSON(data []byte) (string, error) {
 
 	if data[0] == '"' {
 		var value string
+
 		if err := json.Unmarshal(data, &value); err != nil {
 			return "", err
 		}

@@ -53,6 +53,7 @@ func fetchJSONWithQuery[T any](
 	}
 
 	var result T
+
 	if err = json.NewDecoder(response.Body).Decode(&result); err != nil {
 		return &FetchJSONResult[T]{
 			Data:       nil,

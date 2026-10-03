@@ -28,7 +28,9 @@ func TestAlbum_UnmarshalPodcastEpisodePubDate(t *testing.T) {
 	}`
 
 	var album Album
+
 	require.NoError(t, json.Unmarshal([]byte(payload), &album))
+
 	require.Len(t, album.Volumes, 1)
 	require.Len(t, album.Volumes[0], 1)
 	assert.Equal(t, "podcast", album.Type)
@@ -55,7 +57,9 @@ func TestAlbum_UnmarshalAudiobookWithoutYear(t *testing.T) {
 	}`
 
 	var album Album
+
 	require.NoError(t, json.Unmarshal([]byte(payload), &album))
+
 	assert.Equal(t, 0, album.Year)
 	assert.Empty(t, album.ReleaseDate)
 	assert.Equal(t, "audiobook", album.Type)

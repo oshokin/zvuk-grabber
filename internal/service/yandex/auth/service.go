@@ -206,6 +206,7 @@ func (s *Service) LoginAndExtractToken(ctx context.Context) (string, error) {
 	if err := s.initBrowser(ctx); err != nil {
 		return "", err
 	}
+
 	defer s.cleanup(ctx)
 
 	logger.Infof(ctx, "Opening Yandex Music login page: %s", defaultYandexMusicLoginURL)
@@ -604,6 +605,7 @@ func buildYandexSessionCookieInfo(cookies []*proto.NetworkCookie) *yandexSession
 	}
 
 	sort.Strings(info.Present)
+
 	info.Header = strings.Join(parts, "; ")
 
 	return info
@@ -707,6 +709,7 @@ func postOAuthTokenRequest(
 	}
 
 	var tokenResponse oauthTokenResponse
+
 	if err = json.Unmarshal(body, &tokenResponse); err != nil {
 		return "", fmt.Errorf("invalid token response: %w", err)
 	}
@@ -794,6 +797,7 @@ func (s *Service) cleanup(ctx context.Context) {
 	}
 
 	s.session.Close(ctx)
+
 	s.session = nil
 	s.browser = nil
 	s.page = nil

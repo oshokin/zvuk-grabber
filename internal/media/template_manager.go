@@ -128,9 +128,11 @@ func (pair *templatePair) render(ctx context.Context, data any, executeErrorMess
 	}
 
 	var buffer bytes.Buffer
+
 	if err := selected.Execute(&buffer, data); err != nil && selected != pair.fallback {
 		logger.Errorf(ctx, executeErrorMessage, err)
 		buffer.Reset()
+
 		_ = pair.fallback.Execute(&buffer, data) //nolint:errcheck // The fallback template is always valid.
 	}
 

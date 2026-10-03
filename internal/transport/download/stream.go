@@ -140,6 +140,7 @@ func (s *Stream) CopyTo(ctx context.Context, destination io.Writer, opts *files.
 	options := opts.Clone()
 
 	var written int64
+
 	for {
 		options.InitialBytes = written
 		options.ExpectedBytes = s.total - written
@@ -168,6 +169,7 @@ func ReadAll(ctx context.Context, source io.Reader, opts *files.CopyStreamOption
 	if err != nil {
 		return nil, &Error{Err: err}
 	}
+
 	defer func() { _ = file.Close(); _ = os.Remove(file.Name()) }()
 
 	if _, err = Copy(ctx, file, source, opts); err != nil {
@@ -195,6 +197,7 @@ func (s *Stream) recoverBody(ctx context.Context, destination io.Writer, written
 	}
 
 	var readErr *bodyReadError
+
 	if !errors.As(err, &readErr) && !errors.Is(err, files.ErrIncompleteCopy) {
 		return written, err
 	}

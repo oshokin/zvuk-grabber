@@ -332,12 +332,14 @@ func LoadConfig(configFilename string) (*Config, error) {
 
 	if err := viper.ReadInConfig(); err != nil {
 		var configFileNotFoundError viper.ConfigFileNotFoundError
+
 		if !errors.As(err, &configFileNotFoundError) && !os.IsNotExist(err) {
 			return nil, fmt.Errorf("failed to read config from file: %w", err)
 		}
 	}
 
 	var cfg Config
+
 	if err := viper.Unmarshal(&cfg); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
@@ -497,6 +499,7 @@ func SaveConfigFields(cfg *Config, fields map[string]string) error {
 
 	// Parse YAML while preserving order using yaml.Node.
 	var node yaml.Node
+
 	if err = yaml.Unmarshal(originalContent, &node); err != nil {
 		return fmt.Errorf("failed to parse YAML: %w", err)
 	}

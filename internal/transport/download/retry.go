@@ -143,6 +143,7 @@ func retryAfterDelay(value string, now time.Time) time.Duration {
 	if err == nil {
 		// maxSeconds prevents overflow when converting seconds to nanoseconds.
 		const maxSeconds = uint64((1<<63 - 1) / int64(time.Second))
+
 		if seconds > maxSeconds {
 			return time.Duration(1<<63 - 1)
 		}

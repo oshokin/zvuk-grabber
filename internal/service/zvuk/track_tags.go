@@ -63,6 +63,7 @@ func buildAudiobookTrackTags(ctx *trackTagContext) map[string]string {
 
 	result[media.TagCollectionTitle] = collection.title
 	fillCommonTrackTags(result, ctx.trackNumber, track)
+
 	result[media.TagTrackCount] = strconv.FormatInt(collection.tracksCount, 10)
 
 	return result
@@ -109,6 +110,7 @@ func buildDefaultTrackTags(ctx *trackTagContext) map[string]string {
 	result[media.TagCollectionTitle] = collection.title
 	setIfNotBlank(result, media.TagTrackGenre, strings.Join(track.Genres, ", "))
 	fillCommonTrackTags(result, ctx.trackNumber, track)
+
 	result[media.TagTrackCount] = strconv.FormatInt(collection.tracksCount, 10)
 
 	return result

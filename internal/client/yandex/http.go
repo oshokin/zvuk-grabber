@@ -181,6 +181,7 @@ func (c *HttpClient) DownloadBytesWithContext(reqCtx *httptransport.RequestLogCo
 // Decode parses a Yandex Music API error response body.
 func (*yandexAPIErrorDecoder) Decode(body []byte) *httptransport.DecodedAPIError {
 	var errorResp model.ErrorResponse
+
 	if err := json.Unmarshal(body, &errorResp); err != nil || !errorResp.IsError() {
 		return nil
 	}

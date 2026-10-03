@@ -55,6 +55,7 @@ func unmarshalPlaylistTagObject(data []byte) (playlistTagObject, error) {
 // unmarshalPlaylistTagString parses a playlist tag encoded as a plain JSON string.
 func unmarshalPlaylistTagString(data []byte) (playlistTagObject, error) {
 	var value string
+
 	if err := json.Unmarshal(data, &value); err != nil {
 		return playlistTagObject{}, err
 	}
@@ -65,6 +66,7 @@ func unmarshalPlaylistTagString(data []byte) (playlistTagObject, error) {
 // unmarshalPlaylistTagObjectForm parses a playlist tag encoded as a JSON object.
 func unmarshalPlaylistTagObjectForm(data []byte) (playlistTagObject, error) {
 	var object playlistTagObject
+
 	if err := json.Unmarshal(data, &object); err != nil {
 		return playlistTagObject{}, err
 	}

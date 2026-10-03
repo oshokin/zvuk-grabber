@@ -15,57 +15,6 @@ import (
 	"github.com/oshokin/zvuk-grabber/internal/files"
 )
 
-// TestConfigStruct tests the Config struct fields.
-func TestConfigStruct(t *testing.T) {
-	t.Parallel()
-
-	cfg := &Config{
-		ZvukAuthToken:            "test_token",
-		Quality:                  2,
-		OutputPath:               "/tmp/downloads",
-		GroupByProvider:          true,
-		TrackFilenameTemplate:    "{{.trackNumberPad}} - {{.trackTitle}}",
-		AlbumFolderTemplate:      "{{.releaseYear}} - {{.albumArtist}} - {{.albumTitle}}",
-		PlaylistFilenameTemplate: "{{.trackNumberPad}} - {{.trackArtist}} - {{.trackTitle}}",
-		DownloadLyrics:           true,
-		ReplaceTracks:            false,
-		ReplaceCovers:            false,
-		ReplaceDescriptions:      false,
-		ReplaceLyrics:            false,
-		LogLevel:                 "info",
-		DownloadSpeedLimit:       "1MB",
-		CreateFolderForSingles:   true,
-		MaxFolderNameLength:      100,
-		APIRetryAttemptsCount:    3,
-		MaxDownloadPause:         "5s",
-		APIMinRetryPause:         "1s",
-		APIMaxRetryPause:         "3s",
-		MaxConcurrentDownloads:   1,
-	}
-
-	assert.Equal(t, "test_token", cfg.ZvukAuthToken)
-	assert.Equal(t, uint8(2), cfg.Quality)
-	assert.Equal(t, "/tmp/downloads", cfg.OutputPath)
-	assert.True(t, cfg.GroupByProvider)
-	assert.Equal(t, "{{.trackNumberPad}} - {{.trackTitle}}", cfg.TrackFilenameTemplate)
-	assert.Equal(t, "{{.releaseYear}} - {{.albumArtist}} - {{.albumTitle}}", cfg.AlbumFolderTemplate)
-	assert.Equal(t, "{{.trackNumberPad}} - {{.trackArtist}} - {{.trackTitle}}", cfg.PlaylistFilenameTemplate)
-	assert.True(t, cfg.DownloadLyrics)
-	assert.False(t, cfg.ReplaceTracks)
-	assert.False(t, cfg.ReplaceCovers)
-	assert.False(t, cfg.ReplaceDescriptions)
-	assert.False(t, cfg.ReplaceLyrics)
-	assert.Equal(t, "info", cfg.LogLevel)
-	assert.Equal(t, "1MB", cfg.DownloadSpeedLimit)
-	assert.True(t, cfg.CreateFolderForSingles)
-	assert.Equal(t, int64(100), cfg.MaxFolderNameLength)
-	assert.Equal(t, int64(3), cfg.APIRetryAttemptsCount)
-	assert.Equal(t, "5s", cfg.MaxDownloadPause)
-	assert.Equal(t, "1s", cfg.APIMinRetryPause)
-	assert.Equal(t, "3s", cfg.APIMaxRetryPause)
-	assert.Equal(t, int64(1), cfg.MaxConcurrentDownloads)
-}
-
 // TestConstants tests the constants.
 func TestConstants(t *testing.T) {
 	t.Parallel()
@@ -700,8 +649,10 @@ func TestConfigValidation_PauseDurations(t *testing.T) {
 				// Verify parsed values.
 				expectedMaxDownload, parseErr := time.ParseDuration(tt.maxDownloadPause)
 				require.NoError(t, parseErr)
+
 				expectedMinRetry, parseErr := time.ParseDuration(tt.minRetryPause)
 				require.NoError(t, parseErr)
+
 				expectedMaxRetry, parseErr := time.ParseDuration(tt.maxRetryPause)
 				require.NoError(t, parseErr)
 
@@ -736,13 +687,16 @@ func TestSaveConfigFields_CreatesFullDefaultConfigWhenMissing(t *testing.T) {
 	require.NoError(t, err)
 
 	contentString := string(content)
-
-	assert.Contains(t, contentString, `zvuk_auth_token: "zvuk-token"`)
-	assert.Contains(t, contentString, `yandex_music_token: "yandex-token"`)
-	assert.Contains(t, contentString, "quality: 3")
-	assert.Contains(t, contentString, `log_level: "info"`)
-	assert.Contains(t, contentString, "api_retry_attempts_count: 5")
-	assert.Contains(t, contentString, "max_concurrent_downloads: 1")
+	for _, want := range []string{
+		`zvuk_auth_token: "zvuk-token"`,
+		`yandex_music_token: "yandex-token"`,
+		"quality: 3",
+		`log_level: "info"`,
+		"api_retry_attempts_count: 5",
+		"max_concurrent_downloads: 1",
+	} {
+		assert.Contains(t, contentString, want)
+	}
 
 	info, err := os.Stat(configPath)
 	require.NoError(t, err)
@@ -774,6 +728,7 @@ func TestConfigClone(t *testing.T) {
 
 	require.Equal(t, "token", original.ZvukAuthToken)
 	require.Equal(t, 4, original.ZvukDownloadHTTP.MaxRetries)
+
 	require.Nil(t, (*Config)(nil).Clone())
 }
 

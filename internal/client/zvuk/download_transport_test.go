@@ -56,6 +56,7 @@ func TestDownloadClientSeparateFromAPI(t *testing.T) {
 
 	require.True(t, downloadCalled)
 	require.False(t, apiCalled)
+
 	cover, err := c.DownloadFromURL(t.Context(), server.URL)
 	require.NoError(t, err)
 

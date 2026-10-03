@@ -63,6 +63,7 @@ func TestResumeAndRestart(t *testing.T) {
 				if attempt == 1 {
 					assert.Empty(t, r.Header.Get("Range"))
 					w.Header().Set("Content-Length", "20")
+
 					_, err := io.WriteString(w, complete[:7])
 					assert.NoError(t, err)
 
@@ -94,6 +95,7 @@ func TestResumeAndRestart(t *testing.T) {
 						}
 
 						w.WriteHeader(tc.status)
+
 						_, err := io.WriteString(w, complete[7:])
 						assert.NoError(t, err)
 
@@ -112,6 +114,7 @@ func TestResumeAndRestart(t *testing.T) {
 
 			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL, nil)
 			require.NoError(t, err)
+
 			stream, err := Open(server.Client(), req, testConfig())
 			require.NoError(t, err)
 
@@ -148,6 +151,7 @@ func TestRetryBudget(t *testing.T) {
 				w.Header().Set("Content-Length", "20")
 				w.Header().Set("ETag", `"stable"`)
 				w.WriteHeader(status)
+
 				_, err := io.WriteString(w, "short")
 				assert.NoError(t, err)
 			}))
@@ -171,6 +175,7 @@ func TestRetryBudget(t *testing.T) {
 			}
 
 			var transferErr *Error
+
 			require.ErrorAs(t, err, &transferErr)
 
 			expected := int32(3)
@@ -220,6 +225,7 @@ func TestRetryAfterAndCancellation(t *testing.T) {
 		require.NoError(t, stream.Close())
 		require.Equal(t, 5*time.Second, time.Since(start))
 		require.Equal(t, 2, calls)
+
 		ctx, cancel := context.WithCancel(t.Context())
 		calls = 0
 		client.Transport = roundTripFunc(
@@ -252,6 +258,7 @@ func TestLocalWriteFailureDoesNotRetry(t *testing.T) {
 	})}
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, "https://example.test/audio", nil)
 	require.NoError(t, err)
+
 	stream, err := Open(client, req, testConfig())
 	require.NoError(t, err)
 
@@ -260,6 +267,7 @@ func TestLocalWriteFailureDoesNotRetry(t *testing.T) {
 	file, err := os.Create(filepath.Join(t.TempDir(), "part"))
 	require.NoError(t, err)
 	require.NoError(t, file.Close())
+
 	_, err = Copy(t.Context(), file, stream, nil)
 	require.ErrorIs(t, err, os.ErrClosed)
 	require.Equal(t, 1, calls)
@@ -302,8 +310,10 @@ func TestDisabledRetriesAndResume(t *testing.T) {
 		cfg.Resume = false
 		req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL, nil)
 		require.NoError(t, err)
+
 		stream, err := Open(server.Client(), req, cfg)
 		require.NoError(t, err)
+
 		data, err := ReadAll(t.Context(), stream, nil)
 		require.NoError(t, stream.Close())
 		server.Close()

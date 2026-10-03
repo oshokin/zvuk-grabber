@@ -29,10 +29,14 @@ func TestLogRequest_UsesInternalLoggerAndRequestContext(t *testing.T) {
 
 	entries := observedLogs.AllUntimed()
 	require.Len(t, entries, 1)
+
+	want := map[string]any{
+		"stage":       "download",
+		"operation":   "open_stream",
+		"custom_attr": "value",
+	}
+	assert.Equal(t, want, entries[0].ContextMap())
 	assert.Equal(t, "test request", entries[0].Message)
-	assert.Equal(t, "download", entries[0].ContextMap()["stage"])
-	assert.Equal(t, "open_stream", entries[0].ContextMap()["operation"])
-	assert.Equal(t, "value", entries[0].ContextMap()["custom_attr"])
 }
 
 // TestLogRequest_DoesNotRedactWithoutSensitiveAttributes verifies no implicit redaction is applied.
@@ -112,10 +116,13 @@ func TestSanitizeURL_DoesNotRedactWithoutSensitiveKeys(t *testing.T) {
 	require.NoError(t, err)
 
 	query := parsed.Query()
-	assert.Equal(t, "abcd1234", query.Get("X-Amz-Signature"))
-	assert.Equal(t, "AKIA/20260705/ru-central1/s3/aws4_request", query.Get("X-Amz-Credential"))
-	assert.Equal(t, "very-secret", query.Get("token"))
-	assert.Equal(t, "newsletter", query.Get("utm_source"))
+	want := url.Values{
+		"X-Amz-Signature":  []string{"abcd1234"},
+		"X-Amz-Credential": []string{"AKIA/20260705/ru-central1/s3/aws4_request"},
+		"token":            []string{"very-secret"},
+		"utm_source":       []string{"newsletter"},
+	}
+	assert.Equal(t, want, query)
 }
 
 // TestSanitizeURL_TruncatesLongNonSensitiveQueryValues verifies long non-sensitive values are truncated.
@@ -149,8 +156,11 @@ func TestSanitizeURLWithKeys_RedactsSourceSpecificQueryParams(t *testing.T) {
 	require.NoError(t, err)
 
 	query := parsed.Query()
-	assert.Equal(t, "***", query.Get("api_key"))
-	assert.Equal(t, "***", query.Get("signature_hint"))
-	assert.Equal(t, "***", query.Get("token"))
-	assert.Equal(t, "feed", query.Get("utm_source"))
+	want := url.Values{
+		"api_key":        []string{"***"},
+		"signature_hint": []string{"***"},
+		"token":          []string{"***"},
+		"utm_source":     []string{"feed"},
+	}
+	assert.Equal(t, want, query)
 }

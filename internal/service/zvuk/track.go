@@ -627,6 +627,7 @@ func (s *ServiceImpl) writeTrackMetadata(
 	tempPath string,
 ) {
 	var coverPath string
+
 	if t.audioCollection != nil {
 		for _, candidate := range []string{
 			strings.TrimSpace(t.audioCollection.embeddableCoverPath),

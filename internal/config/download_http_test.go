@@ -13,25 +13,33 @@ import (
 func TestDownloadHTTPConfigYAML(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.yaml")
 	require.NoError(t, os.WriteFile(path, []byte("quality: 3\n"), 0o600))
+
 	cfg, err := LoadConfig(path)
 	require.NoError(t, err)
 	require.NoError(t, ValidateConfig(cfg))
 	require.Equal(t, DefaultDownloadHTTPConfig(), cfg.ZvukDownloadHTTP)
+
 	require.NoError(t, os.WriteFile(path, []byte(`zvuk_download_http:
   timeout: 15m
   read_idle_timeout: 0s
   receive_buffer: "0"
   http1_only: false
 `), 0o600))
+
+	want := DefaultDownloadHTTPConfig()
+	want.Timeout = 15 * time.Minute
+	want.ReadIdleTimeout = 0
+	want.ReceiveBuffer = "0"
+	want.ReceiveBufferBytes = 0
+	want.HTTP1Only = false
+
 	cfg, err = LoadConfig(path)
 	require.NoError(t, err)
 	require.NoError(t, ValidateConfig(cfg))
-	require.Equal(t, 15*time.Minute, cfg.ZvukDownloadHTTP.Timeout)
-	require.Zero(t, cfg.ZvukDownloadHTTP.ReadIdleTimeout)
-	require.Zero(t, cfg.ZvukDownloadHTTP.ReceiveBufferBytes)
-	require.False(t, cfg.ZvukDownloadHTTP.HTTP1Only)
-	require.Equal(t, DefaultDownloadHTTPDialTimeout, cfg.ZvukDownloadHTTP.DialTimeout)
+	require.Equal(t, want, cfg.ZvukDownloadHTTP)
+
 	require.NoError(t, os.WriteFile(path, renderConfigContent(cfg), 0o600))
+
 	saved, err := LoadConfig(path)
 	require.NoError(t, err)
 	require.Equal(t, cfg.ZvukDownloadHTTP, saved.ZvukDownloadHTTP)
@@ -60,6 +68,7 @@ func TestDownloadHTTPReceiveBufferParsesHumanSizes(t *testing.T) {
 yandex_music_download_http:
   receive_buffer: "115 KiB"
 `), 0o600))
+
 	cfg, err := LoadConfig(path)
 	require.NoError(t, err)
 	require.NoError(t, ValidateConfig(cfg))
@@ -80,14 +89,26 @@ yandex_music_download_http:
   retry_initial_delay: 2s
   retry_max_delay: 20s
 `), 0o600))
+
+	wantZvuk := DefaultDownloadHTTPConfig()
+	wantZvuk.MaxRetries = 0
+	wantZvuk.Resume = false
+
+	wantYandex := DefaultDownloadHTTPConfig()
+	wantYandex.MaxRetries = 7
+	wantYandex.Resume = true
+	wantYandex.ReadIdleTimeout = 45 * time.Second
+	wantYandex.RetryInitialDelay = 2 * time.Second
+	wantYandex.RetryMaxDelay = 20 * time.Second
+
 	cfg, err := LoadConfig(path)
 	require.NoError(t, err)
 	require.NoError(t, ValidateConfig(cfg))
-	require.Zero(t, cfg.ZvukDownloadHTTP.MaxRetries)
-	require.False(t, cfg.ZvukDownloadHTTP.Resume)
-	require.Equal(t, 7, cfg.YandexMusicDownloadHTTP.MaxRetries)
-	require.Equal(t, 45*time.Second, cfg.YandexMusicDownloadHTTP.ReadIdleTimeout)
+	require.Equal(t, wantZvuk, cfg.ZvukDownloadHTTP)
+	require.Equal(t, wantYandex, cfg.YandexMusicDownloadHTTP)
+
 	require.NoError(t, os.WriteFile(path, renderConfigContent(cfg), 0o600))
+
 	saved, err := LoadConfig(path)
 	require.NoError(t, err)
 	require.Equal(t, cfg.ZvukDownloadHTTP, saved.ZvukDownloadHTTP)
@@ -122,5 +143,6 @@ func TestDownloadHTTPConfigClone(t *testing.T) {
 	require.Zero(t, original.Timeout)
 	require.True(t, original.Resume)
 	require.Equal(t, DefaultDownloadHTTPReceiveBuffer, original.ReceiveBuffer)
+
 	require.Nil(t, (*DownloadHTTPConfig)(nil).Clone())
 }

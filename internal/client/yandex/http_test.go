@@ -32,10 +32,13 @@ func TestSanitizeHeaders_RedactsSensitiveHeaders(t *testing.T) {
 	}
 
 	sanitized := httptransport.SanitizeHeaders(headers)
-	assert.Equal(t, "***", sanitized["Authorization"])
-	assert.Equal(t, "***", sanitized["Cookie"])
-	assert.Equal(t, "***", sanitized["Set-Cookie"])
-	assert.Equal(t, "ok", sanitized["X-Test"])
+	want := map[string]string{
+		"Authorization": "***",
+		"Cookie":        "***",
+		"Set-Cookie":    "***",
+		"X-Test":        "ok",
+	}
+	assert.Equal(t, want, sanitized)
 }
 
 // TestSanitizeURL_RedactsSensitiveQueryFields verifies sensitive query parameters are redacted in URLs.

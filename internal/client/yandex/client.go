@@ -176,6 +176,7 @@ func (c *Client) AccountStatus(ctx context.Context) (*model.Account, error) {
 	}
 
 	var data model.AccountStatusResponse
+
 	if err = parseResponse(response, &data); err != nil {
 		return nil, err
 	}
@@ -185,6 +186,7 @@ func (c *Client) AccountStatus(ctx context.Context) (*model.Account, error) {
 		c.userUID = uid
 		c.username = data.Result.Account.Login
 	}
+
 	c.accountMu.Unlock()
 
 	return &data.Result.Account, nil
@@ -223,11 +225,13 @@ func (c *Client) TrackLyrics(ctx context.Context, id string) (*model.TrackLyrics
 	}
 
 	var wrapped model.TrackLyricsResponse
+
 	if err = parseResponse(response, &wrapped); err == nil && wrapped.Result != nil {
 		return c.hydrateLyricsText(ctx, wrapped.Result)
 	}
 
 	var direct model.TrackLyrics
+
 	if err = parseResponse(response, &direct); err != nil {
 		return nil, err
 	}
@@ -298,6 +302,7 @@ func (c *Client) TrackDownloadLink(ctx context.Context, url string) (string, err
 	}
 
 	var info model.TrackDownloadInfo
+
 	if err = xml.Unmarshal(response, &info); err != nil {
 		return "", err
 	}

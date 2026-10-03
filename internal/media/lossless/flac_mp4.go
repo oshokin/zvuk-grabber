@@ -130,6 +130,7 @@ func Normalize(data []byte) ([]byte, error) {
 	}
 
 	var out bytes.Buffer
+
 	if err := Remux(context.Background(), &out, bytes.NewReader(data), int64(len(data))); err != nil {
 		return nil, err
 	}
@@ -301,6 +302,7 @@ func (p *parser) sampleDescription(box *mp4Box, depth int) error {
 	}
 
 	var info [16]byte
+
 	if _, err := p.source.ReadAt(info[:], box.body); err != nil {
 		return err
 	}
@@ -319,8 +321,10 @@ func (p *parser) sampleEntry(box *mp4Box, depth int) error {
 	if p.entries > 1 || box.end-box.body < isoAudioSampleEntryPrefix {
 		return fmt.Errorf("%w: invalid FLAC sample entry", ErrInvalidMP4)
 	}
+
 	// ISO AudioSampleEntry version 0 has 28 bytes before child boxes.
 	var version [2]byte
+
 	if _, err := p.source.ReadAt(version[:], box.body+8); err != nil {
 		return err
 	}

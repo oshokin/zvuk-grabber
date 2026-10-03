@@ -29,10 +29,16 @@ func TestResolveAudioQuality_FLACPreferredAvailable(t *testing.T) {
 
 	result, err := resolveTestAudioQuality(t, s)
 	require.NoError(t, err)
-	require.NotNil(t, result)
-	require.NotNil(t, result.payload)
-	assert.Equal(t, media.QualityFLAC, result.payload.quality)
-	assert.False(t, result.shouldSkip)
+
+	want := &qualityResolutionResult{
+		payload: &audioPayload{
+			quality:       media.QualityFLAC,
+			data:          []byte("fLaCdata"),
+			contentLength: 8,
+			codec:         media.CodecFLAC.String(),
+		},
+	}
+	require.Equal(t, want, result)
 }
 
 // TestResolveAudioQuality_FLACFallbackToMP3 verifies MP3 is selected when FLAC is unavailable.
@@ -50,10 +56,16 @@ func TestResolveAudioQuality_FLACFallbackToMP3(t *testing.T) {
 
 	result, err := resolveTestAudioQuality(t, s)
 	require.NoError(t, err)
-	require.NotNil(t, result)
-	require.NotNil(t, result.payload)
-	assert.Equal(t, media.QualityMP3High, result.payload.quality)
-	assert.False(t, result.shouldSkip)
+
+	want := &qualityResolutionResult{
+		payload: &audioPayload{
+			quality:   media.QualityMP3High,
+			streamURL: "https://example.test/file.mp3",
+			bitrate:   320,
+			codec:     media.CodecMP3.String(),
+		},
+	}
+	require.Equal(t, want, result)
 }
 
 // TestResolveAudioQuality_FLACRequiredSkips verifies tracks are skipped when FLAC is required but unavailable.
@@ -106,11 +118,16 @@ func TestResolveAudioQuality_MP3320MeetsMinimum(t *testing.T) {
 
 	result, err := resolveTestAudioQuality(t, s)
 	require.NoError(t, err)
-	require.NotNil(t, result)
-	require.NotNil(t, result.payload)
-	assert.Equal(t, media.QualityMP3High, result.payload.quality)
-	assert.Equal(t, "https://example.test/file.mp3", result.payload.streamURL)
-	assert.False(t, result.shouldSkip)
+
+	want := &qualityResolutionResult{
+		payload: &audioPayload{
+			quality:   media.QualityMP3High,
+			streamURL: "https://example.test/file.mp3",
+			bitrate:   320,
+			codec:     media.CodecMP3.String(),
+		},
+	}
+	require.Equal(t, want, result)
 }
 
 // TestResolveAudioQuality_MP3192DoesNotMeetHighMinimum verifies 192 kbps MP3 does not meet a high minimum quality.
@@ -139,6 +156,7 @@ func TestTransferFailureIsNotRetriedOrDowngraded(t *testing.T) {
 		client := mock_yandex.NewMockMusicClient(ctrl)
 		failure := &download.Error{Err: io.ErrUnexpectedEOF}
 		client.EXPECT().DownloadFLACBytes(gomock.Any(), "123").Return(nil, failure).Times(1)
+
 		service := newQualityTestService(client, media.QualityFLAC, minimum)
 		service.cfg.APIRetryAttemptsCount = 5
 		result, err := resolveTestAudioQuality(t, service)

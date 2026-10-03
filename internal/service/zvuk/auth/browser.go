@@ -56,6 +56,7 @@ func (s *ServiceImpl) cleanup(ctx context.Context) {
 	}
 
 	s.session.Close(ctx)
+
 	s.session = nil
 	s.browser = nil
 	s.page = nil

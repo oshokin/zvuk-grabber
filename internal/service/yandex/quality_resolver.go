@@ -111,6 +111,7 @@ func (s *ServiceImpl) resolveLosslessAudio(
 	}
 
 	var transferErr *download.Error
+
 	if errors.As(err, &transferErr) || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return nil, err
 	}

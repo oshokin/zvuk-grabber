@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/oshokin/zvuk-grabber/internal/config"
 	"github.com/oshokin/zvuk-grabber/internal/service/stats"
@@ -16,11 +17,8 @@ func TestDownloadStatistics_InitialState(t *testing.T) {
 	t.Parallel()
 
 	impl := newStatisticsService(t, nil)
-	assert.NotNil(t, impl.stats)
-	assert.Equal(t, int64(0), impl.stats.TotalTracksProcessed)
-	assert.Equal(t, int64(0), impl.stats.TracksDownloaded)
-	assert.Equal(t, int64(0), impl.stats.TracksSkipped)
-	assert.Equal(t, int64(0), impl.stats.TracksFailed)
+	want := new(DownloadStatistics)
+	assert.Equal(t, want, impl.stats)
 }
 
 // TestDownloadStatistics_Clone detaches error slices from the live counters.
@@ -33,6 +31,7 @@ func TestDownloadStatistics_Clone(t *testing.T) {
 	}
 	cloned := original.Clone()
 	assert.Equal(t, original.TracksDownloaded, cloned.TracksDownloaded)
+
 	cloned.TracksDownloaded = 9
 	cloned.Errors[0] = &DownloadError{ItemID: "2"}
 	cloned.Errors = append(cloned.Errors, &DownloadError{ItemID: "3"})
@@ -40,6 +39,7 @@ func TestDownloadStatistics_Clone(t *testing.T) {
 	assert.Equal(t, int64(2), original.TracksDownloaded)
 	assert.Equal(t, "1", original.Errors[0].ItemID)
 	assert.Len(t, original.Errors, 1)
+
 	assert.Nil(t, (*DownloadStatistics)(nil).Clone())
 }
 
@@ -51,9 +51,12 @@ func TestDownloadStatistics_IncrementTrackDownloaded(t *testing.T) {
 	impl.incrementTrackDownloaded(1024)
 	impl.incrementTrackDownloaded(2048)
 
-	assert.Equal(t, int64(2), impl.stats.TotalTracksProcessed)
-	assert.Equal(t, int64(2), impl.stats.TracksDownloaded)
-	assert.Equal(t, int64(3072), impl.stats.TotalBytesDownloaded)
+	want := &DownloadStatistics{
+		TotalTracksProcessed: 2,
+		TracksDownloaded:     2,
+		TotalBytesDownloaded: 3072,
+	}
+	assert.Equal(t, want, impl.stats)
 }
 
 // TestDownloadStatistics_IncrementTrackSkipped verifies skipped track counters increment by reason.
@@ -64,10 +67,13 @@ func TestDownloadStatistics_IncrementTrackSkipped(t *testing.T) {
 	impl.incrementTrackSkipped(SkipReasonExists)
 	impl.incrementTrackSkipped(SkipReasonQuality)
 
-	assert.Equal(t, int64(2), impl.stats.TotalTracksProcessed)
-	assert.Equal(t, int64(2), impl.stats.TracksSkipped)
-	assert.Equal(t, int64(1), impl.stats.TracksSkippedExists)
-	assert.Equal(t, int64(1), impl.stats.TracksSkippedQuality)
+	want := &DownloadStatistics{
+		TotalTracksProcessed: 2,
+		TracksSkipped:        2,
+		TracksSkippedExists:  1,
+		TracksSkippedQuality: 1,
+	}
+	assert.Equal(t, want, impl.stats)
 }
 
 // TestDownloadStatistics_IncrementTrackFailed verifies failed track counters increment correctly.
@@ -95,15 +101,19 @@ func TestDownloadStatistics_MixedResults(t *testing.T) {
 	impl.incrementCoverDownloaded()
 	impl.incrementCoverSkipped()
 
-	assert.Equal(t, int64(4), impl.stats.TotalTracksProcessed)
-	assert.Equal(t, int64(2), impl.stats.TracksDownloaded)
-	assert.Equal(t, int64(1), impl.stats.TracksSkipped)
-	assert.Equal(t, int64(1), impl.stats.TracksFailed)
-	assert.Equal(t, int64(3000), impl.stats.TotalBytesDownloaded)
-	assert.Equal(t, int64(1), impl.stats.LyricsDownloaded)
-	assert.Equal(t, int64(1), impl.stats.LyricsSkipped)
-	assert.Equal(t, int64(1), impl.stats.CoversDownloaded)
-	assert.Equal(t, int64(1), impl.stats.CoversSkipped)
+	want := &DownloadStatistics{
+		TotalTracksProcessed:  4,
+		TracksDownloaded:      2,
+		TracksSkipped:         1,
+		TracksSkippedDuration: 1,
+		TracksFailed:          1,
+		TotalBytesDownloaded:  3000,
+		LyricsDownloaded:      1,
+		LyricsSkipped:         1,
+		CoversDownloaded:      1,
+		CoversSkipped:         1,
+	}
+	assert.Equal(t, want, impl.stats)
 }
 
 // TestPrintDownloadSummary_NoTracksProcessed verifies the summary is omitted when no work was done.
@@ -125,9 +135,14 @@ func TestPrintDownloadSummary_WithResults(t *testing.T) {
 	impl.incrementCoverDownloaded()
 	impl.PrintDownloadSummary(t.Context())
 
-	assert.Equal(t, int64(1), impl.stats.TotalTracksProcessed)
-	assert.Equal(t, int64(1), impl.stats.TracksDownloaded)
-	assert.Equal(t, int64(36860019), impl.stats.TotalBytesDownloaded)
+	want := &DownloadStatistics{
+		TotalTracksProcessed: 1,
+		TracksDownloaded:     1,
+		TotalBytesDownloaded: 36860019,
+		LyricsDownloaded:     1,
+		CoversDownloaded:     1,
+	}
+	assert.Equal(t, want, impl.stats)
 }
 
 // TestDownloadStatistics_ConcurrentAccess verifies statistics remain correct under concurrent updates.
@@ -151,11 +166,14 @@ func TestDownloadStatistics_ConcurrentAccess(t *testing.T) {
 		<-done
 	}
 
-	assert.Equal(t, int64(10), impl.stats.TotalTracksProcessed)
-	assert.Equal(t, int64(10), impl.stats.TracksDownloaded)
-	assert.Equal(t, int64(10000), impl.stats.TotalBytesDownloaded)
-	assert.Equal(t, int64(10), impl.stats.LyricsDownloaded)
-	assert.Equal(t, int64(10), impl.stats.CoversDownloaded)
+	want := &DownloadStatistics{
+		TotalTracksProcessed: 10,
+		TracksDownloaded:     10,
+		TotalBytesDownloaded: 10000,
+		LyricsDownloaded:     10,
+		CoversDownloaded:     10,
+	}
+	assert.Equal(t, want, impl.stats)
 }
 
 // TestPrintDownloadSummary_WithInterruption verifies interrupted sessions are reflected in the summary.
@@ -171,9 +189,13 @@ func TestPrintDownloadSummary_WithInterruption(t *testing.T) {
 	cancel()
 	impl.PrintDownloadSummary(ctx)
 
-	assert.Equal(t, int64(2), impl.stats.TotalTracksProcessed)
-	assert.Equal(t, int64(2), impl.stats.TracksDownloaded)
-	assert.Equal(t, int64(15000000), impl.stats.TotalBytesDownloaded)
+	want := &DownloadStatistics{
+		TotalTracksProcessed: 2,
+		TracksDownloaded:     2,
+		TotalBytesDownloaded: 15000000,
+		CoversDownloaded:     1,
+	}
+	assert.Equal(t, want, impl.stats)
 }
 
 // TestDownloadStatistics_ErrorTracking verifies structured errors are stored and included in the summary.
@@ -210,11 +232,20 @@ func TestDownloadStatistics_ErrorTracking(t *testing.T) {
 	impl.incrementTrackFailed()
 	impl.incrementTrackDownloaded(1000)
 
-	assert.Len(t, impl.stats.Errors, 3)
-	assert.Equal(t, "12345", impl.stats.Errors[0].ItemID)
-	assert.Equal(t, "Test Track 1", impl.stats.Errors[0].ItemTitle)
-	assert.Equal(t, "downloading file", impl.stats.Errors[0].Phase)
-	assert.Equal(t, DownloadCategoryTrack, impl.stats.Errors[0].Category)
+	require.Len(t, impl.stats.Errors, 3)
+
+	want := &DownloadError{
+		Category:       DownloadCategoryTrack,
+		ItemID:         "12345",
+		ItemTitle:      "Test Track 1",
+		Phase:          "downloading file",
+		ParentCategory: DownloadCategoryAlbum,
+		ParentID:       "99999",
+		ParentTitle:    "Parent Album",
+		Error:          assert.AnError,
+	}
+	assert.Equal(t, want, impl.stats.Errors[0])
+
 	impl.PrintDownloadSummary(t.Context())
 }
 
@@ -228,6 +259,7 @@ func TestPrintDownloadSummary_WithDuration(t *testing.T) {
 	impl.stats.StartTime = start
 	impl.incrementTrackDownloaded(totalBytes)
 	impl.incrementTrackDownloaded(totalBytes)
+
 	impl.stats.EndTime = start.Add(150 * time.Millisecond)
 
 	actualDuration := impl.stats.EndTime.Sub(impl.stats.StartTime)

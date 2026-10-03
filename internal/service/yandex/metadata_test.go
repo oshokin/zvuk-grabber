@@ -15,16 +15,20 @@ import (
 func TestCollapseNameSeparators(t *testing.T) {
 	t.Parallel()
 
-	assert.Equal(t, "Author - Title", utils.CollapseTemplateName("0000 - Author - Title"))
-	assert.Equal(t, "Author - Title", utils.CollapseTemplateName(" - Author - Title"))
-	assert.Equal(t, "Совсем другое дело", utils.CollapseTemplateName("Совсем другое дело - Совсем другое дело"))
-	assert.Equal(t, "01 - Title", utils.CollapseTemplateName("01 - Title"))
-	assert.Equal(t, "Title", utils.CollapseTemplateName("0000 - Title"))
-	assert.Equal(
-		t,
-		"Татьяна Столяр. «Я есть жир»",
-		utils.CollapseTemplateName("Татьяна Столяр - Татьяна Столяр. «Я есть жир»"),
-	)
+	cases := []struct {
+		in, want string
+	}{
+		{"0000 - Author - Title", "Author - Title"},
+		{" - Author - Title", "Author - Title"},
+		{"Совсем другое дело - Совсем другое дело", "Совсем другое дело"},
+		{"01 - Title", "01 - Title"},
+		{"0000 - Title", "Title"},
+		{"Татьяна Столяр - Татьяна Столяр. «Я есть жир»", "Татьяна Столяр. «Я есть жир»"},
+	}
+
+	for _, tc := range cases {
+		assert.Equal(t, tc.want, utils.CollapseTemplateName(tc.in), tc.in)
+	}
 }
 
 func TestCollectionReleaseYear_UsesAlbumYear(t *testing.T) {

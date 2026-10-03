@@ -181,6 +181,7 @@ func (c *Client) Cancel() {
 	}
 
 	c.mu.RLock()
+
 	cancel := c.cancel
 	c.mu.RUnlock()
 

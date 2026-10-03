@@ -110,6 +110,7 @@ func (s *ServiceImpl) DownloadURLs(ctx context.Context, urls []string) (result e
 			result = ctx.Err()
 		}
 	}()
+
 	// Record start time and dry-run mode for statistics.
 	s.statsMutex.Lock()
 	s.stats.StartTime = time.Now()

@@ -255,6 +255,7 @@ func (b *BaseCollectionHandler) FillTrackTagsForTemplating(
 	// Add track-specific fields.
 	result[media.TagCollectionTitle] = audioCollection.title
 	fillCommonTrackTags(result, trackNumber, track)
+
 	result[media.TagTrackCount] = strconv.FormatInt(audioCollection.tracksCount, 10)
 
 	return result

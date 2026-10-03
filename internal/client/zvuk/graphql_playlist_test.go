@@ -118,6 +118,7 @@ func writePlaylistTracksGraphQLPage(t *testing.T, writer http.ResponseWriter, re
 			Offset int `json:"offset"`
 		} `json:"variables"`
 	}
+
 	require.NoError(t, json.Unmarshal(body, &payload))
 
 	tracks := []any{

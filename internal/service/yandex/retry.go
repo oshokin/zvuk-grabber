@@ -68,6 +68,7 @@ func retryValue[T any](ctx context.Context, service *ServiceImpl, operation stri
 		cfg    *config.Config
 		engine *retry.Engine
 	)
+
 	if service != nil {
 		cfg = service.cfg
 		engine = service.retryEngine

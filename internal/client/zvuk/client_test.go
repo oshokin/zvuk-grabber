@@ -330,9 +330,12 @@ func TestClientImpl_GetStreamMetadata(t *testing.T) {
 
 	response, err := mockClient.GetStreamMetadata(ctx, trackID)
 	require.NoError(t, err)
-	assert.NotNil(t, response)
-	assert.NotNil(t, response.Result)
-	assert.Equal(t, "https://example.com/stream.mp3", response.Result.Stream)
+	require.NotNil(t, response)
+
+	want := &GetStreamMetadataResponse{
+		Result: &StreamMetadata{Stream: "https://example.com/stream.mp3"},
+	}
+	require.Equal(t, want, response)
 }
 
 // TestClientImpl_GetTrackLyrics tests the GetTrackLyrics method.
@@ -347,10 +350,12 @@ func TestClientImpl_GetTrackLyrics(t *testing.T) {
 
 	response, err := mockClient.GetTrackLyrics(ctx, trackID)
 	require.NoError(t, err)
-	assert.NotNil(t, response)
-	assert.NotNil(t, response.Result)
-	assert.Equal(t, LyricsTypeSubtitle, response.Result.Type)
-	assert.Equal(t, "Test lyrics content", response.Result.Lyrics)
+	require.NotNil(t, response)
+
+	want := &GetLyricsResponse{
+		Result: &Lyrics{Type: LyricsTypeSubtitle, Lyrics: "Test lyrics content"},
+	}
+	require.Equal(t, want, response)
 }
 
 // TestClientImpl_GetTracksMetadata tests the GetTracksMetadata method.
@@ -381,10 +386,11 @@ func TestClientImpl_GetUserProfile(t *testing.T) {
 
 	response, err := mockClient.GetUserProfile(ctx)
 	require.NoError(t, err)
-	assert.NotNil(t, response)
-	assert.NotNil(t, response.Result)
-	assert.NotNil(t, response.Result.Subscription)
-	assert.Equal(t, "Premium", response.Result.Subscription.Title)
+	require.NotNil(t, response)
+	require.NotNil(t, response.Result)
+
+	want := &UserSubscription{Title: "Premium", Expiration: 1234567890}
+	require.Equal(t, want, response.Result.Subscription)
 }
 
 // TestClientImpl_ErrorHandling tests error handling.

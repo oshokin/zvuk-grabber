@@ -73,5 +73,6 @@ func TestConfigResolveOutputPath(t *testing.T) {
 	assert.Equal(t, "downloads", cfg.ResolveOutputPath(ProviderZvuk))
 
 	var nilCfg *Config
+
 	assert.Empty(t, nilCfg.ResolveOutputPath(ProviderZvuk))
 }

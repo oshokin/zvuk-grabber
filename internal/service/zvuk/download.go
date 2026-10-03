@@ -308,6 +308,7 @@ func (s *ServiceImpl) parseItemCoverURL(sourceURL string) *parsedCoverURL {
 	query := parsedURL.Query()
 	extension := strings.TrimSpace(query.Get("ext"))
 	query.Del("size")
+
 	parsedURL.RawQuery = query.Encode()
 
 	return &parsedCoverURL{
@@ -365,6 +366,7 @@ func (s *ServiceImpl) downloadCover(
 
 	// Calculate the final cover filename.
 	var finalCoverFilename string
+
 	if firstTrackFilename != "" {
 		finalCoverFilename = utils.SetFileExtension(firstTrackFilename, coverExtension, true)
 	} else {
@@ -464,6 +466,7 @@ func (s *ServiceImpl) saveDescription(
 
 	// Check if final destination already exists (to avoid inconsistent state).
 	var finalFilename string
+
 	if descriptionFilename != "" {
 		finalFilename = utils.SetFileExtension(descriptionFilename, extensionTXT, true)
 	} else {

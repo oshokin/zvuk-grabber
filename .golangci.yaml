@@ -50,7 +50,7 @@ linters:
     - testpackage # Allow tests in same package as tested code.
     - varnamelen # Allow short variable names when context is clear.
     - wrapcheck # Don't require all errors to be wrapped.
-    - wsl # Don't enforce whitespace rules (handled by formatters).
+    - wsl # Deprecated; whitespace is enforced by wsl_v5.
     - zerologlint # Not using zerolog library.
 
   # All available settings of specific linters.
@@ -279,6 +279,17 @@ linters:
         - name: time-naming # Use proper naming for time-related variables.
         - name: unreachable-code # Flag unreachable code paths.
         - name: var-declaration # Optimize variable declarations.
+
+    # Whitespace: paragraph gaps after blocks, not between lines of the same thought.
+    wsl_v5:
+      # Enable after-block/decl/defer/go and the rest of the v5 checks.
+      # Default: "" (v5 preset, which turns the after-* checks off)
+      default: all
+
+      # after-expr splits Lock from the assignment it guards; assign-exclusive splits := from =.
+      disable:
+        - after-expr
+        - assign-exclusive
 
   # Issue exclusion rules to reduce noise in specific scenarios.
   exclusions:

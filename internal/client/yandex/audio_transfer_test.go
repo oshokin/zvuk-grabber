@@ -37,6 +37,7 @@ func TestYandexEncryptedAudioResume(t *testing.T) {
 
 		if calls.Add(1) == 1 {
 			w.Header().Set("Content-Length", strconv.Itoa(len(encrypted)))
+
 			_, writeErr := w.Write(encrypted[:17])
 			assert.NoError(t, writeErr)
 
@@ -47,6 +48,7 @@ func TestYandexEncryptedAudioResume(t *testing.T) {
 		assert.Equal(t, `"encrypted-audio"`, r.Header.Get("If-Range"))
 		w.Header().Set("Content-Range", fmt.Sprintf("bytes 17-%d/%d", len(encrypted)-1, len(encrypted)))
 		w.WriteHeader(http.StatusPartialContent)
+
 		_, writeErr := w.Write(encrypted[17:])
 		assert.NoError(t, writeErr)
 	}))
@@ -126,6 +128,7 @@ func TestYandexMP3AndCoverIsolation(t *testing.T) {
 
 		if audioCalls.Add(1) == 1 {
 			w.Header().Set("Content-Length", "6")
+
 			_, err := io.WriteString(w, "abc")
 			assert.NoError(t, err)
 
@@ -135,6 +138,7 @@ func TestYandexMP3AndCoverIsolation(t *testing.T) {
 		assert.Equal(t, "bytes=3-", r.Header.Get("Range"))
 		w.Header().Set("Content-Range", "bytes 3-5/6")
 		w.WriteHeader(http.StatusPartialContent)
+
 		_, err := io.WriteString(w, "def")
 		assert.NoError(t, err)
 	}))
@@ -156,9 +160,11 @@ func TestYandexMP3AndCoverIsolation(t *testing.T) {
 
 	_, err = download.Copy(t.Context(), file, remote.Body, nil)
 	require.NoError(t, err)
+
 	data, err := os.ReadFile(file.Name())
 	require.NoError(t, err)
 	require.Equal(t, "abcdef", string(data))
+
 	_, err = client.DownloadCoverBytes(t.Context(), server.URL+"/cover")
 	require.Error(t, err)
 	require.Equal(t, int32(1), coverCalls.Load())
