@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httputil"
+	"slices"
 	"time"
 
 	"github.com/oshokin/zvuk-grabber/internal/config"
@@ -78,10 +79,12 @@ func (t *LogTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	return resp, nil
 }
 
-// dumpRequest serializes an HTTP request for debug logging.
+// dumpRequest serializes an HTTP request for debug logging with secrets redacted.
 func (t *LogTransport) dumpRequest(req *http.Request) string {
-	// Include the request body in the dump.
-	dump, err := httputil.DumpRequest(req, true)
+	cloned := req.Clone(req.Context())
+	redactSensitiveHTTPHeaders(cloned.Header)
+
+	dump, err := httputil.DumpRequest(cloned, true)
 	if err != nil {
 		return err.Error()
 	}
@@ -89,17 +92,49 @@ func (t *LogTransport) dumpRequest(req *http.Request) string {
 	return t.truncate(dump)
 }
 
-// dumpResponse serializes an HTTP response for debug logging.
+// dumpResponse serializes an HTTP response for debug logging with secrets redacted.
 func (t *LogTransport) dumpResponse(resp *http.Response) string {
-	// Check the Content-Type header to determine if the response body should be dumped.
+	//nolint:bodyclose // Body is the live response body.
+	cloned := t.cloneResponse(resp)
+	if cloned == nil {
+		return ""
+	}
+
+	redactSensitiveHTTPHeaders(cloned.Header)
+
 	contentType := resp.Header.Get("Content-Type")
 
-	dump, err := httputil.DumpResponse(resp, utils.IsTextContentType(contentType))
+	dump, err := httputil.DumpResponse(cloned, utils.IsTextContentType(contentType))
 	if err != nil {
 		return err.Error()
 	}
 
 	return t.truncate(dump)
+}
+
+// cloneResponse returns a copy with detached Header and Trailer maps.
+// Body, Request, and TLS stay shared so DumpResponse can read the live body.
+func (t *LogTransport) cloneResponse(resp *http.Response) *http.Response {
+	if resp == nil {
+		return nil
+	}
+
+	return &http.Response{
+		Status:           resp.Status,
+		StatusCode:       resp.StatusCode,
+		Proto:            resp.Proto,
+		ProtoMajor:       resp.ProtoMajor,
+		ProtoMinor:       resp.ProtoMinor,
+		Header:           resp.Header.Clone(),
+		Body:             resp.Body,
+		ContentLength:    resp.ContentLength,
+		TransferEncoding: slices.Clone(resp.TransferEncoding),
+		Close:            resp.Close,
+		Uncompressed:     resp.Uncompressed,
+		Trailer:          resp.Trailer.Clone(),
+		Request:          resp.Request,
+		TLS:              resp.TLS,
+	}
 }
 
 // truncate limits dump output to the configured maximum log length.

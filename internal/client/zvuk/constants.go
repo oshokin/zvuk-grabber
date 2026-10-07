@@ -1,6 +1,8 @@
 package zvuk
 
 const (
+	// refererHeader is the HTTP header the zvuk.com anti-bot requires on REST API requests.
+	refererHeader = "Referer"
 	// defaultStreamQuality is the default stream quality sent to the GraphQL API.
 	defaultStreamQuality = "hifi"
 	// defaultEncodeType is the default stream encoding type sent to the GraphQL API.

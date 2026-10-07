@@ -203,6 +203,15 @@ func FormatByteSize(size int64) string {
 	return humanize.IBytes(uint64(size))
 }
 
+// redactSensitiveHTTPHeaders replaces Cookie, Set-Cookie, and Authorization values in place.
+func redactSensitiveHTTPHeaders(headers http.Header) {
+	for key := range headers {
+		if isSensitiveHeaderKey(key) {
+			headers.Set(key, redactedValue)
+		}
+	}
+}
+
 // requestSensitiveFieldKeys returns source-specific structured fields that must be redacted.
 func requestSensitiveFieldKeys(reqCtx *RequestLogContext) []string {
 	if reqCtx == nil {

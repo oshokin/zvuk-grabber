@@ -38,6 +38,10 @@ func fetchJSONWithQuery[T any](
 		request.URL.RawQuery = query.Encode()
 	}
 
+	// The zvuk.com anti-bot answers 418 to REST /api/tiny/* requests without a Referer.
+	// The request URL itself is accepted: net/http sends the same Referer after a redirect.
+	request.Header.Set(refererHeader, request.URL.String())
+
 	response, err := c.httpClient.Do(request)
 	if err != nil {
 		return nil, err
