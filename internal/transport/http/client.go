@@ -163,6 +163,16 @@ func NewClient(options *ClientOptions) *Client {
 	return client
 }
 
+// CloseIdleConnections closes idle API and audio keep-alives so the process can exit.
+func (c *Client) CloseIdleConnections() {
+	if c == nil {
+		return
+	}
+
+	CloseIdleHTTPClient(c.httpClient)
+	CloseIdleHTTPClient(c.audioHTTPClient)
+}
+
 // SetHeader sets or replaces a default request header.
 func (c *Client) SetHeader(key, value string) {
 	if c == nil || strings.TrimSpace(key) == "" {

@@ -154,6 +154,15 @@ func (c *Client) Cancel() {
 	c.httpClient.Cancel()
 }
 
+// CloseIdleConnections closes idle API and audio keep-alives so the process can exit.
+func (c *Client) CloseIdleConnections() {
+	if c == nil || c.httpClient == nil {
+		return
+	}
+
+	c.httpClient.CloseIdleConnections()
+}
+
 // ResetCancel recreates the base request context on the underlying HTTP client.
 func (c *Client) ResetCancel() {
 	if c == nil || c.httpClient == nil {

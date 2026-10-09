@@ -36,3 +36,12 @@ func (t *UserAgentInjector) RoundTrip(req *http.Request) (*http.Response, error)
 
 	return t.next.RoundTrip(req)
 }
+
+// CloseIdleConnections closes idle connections on the wrapped transport.
+func (t *UserAgentInjector) CloseIdleConnections() {
+	if t == nil {
+		return
+	}
+
+	closeIdleRoundTripper(t.next)
+}

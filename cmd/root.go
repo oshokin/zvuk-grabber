@@ -118,8 +118,6 @@ func Execute() error {
 
 	ctx, stop := signal.NotifyContext(context.Background(), signals...)
 	defer stop()
-	//nolint:errcheck // Console streams can reject fsync at shutdown.
-	defer func() { _ = logger.Logger().Sync() }()
 
 	rootCmd.SilenceUsage = true
 	rootCmd.SilenceErrors = true

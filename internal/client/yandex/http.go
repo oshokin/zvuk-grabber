@@ -62,7 +62,11 @@ func NewHttpClient(cfg *config.Config) *HttpClient {
 		audioConfig = config.DefaultDownloadHTTPConfig()
 	}
 
-	apiClient := &http.Client{Timeout: DefaultRequestTimeout}
+	apiTransport := http.DefaultTransport.(*http.Transport).Clone() //nolint:errcheck // net/http initializes DefaultTransport to *http.Transport.
+	apiClient := &http.Client{
+		Timeout:   DefaultRequestTimeout,
+		Transport: apiTransport,
+	}
 	audioClient := &http.Client{
 		Transport: download.NewTransport(audioConfig, cfg.ParsedDownloadSpeedLimit > 0),
 		Timeout:   audioConfig.Timeout,
@@ -88,6 +92,15 @@ func NewHttpClient(cfg *config.Config) *HttpClient {
 		showProgress: cfg.MaxConcurrentDownloads == 1,
 		transport:    httptransport.NewClient(opts),
 	}
+}
+
+// CloseIdleConnections closes idle API and audio keep-alives so the process can exit.
+func (c *HttpClient) CloseIdleConnections() {
+	if c == nil || c.transport == nil {
+		return
+	}
+
+	c.transport.CloseIdleConnections()
 }
 
 // SetToken configures the OAuth bearer token for subsequent requests.

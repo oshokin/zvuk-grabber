@@ -29,6 +29,12 @@ type downloadService interface {
 	DownloadURLs(ctx context.Context, urls []string) error
 }
 
+// idleConnectionCloser drops HTTP keep-alives so a finished CLI run can exit.
+type idleConnectionCloser interface {
+	// CloseIdleConnections closes idle HTTP connections owned by the client.
+	CloseIdleConnections()
+}
+
 // errUnsupportedURL is returned for URLs that are neither Zvuk nor Yandex Music.
 var errUnsupportedURL = errors.New("unsupported URL")
 
@@ -83,6 +89,8 @@ func executeZvukDownloads(
 		return fmt.Errorf("failed to initialize Zvuk client: %w", err)
 	}
 
+	defer closeProviderIdleConnections(zvukClient)
+
 	urlProcessor := zvuk_service.NewURLProcessor()
 
 	s := zvuk_service.NewService(cfg, zvukClient, urlProcessor, templateManager, tagProcessor)
@@ -103,6 +111,7 @@ func executeYandexDownloads(
 	}
 
 	yandexClient := yandex_client.NewAuthorizedClient(cfg)
+	defer yandexClient.CloseIdleConnections()
 
 	s := yandex_service.NewService(cfg, yandexClient, templateManager, tagProcessor)
 
@@ -114,4 +123,11 @@ func runDownloads(ctx context.Context, s downloadService, urls []string) error {
 	defer s.PrintDownloadSummary(ctx)
 
 	return s.DownloadURLs(ctx, urls)
+}
+
+// closeProviderIdleConnections closes idle connections when the client implements it.
+func closeProviderIdleConnections(client any) {
+	if closer, ok := client.(idleConnectionCloser); ok {
+		closer.CloseIdleConnections()
+	}
 }

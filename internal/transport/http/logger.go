@@ -79,6 +79,15 @@ func (t *LogTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	return resp, nil
 }
 
+// CloseIdleConnections closes idle connections on the wrapped transport.
+func (t *LogTransport) CloseIdleConnections() {
+	if t == nil {
+		return
+	}
+
+	closeIdleRoundTripper(t.next)
+}
+
 // dumpRequest serializes an HTTP request for debug logging with secrets redacted.
 func (t *LogTransport) dumpRequest(req *http.Request) string {
 	cloned := req.Clone(req.Context())

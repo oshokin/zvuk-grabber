@@ -215,6 +215,16 @@ func NewClient(cfg *config.Config) (Client, error) {
 	return client, nil
 }
 
+// CloseIdleConnections closes idle API and audio keep-alives so the process can exit.
+func (c *ClientImpl) CloseIdleConnections() {
+	if c == nil {
+		return
+	}
+
+	http_transport.CloseIdleHTTPClient(c.httpClient)
+	http_transport.CloseIdleHTTPClient(c.downloadClient)
+}
+
 // newStreamMetadataRetryEngine builds a reusable retry engine for GetStreamMetadata.
 func newStreamMetadataRetryEngine(cfg *config.Config) (*retry.Engine, error) {
 	maxRetries := uint64(1)
