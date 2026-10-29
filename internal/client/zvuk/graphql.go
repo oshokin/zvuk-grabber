@@ -90,7 +90,7 @@ func (c *ClientImpl) runGraphQL(ctx context.Context, request *graphql.Request) (
 }
 
 // firstGraphQLMap extracts the first map item from a GraphQL response field.
-func firstGraphQLMap(
+func (c *ClientImpl) firstGraphQLMap(
 	response map[string]any,
 	field string,
 	notFoundErr error,
@@ -110,7 +110,7 @@ func firstGraphQLMap(
 }
 
 // parseGraphQLChildTracks parses child tracks from GraphQL collection data.
-func parseGraphQLChildTracks[T any](
+func (c *ClientImpl) parseGraphQLChildTracks[T any](
 	ctx context.Context,
 	data map[string]any,
 	field string,
@@ -171,7 +171,7 @@ func (c *ClientImpl) GetArtistReleaseIDs(ctx context.Context, artistID string, o
 		return nil, err
 	}
 
-	artist, err := firstGraphQLMap(
+	artist, err := c.firstGraphQLMap(
 		graphQLResponse,
 		"getArtists",
 		ErrArtistNotFound,
@@ -216,7 +216,7 @@ func (c *ClientImpl) getAudiobookViaGraphQL(
 		return nil, err
 	}
 
-	audiobookData, err := firstGraphQLMap(
+	audiobookData, err := c.firstGraphQLMap(
 		graphQLResponse,
 		"getBooks",
 		ErrAudiobookNotFound,
@@ -233,7 +233,7 @@ func (c *ClientImpl) getAudiobookViaGraphQL(
 	}
 
 	// Parse chapters as tracks.
-	tracks, trackIDs := parseGraphQLChildTracks(
+	tracks, trackIDs := c.parseGraphQLChildTracks(
 		ctx,
 		audiobookData,
 		"chapters",
@@ -363,7 +363,9 @@ func (c *ClientImpl) fetchPlaylistTracksPage(
 	return items, nil
 }
 
-// collectPaginatedPlaylistTrackIDs walks playlistTracks pages until a short or empty page.
+// collectPaginatedPlaylistTrackIDs walks playlistTracks pages until an empty page.
+// A short page is not the end: Zvuk applies limit and offset before dropping
+// unavailable tracks, so later offsets may still return tracks.
 func collectPaginatedPlaylistTrackIDs(
 	pageSize int,
 	maxPages int,
@@ -381,11 +383,11 @@ func collectPaginatedPlaylistTrackIDs(
 			return nil, err
 		}
 
-		trackIDs = append(trackIDs, parsePlaylistTrackIDs(items)...)
-
-		if len(items) < pageSize {
+		if len(items) == 0 {
 			break
 		}
+
+		trackIDs = append(trackIDs, parsePlaylistTrackIDs(items)...)
 	}
 
 	return trackIDs, nil
@@ -533,7 +535,7 @@ func (c *ClientImpl) getPodcastViaGraphQL(
 		return nil, err
 	}
 
-	podcastData, err := firstGraphQLMap(
+	podcastData, err := c.firstGraphQLMap(
 		graphQLResponse,
 		"getPodcasts",
 		ErrPodcastNotFound,
@@ -550,7 +552,7 @@ func (c *ClientImpl) getPodcastViaGraphQL(
 	}
 
 	// Parse episodes as tracks.
-	tracks, trackIDs := parseGraphQLChildTracks(ctx, podcastData, "episodes", "episode", podcast, parseEpisodeAsTrack)
+	tracks, trackIDs := c.parseGraphQLChildTracks(ctx, podcastData, "episodes", "episode", podcast, parseEpisodeAsTrack)
 	podcast.TrackIDs = trackIDs
 
 	return &graphQLCollectionResult[Podcast]{item: podcast, tracks: tracks}, nil
